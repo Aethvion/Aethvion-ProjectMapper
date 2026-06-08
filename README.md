@@ -16,17 +16,46 @@ Project Mapper scans your codebase once, builds a structured knowledge graph of 
 
 ## Benchmark numbers
 
-| Scenario | Without PM | With PM | Reduction |
+Measured on the [Django 5.1.x source](docs/benchmarks/django-5-case-study.md)
+(521 k lines · 2,917 Python files · 11,988 entities · Windows 11 · no LLM enrichment).
+
+### Token reduction (measured)
+
+| Query type | Without PM | With PM | Reduction |
 |---|---|---|---|
-| Tokens per coding task (avg, 10k-file repo) | ~180,000 | ~12,000 | **93 %** |
-| Time to first useful context | 8–15 s | < 0.5 s | **~20×** |
-| Missed dependencies per refactor | 3.1 avg | 0.4 avg | **87 %** |
-| Cost per 1,000 tasks (Claude Sonnet 3.5) | ~$54 | ~$3.60 | **$50.40 saved** |
+| Context query (`"authentication middleware security"`) | ~13,141 tokens (5 files) | **1,448 tokens** | **89 %** |
+| Impact query (`Model` class, 2-hop) | ~54,412 tokens (2 core files) | **4,020 tokens** | **93 %** |
 
-> Token counts measured on a 10,000-file Python monorepo.  
-> Full methodology: [docs/benchmarks.md](docs/benchmarks.md) *(coming soon)*
+The without-PM baseline assumes the agent already knows which files to read.
+On a first encounter with a codebase it would read 10–20 files, pushing token
+cost to 25 000–60 000 per query.
 
-### Financial impact at scale
+### Query latency (measured)
+
+| Query | Latency |
+|---|---|
+| Context query | 79–101 ms |
+| Impact query | 11–57 ms |
+
+### Session startup — entity map load (measured)
+
+After a scan, agents load the full entity map at session start.
+
+| Method | Load time |
+|---|---|
+| File-by-file, cold OS cache (restart / idle) | **52,048 ms** |
+| File-by-file, warm OS cache (right after scan) | ~700 ms |
+| **Snapshot** (single pre-built file) | **145 ms** |
+
+The snapshot is built automatically at the end of each scan (82 ms to build,
+9.8 MB for 11,988 entities). It is validated before every load and rebuilt
+automatically when entity files change. **358× faster than a cold start.**
+
+### Financial impact at scale (modelled)
+
+> Modelled from the measured 89–93 % per-query token reduction. Assumes
+> 10 tasks/dev/day, 8 turns/task, Claude Sonnet pricing. See the
+> [cost calculator](https://aethvion.com/projectmapper.html) for your own numbers.
 
 | Team size | Monthly AI coding cost (est.) | Savings with PM |
 |---|---|---|
@@ -159,6 +188,7 @@ project_mapper/
     ├── entity_writer.py   — Create / update / delete entities
     ├── name_index.py      — Thread-safe name → ID index
     ├── file_manifest.py   — File ↔ entity provenance tracking
+    ├── snapshot.py        — Fast-load snapshot cache (358× speedup)
     └── db_registry.py     — Named database registry
 server.py              — FastAPI app entry point
 ```

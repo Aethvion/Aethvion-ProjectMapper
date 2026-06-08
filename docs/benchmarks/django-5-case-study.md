@@ -106,11 +106,43 @@ or CI step — completes in under 2 seconds regardless of repository size.
 
 ---
 
+## Phase 2b — Session Startup
+
+Before any query can run, the entity map must be loaded into memory.  Without a
+snapshot, the server opens and parses every ``ws_*.json`` entity file
+individually.  With a snapshot (built automatically at the end of each scan),
+the entire map is read from a single pre-serialised file.
+
+Both timings below were measured on the same machine as the full scan.  "Cold
+OS cache" reflects a server restart or long idle period; "warm OS cache" reflects
+a start immediately after a scan (files still in the OS page cache).
+
+| Method | Condition | Load time |
+|---|---|---|
+| File-by-file (no snapshot) | Cold OS cache | **52,048 ms** (~52 s) |
+| File-by-file (no snapshot) | Warm OS cache | ~700 ms |
+| **Snapshot** | Any | **145 ms** |
+
+| Snapshot metric | Value |
+|---|---|
+| Build time (end of scan) | **82 ms** |
+| Snapshot file size | **9.8 MB** |
+| Entity count stored | 11,988 (all statuses) |
+| Speedup vs cold | **358×** |
+| Speedup vs warm OS cache | **~5×** |
+
+The snapshot is invalidated automatically if any entity file is newer than it
+or if the entity count changes.  It is rebuilt either lazily on the next
+``list_all()`` call or eagerly at the end of each scan — whichever comes first.
+
+---
+
 ## Phase 3 — Query Performance
 
-All queries run against the indexed knowledge graph in memory. The entity map
-(11,737 non-deleted entities) loads once in ~700 ms and is reused for all queries
-within a session.
+All queries run against the indexed knowledge graph in memory. After the initial
+snapshot load (145 ms), the entity map stays in the server's process memory and
+is reused for all subsequent queries within the same session — the per-query
+latencies below do not include a load step.
 
 ### 3a — Context Queries
 
@@ -270,6 +302,10 @@ matters when context accumulates across turns.
 | Full scan (Windows) | **604 s** |
 | Full scan (Linux/macOS, estimated) | ~150 s |
 | Incremental scan (no changes) | **1.88 s** — 321× faster |
+| Session startup — file-by-file, cold | **52,048 ms** (~52 s) |
+| Session startup — file-by-file, warm OS cache | ~700 ms |
+| Session startup — snapshot | **145 ms** — **358× faster** than cold |
+| Snapshot build time | **82 ms** · 9.8 MB |
 | Context query latency | **79–101 ms** |
 | Impact query latency | **11–57 ms** |
 | Token reduction vs. reading files | **89–93 %** |
