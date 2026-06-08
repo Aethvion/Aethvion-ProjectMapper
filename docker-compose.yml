@@ -1,0 +1,39 @@
+version: "3.9"
+
+# Aethvion Project Mapper — Docker Compose
+# -----------------------------------------
+# Quick start:  docker compose up
+# Docs:         http://localhost:7474/docs
+#
+# Mount your projects directory under /projects so the scanner can reach it:
+#   docker compose run --rm pm python -m project_mapper.mcp_server \
+#       --db myproject --project-root /projects/myproject
+
+services:
+  pm:
+    build: .
+    image: aethvion-pm:latest
+    container_name: aethvion-project-mapper
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+    volumes:
+      # Persistent database storage
+      - pm_data:/home/pm/.aethvion_pm/data
+      # Mount your local projects so pm_scan / pm_delta can reach them
+      # Adjust the host path to wherever your code lives:
+      - ${PROJECTS_DIR:-./}:/projects:ro
+    environment:
+      PM_DATA_DIR: /home/pm/.aethvion_pm/data
+      PM_LOG_LEVEL: ${PM_LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:7474/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pm_data:
+    driver: local
