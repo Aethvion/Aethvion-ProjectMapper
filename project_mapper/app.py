@@ -35,7 +35,7 @@ try:
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("aethvion-project-mapper")
 except Exception:
-    __version__ = "1.0.0"
+    __version__ = "1.1.0"
 
 # ---------------------------------------------------------------------------
 # Logging

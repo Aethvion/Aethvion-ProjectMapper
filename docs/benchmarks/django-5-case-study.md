@@ -31,7 +31,7 @@ the kind that AI coding agents struggle with most.
 |---|---|
 | OS | Windows 11 |
 | Python | 3.10.x |
-| Aethvion Project Mapper | v1.0.0 (standalone, no Aethvion Suite) |
+| Aethvion Project Mapper | v1.1.0 (standalone, no Aethvion Suite) |
 | LLM enrichment | **disabled** (`enrich=False`) — pure static analysis |
 | Concurrency | 3 (default) |
 | Hardware | Consumer laptop |
@@ -388,4 +388,4 @@ pm_impact(subject="Model", db="django")
 ---
 
 *Benchmark conducted by the Aethvion team · June 2026*  
-*Project Mapper v1.0.0 · Python 3.10 · Windows 11*
+*Project Mapper v1.1.0 · Python 3.10 · Windows 11*
