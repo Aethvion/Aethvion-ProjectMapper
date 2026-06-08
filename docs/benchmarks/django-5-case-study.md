@@ -208,6 +208,58 @@ each matching file for context. `query.py` and `base.py` alone cost:
 
 ---
 
+## Phase 4 — Session-Level Effects
+
+> **Note:** The numbers in this section are modelled from the measured per-query data
+> above. We did not instrument live multi-turn agent sessions. The math is
+> straightforward — it is presented here because it changes how the per-query reduction
+> should be interpreted.
+
+### How context windows accumulate cost
+
+A single coding task rarely takes one exchange. A realistic session — understand the
+problem, locate relevant code, plan the change, implement it, review it — runs
+**10–20 back-and-forth turns** with the agent.
+
+In tools like Claude Code and Cursor, files loaded in turn 1 stay in the context
+window for every subsequent turn. An agent that reads `auth/middleware.py` (2,956
+tokens) in its first message carries those tokens as input cost on **every message
+that follows**.
+
+Project Mapper's compressed context response stays small across the whole session
+for the same reason: the 1,448-token `pm_context` reply sits in context and does
+not grow with session length.
+
+### Modelled per-session cost — authentication middleware task
+
+Using the measured values from §3a:
+
+| Session length | Tokens without PM | Tokens with PM | Saved per session |
+|---|---|---|---|
+| 1 turn | 13,141 | 1,448 | 11,693 (89 %) |
+| 5 turns | 65,705 | 7,240 | 58,465 (89 %) |
+| 10 turns | 131,410 | 14,480 | 116,930 (89 %) |
+| 20 turns | 262,820 | 28,960 | 233,860 (89 %) |
+
+The reduction percentage does not increase — it stays at 89 % per turn. What
+changes is the absolute token cost of not using Project Mapper. A 20-turn debugging
+session costs twenty times more than a 1-turn call at the same 89 % overhead ratio
+each time. The penalty for loading raw files compounds with every message; PM's
+penalty does not.
+
+### What this means in practice
+
+The cost calculator in the README uses average tokens *per task*, not per turn. If
+your agents routinely work in long sessions on a large codebase, actual savings will
+be higher than the headline 89–93 % figure suggests — not because the per-turn ratio
+improves, but because more turns means more chances for that ratio to apply.
+
+Conversely, on very short single-turn queries (one-shot code generation, quick
+lookups), the per-query ratio is the full story. The session multiplier only
+matters when context accumulates across turns.
+
+---
+
 ## Summary
 
 | Test | Result |
