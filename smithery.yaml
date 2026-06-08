@@ -1,0 +1,31 @@
+# smithery.yaml
+# Aethvion Project Mapper — MCP server listing for Smithery.ai
+# https://smithery.ai
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      db:
+        type: string
+        description: >
+          Name of the knowledge-graph database for your project.
+          A folder with this name will be created in ~/.aethvion_pm/data/.
+          Use one database per project (e.g. "my-app", "django", "backend").
+        default: "default"
+      projectRoot:
+        type: string
+        description: >
+          Absolute path to the project directory you want to scan and query.
+          Required for pm_scan and pm_delta. Can also be set later via pm_scan.
+        default: ""
+    required: []
+  commandFunction: |-
+    (config) => {
+      const args = ["-m", "project_mapper.mcp_server", "--db", config.db || "default"];
+      if (config.projectRoot && config.projectRoot.trim() !== "") {
+        args.push("--project-root", config.projectRoot.trim());
+      }
+      return { command: "python", args };
+    }
