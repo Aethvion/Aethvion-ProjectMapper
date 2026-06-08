@@ -121,7 +121,7 @@ Mount your projects:
 PROJECTS_DIR=/home/you/code docker compose up
 ```
 
-### MCP stdio (Claude Code / Cursor)
+### MCP stdio (Claude Code / Cursor / Antigravity)
 
 **Claude Code** — add to `~/.claude/settings.json`:
 ```json
@@ -154,6 +154,27 @@ PROJECTS_DIR=/home/you/code docker compose up
   }
 }
 ```
+
+**Antigravity (Google)** — add to `~/.gemini/antigravity/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-m", "project_mapper.mcp_server",
+        "--db", "my_project",
+        "--project-root", "C:/absolute/path/to/project"
+      ],
+      "cwd": "C:/absolute/path/to/Aethvion-ProjectMapper"
+    }
+  }
+}
+```
+
+> All three agents use the same `mcpServers` format — only the config file
+> location differs. Restart the agent after editing the config.
 
 ---
 
