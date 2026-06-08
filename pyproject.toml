@@ -1,20 +1,27 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "aethvion-project-mapper"
 version = "1.0.0"
-description = "Static code analysis + knowledge-graph tool for AI coding agents"
+description = "Static code analysis + knowledge-graph for AI coding agents — cut token costs by 89–93 %"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
+authors = [
+    { name = "Aethvion", email = "contact@aethvion.com" },
+]
 keywords = [
-    "mcp", "ai-agents", "code-analysis", "knowledge-graph",
-    "claude", "cursor", "project-mapper",
+    "mcp", "mcp-server", "ai-agents", "code-analysis", "knowledge-graph",
+    "claude", "claude-code", "cursor", "antigravity", "project-mapper",
+    "static-analysis", "codebase-indexing", "llm-tools",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -22,6 +29,8 @@ classifiers = [
     "License :: OSI Approved :: GNU Affero General Public License v3",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Code Generators",
+    "Typing :: Typed",
 ]
 dependencies = [
     "fastapi>=0.111.0",
@@ -35,16 +44,20 @@ dev = [
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
     "ruff>=0.4",
+    "build>=1.0",
+    "twine>=5.0",
 ]
 
 [project.scripts]
-pm-server  = "server:app"
-pm-mcp     = "project_mapper.mcp_server:main"
+pm-server = "project_mapper.app:serve"
+pm-mcp    = "project_mapper.mcp_server:main"
 
 [project.urls]
-Homepage   = "https://github.com/Aethvion/Aethvion-ProjectMapper"
-Repository = "https://github.com/Aethvion/Aethvion-ProjectMapper"
-Issues     = "https://github.com/Aethvion/Aethvion-ProjectMapper/issues"
+Homepage      = "https://aethvion.com/projectmapper.html"
+Repository    = "https://github.com/Aethvion/Aethvion-ProjectMapper"
+Documentation = "https://github.com/Aethvion/Aethvion-ProjectMapper/tree/main/docs"
+Issues        = "https://github.com/Aethvion/Aethvion-ProjectMapper/issues"
+Changelog     = "https://github.com/Aethvion/Aethvion-ProjectMapper/releases"
 
 [tool.setuptools.packages.find]
 include = ["project_mapper*"]
