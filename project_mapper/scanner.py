@@ -371,6 +371,18 @@ async def run_scan(
         f"created={stats['entities_created']} enriched={stats['enriched']}"
     )
 
+    # Build snapshot so the next list_all() call uses the fast single-file path
+    # instead of reading N individual entity files.  This runs after the scan
+    # key is popped so it does not block start_scan() for the same db_root.
+    try:
+        from .db import snapshot as _snap
+        all_for_snap = await asyncio.to_thread(
+            writer.list_all, True, False   # include_deleted=True, use_snapshot=False
+        )
+        await asyncio.to_thread(_snap.build, db_root, all_for_snap)
+    except Exception as exc:
+        logger.warning(f"[Scanner] Snapshot build failed (non-critical): {exc}")
+
 
 def start_scan(
     db_root:       Path,

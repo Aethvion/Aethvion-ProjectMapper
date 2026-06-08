@@ -29,6 +29,7 @@ from ..config import DATA_DIR
 _DEFAULT_ENTITIES_DIR = DATA_DIR / "default" / "entities"
 from .entity_schema import make_empty, validate, _new_id, _now_iso, VALID_STATUSES
 from .name_index import NameIndex, get_index
+from . import snapshot as _snapshot
 
 logger = get_logger(__name__)
 
@@ -241,21 +242,73 @@ class EntityWriter:
 
     # Bulk operations
 
-    def list_all(self, include_deleted: bool = False) -> list[dict[str, Any]]:
-        """Return all entities. Expensive — use for admin/stats only."""
-        results = []
+    def _raw_list_all(self) -> list[dict[str, Any]]:
+        """Read every ws_*.json from disk and return all entities (all statuses).
+
+        This is the slow O(N-files) path.  Call ``list_all()`` instead — it
+        uses the snapshot cache when available and falls back to this method
+        only when the snapshot is missing or stale.
+        """
+        results: list[dict[str, Any]] = []
         for path in sorted(self._dir.glob("ws_*.json")):
             try:
-                entity = json.loads(path.read_text(encoding="utf-8"))
-                if include_deleted or entity.get("status") != "deleted":
-                    results.append(entity)
-            except Exception as e:
-                logger.warning(f"[EntityWriter] Could not read {path}: {e}")
+                results.append(json.loads(path.read_text(encoding="utf-8")))
+            except Exception as exc:
+                logger.warning(f"[EntityWriter] Could not read {path}: {exc}")
         return results
+
+    def list_all(
+        self,
+        include_deleted: bool = False,
+        use_snapshot: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Return entities, using the snapshot cache when available.
+
+        Parameters
+        ----------
+        include_deleted:
+            When ``False`` (default) entities with ``status="deleted"`` are
+            excluded.  The snapshot stores all statuses; filtering is applied
+            at load time so the snapshot never needs rebuilding just for this.
+        use_snapshot:
+            Set to ``False`` to bypass the snapshot entirely (always reads
+            from individual entity files).  The snapshot is *not* rebuilt when
+            this flag is ``False`` — use it for callers that need a guaranteed
+            live view without polluting the cache (e.g. mid-scan diagnostics).
+        """
+        db_root = self._dir.parent
+
+        if use_snapshot and _snapshot.is_fresh(db_root, self._dir):
+            all_entities = _snapshot.load(db_root)
+            if not all_entities:
+                # Snapshot present but load returned empty — fall back to raw
+                all_entities = self._raw_list_all()
+        else:
+            all_entities = self._raw_list_all()
+            if use_snapshot:
+                # Snapshot was stale or missing — rebuild from the full list we
+                # just loaded so the next call is fast.
+                try:
+                    _snapshot.build(db_root, all_entities)
+                except Exception as exc:
+                    logger.debug(f"[EntityWriter] Snapshot rebuild failed: {exc}")
+
+        if not include_deleted:
+            return [e for e in all_entities if e.get("status") != "deleted"]
+        return all_entities
 
     def count(self, include_deleted: bool = False) -> int:
         if include_deleted:
+            # Glob count only — no file I/O needed.
             return sum(1 for _ in self._dir.glob("ws_*.json"))
+        # For non-deleted count, use the snapshot if available to avoid
+        # reading every entity file.
+        db_root = self._dir.parent
+        if _snapshot.is_fresh(db_root, self._dir):
+            entities = _snapshot.load(db_root)
+            if entities:
+                return sum(1 for e in entities if e.get("status") != "deleted")
+        # Snapshot unavailable — read each file (slow but correct).
         return sum(
             1 for p in self._dir.glob("ws_*.json")
             if json.loads(p.read_text(encoding="utf-8")).get("status") != "deleted"
