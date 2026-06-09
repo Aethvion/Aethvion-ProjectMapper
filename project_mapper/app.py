@@ -78,6 +78,22 @@ async def health():
     return {"status": "ok", "service": "aethvion-project-mapper"}
 
 
+@app.get("/.well-known/mcp/server-card.json", include_in_schema=False)
+async def server_card():
+    """Smithery tool-discovery endpoint — returns MCP tool list without needing a live connection."""
+    from .mcp_tools import TOOL_SCHEMAS
+    return {
+        "name": "aethvion-project-mapper",
+        "version": __version__,
+        "description": (
+            "Static code analysis + knowledge-graph for AI coding agents. "
+            "Scan any Python project, query entities, trace impact, find paths — "
+            "cut token costs by 89–93 % vs reading raw files."
+        ),
+        "tools": TOOL_SCHEMAS,
+    }
+
+
 @app.get("/", include_in_schema=False)
 async def root():
     return {
