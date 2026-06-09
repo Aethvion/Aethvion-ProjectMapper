@@ -98,7 +98,9 @@ def _module_path_from_file(rel_path: str) -> str:
        'src/auth/service.ts'   → 'src.auth.service'
        'com/example/Foo.java'  → 'com.example.Foo'"""
     p = rel_path.replace("\\", "/")
-    for ext in (".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".java", ".go", ".cs"):
+    for ext in (".py", ".ts", ".tsx", ".js", ".jsx", ".mjs",
+                ".java", ".go", ".cs", ".rs", ".cpp", ".cc", ".cxx",
+                ".c", ".h", ".hpp", ".rb", ".php", ".kt", ".swift"):
         if p.endswith(ext):
             p = p[: -len(ext)]
             break

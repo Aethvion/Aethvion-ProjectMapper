@@ -713,6 +713,27 @@ def analyze_file(path: str, content: str, language: str = "") -> CodeAnalysis:
     if language == "csharp":
         from .csharp_analyzer import analyze_csharp
         return analyze_csharp(path, content)
+    if language == "rust":
+        from .rust_analyzer import analyze_rust
+        return analyze_rust(path, content)
+    if language in ("c", "cpp"):
+        if language == "c":
+            from .c_analyzer import analyze_c
+            return analyze_c(path, content)
+        from .cpp_analyzer import analyze_cpp
+        return analyze_cpp(path, content)
+    if language == "php":
+        from .php_analyzer import analyze_php
+        return analyze_php(path, content)
+    if language == "ruby":
+        from .ruby_analyzer import analyze_ruby
+        return analyze_ruby(path, content)
+    if language == "kotlin":
+        from .kotlin_analyzer import analyze_kotlin
+        return analyze_kotlin(path, content)
+    if language == "swift":
+        from .swift_analyzer import analyze_swift
+        return analyze_swift(path, content)
     # Minimal stub for unsupported file types
     return CodeAnalysis(
         path=path,
