@@ -109,16 +109,37 @@ class EntityWriter:
         candidate_id = _new_id()
         entity_id, was_new = self._index.get_or_create(name, candidate_id)
 
+        resolved_status = status if status in VALID_STATUSES else "active"
+
         if not was_new:
             if self.exists(entity_id):
+                existing = self.get(entity_id)
+                if existing and existing.get("status") in ("deleted", "retired"):
+                    # Soft-deleted entity with the same name — reactivate it and
+                    # treat as freshly created so the caller re-populates all fields.
+                    # This fixes the delete-then-re-add lifecycle: a file that is
+                    # removed and later re-added (or renamed back) must fully
+                    # resurface its module, class, and function entities.
+                    existing["status"] = resolved_status
+                    if sections_override:
+                        for sk, sv in sections_override.items():
+                            if sk in existing["sections"]:
+                                if isinstance(existing["sections"][sk], dict) and isinstance(sv, dict):
+                                    existing["sections"][sk].update(sv)
+                                else:
+                                    existing["sections"][sk] = sv
+                            else:
+                                existing["sections"][sk] = sv
+                    self._write(existing)
+                    logger.info(f"[EntityWriter] Reactivated '{name}' ({entity_id})")
+                    return existing, True   # was_created=True so caller refreshes children
                 logger.debug(f"[EntityWriter] '{name}' already exists as {entity_id}")
-                return self.get(entity_id), False  # type: ignore[return-value]
+                return existing, False  # type: ignore[return-value]
             logger.warning(
                 f"[EntityWriter] Index entry for '{name}' → {entity_id} exists "
                 "but file is missing; recreating."
             )
 
-        resolved_status = status if status in VALID_STATUSES else "active"
         entity = make_empty(name, entity_type, source, entity_id, kind=kind, status=resolved_status)
 
         if sections_override:
