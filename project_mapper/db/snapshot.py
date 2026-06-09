@@ -62,6 +62,11 @@ logger = get_logger(__name__)
 SNAPSHOT_FILE = "AethvionDB.SNAPSHOT"
 META_FILE     = "AethvionDB.SNAPSHOT.meta.json"
 
+# Written by PMEntityStore.flush() — signals that this database was built by
+# the in-memory PM store (no ws_*.json entity files exist by design).
+# is_fresh() uses this marker to skip the entity-file count check.
+PM_MARKER_FILE = "AethvionDB.PMSTORE"
+
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
 
@@ -96,6 +101,11 @@ def is_fresh(db_root: Path, entities_dir: Path) -> bool:
 
     if not snap.exists() or not meta.exists():
         return False
+
+    # PM-store mode: no ws_*.json entity files exist by design.
+    # The snapshot written by PMEntityStore.flush() is the sole source of truth.
+    if (db_root / PM_MARKER_FILE).exists():
+        return True
 
     try:
         snap_mtime = snap.stat().st_mtime

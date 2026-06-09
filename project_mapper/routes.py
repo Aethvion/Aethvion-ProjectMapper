@@ -54,6 +54,35 @@ def _get_writer(db: str = "default", path: Optional[str] = None):
     return EntityWriter(entities_dir=root / "entities", index=index)
 
 
+def _get_pm_writer(
+    db:          str  = "default",
+    path:        Optional[str] = None,
+    incremental: bool = False,
+) -> tuple:
+    """Return (PMEntityStore, PMNameIndex) for scan operations.
+
+    PMEntityStore replaces EntityWriter during a PM scan to eliminate
+    per-entity disk I/O.  All entities live in memory; a single snapshot
+    is written at scan completion via flush().
+
+    Both objects share the same PMNameIndex instance — the scanner passes
+    index separately to ProjectIngestor and resolve_stubs, so they must
+    all refer to the same object.
+
+    For incremental scans the store is pre-populated from the existing
+    snapshot; for full scans the store starts empty.
+    """
+    from .db.pm_store import PMEntityStore, PMNameIndex
+    from .db import snapshot as _snap
+    root  = _db_root(db, path)
+    index = PMNameIndex(index_path=root / "name_index.json")
+    if incremental and _snap.snapshot_path(root).exists():
+        writer = PMEntityStore.from_snapshot(root, index)
+    else:
+        writer = PMEntityStore(root, index)
+    return writer, index
+
+
 def _get_index(db: str = "default", path: Optional[str] = None):
     from .db.name_index import NameIndex
     root = _db_root(db, path)
@@ -144,8 +173,9 @@ async def start_project_scan(req: ScanRequest):
             f"To start fresh, delete or rename the existing database directory first."
         )
 
-    writer        = _get_writer(req.db, req.db_path)
-    index         = _get_index(req.db, req.db_path)
+    # Use PMEntityStore for scan operations — eliminates per-entity disk I/O.
+    # Both writer and index share the same PMNameIndex instance.
+    writer, index = _get_pm_writer(req.db, req.db_path, req.incremental)
     file_manifest = _get_file_manifest(req.db, req.db_path)
 
     started = start_scan(
