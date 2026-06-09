@@ -58,7 +58,8 @@ from . import snapshot as _snapshot
 logger = get_logger(__name__)
 
 # Written by flush() so that snapshot.is_fresh() knows there are no entity files.
-PM_MARKER_FILE = "AethvionDB.PMSTORE"
+# Canonical definition lives in snapshot.py — re-exported here for convenience.
+PM_MARKER_FILE = _snapshot.PM_MARKER_FILE
 
 
 # ---------------------------------------------------------------------------

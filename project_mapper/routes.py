@@ -83,6 +83,28 @@ def _get_pm_writer(
     return writer, index
 
 
+def _get_mutation_writer(db: str = "default", path: Optional[str] = None) -> tuple:
+    """Return (writer, index) suitable for mutating entities outside a scan.
+
+    PM-store databases (AethvionDB.PMSTORE marker present) have no
+    ws_*.json entity files — EntityWriter.get()/update() would silently
+    return None / raise FileNotFoundError against them.  For those, load
+    the full snapshot into a PMEntityStore, mutate in memory, and let the
+    caller persist with writer.flush() (which rewrites the snapshot; the
+    QueryCache auto-invalidates via the snapshot mtime).
+
+    Classic databases keep using EntityWriter unchanged.
+    """
+    from .db import snapshot as _snap
+    root = _db_root(db, path)
+    if (root / _snap.PM_MARKER_FILE).exists():
+        from .db.pm_store import PMEntityStore, PMNameIndex
+        index  = PMNameIndex(index_path=root / "name_index.json")
+        writer = PMEntityStore.from_snapshot(root, index)
+        return writer, index
+    return _get_writer(db, path), _get_index(db, path)
+
+
 def _get_index(db: str = "default", path: Optional[str] = None):
     from .db.name_index import NameIndex
     root = _db_root(db, path)
@@ -275,8 +297,7 @@ async def enrich_unenriched_modules(
     from .code_analyzer import analyze_python
 
     root          = _db_root(db, path)
-    writer        = _get_writer(db, path)
-    index         = _get_index(db, path)
+    writer, index = _get_mutation_writer(db, path)
     file_manifest = _get_file_manifest(db, path)
 
     ingestor = ProjectIngestor(
@@ -292,6 +313,10 @@ async def enrich_unenriched_modules(
     ][:limit]
 
     enriched = 0
+    # Entities store source paths relative to the scanned project root —
+    # resolve them against the recorded root, not the server's CWD.
+    recorded_root = _read_scaninfo(root).get("project_root", "")
+
     errors:  list[str] = []
     for e in candidates:
         source_files = e.get("sections", {}).get("source_files", [])
@@ -301,6 +326,8 @@ async def enrich_unenriched_modules(
         fpath = sf.get("path", "")
         if not fpath:
             continue
+        if not Path(fpath).is_absolute() and recorded_root:
+            fpath = str(Path(recorded_root) / fpath)
         try:
             content = await asyncio.to_thread(Path(fpath).read_text, encoding="utf-8", errors="replace")
             analysis = await asyncio.to_thread(analyze_python, fpath, content)
@@ -309,6 +336,10 @@ async def enrich_unenriched_modules(
                 enriched += 1
         except Exception as exc:
             errors.append(f"{fpath}: {exc}")
+
+    # PM-store databases: persist enriched summaries to the snapshot.
+    if enriched and hasattr(writer, "flush"):
+        await asyncio.to_thread(writer.flush)
 
     return {"enriched": enriched, "candidates": len(candidates), "errors": errors}
 
@@ -530,8 +561,7 @@ async def run_cleanup(
     from .cleanup import run_deletion_cleanup
 
     root          = _db_root(db, path)
-    writer        = _get_writer(db, path)
-    index         = _get_index(db, path)
+    writer, index = _get_mutation_writer(db, path)
     file_manifest = _get_file_manifest(db, path)
 
     project_path = Path(project_root)
@@ -546,6 +576,11 @@ async def run_cleanup(
             writer,
             index,
         )
+        # PM-store databases: persist retirements to the snapshot.
+        # Skip the flush when nothing changed to avoid a pointless
+        # snapshot rewrite + query-cache invalidation.
+        if result.retired_count and hasattr(writer, "flush"):
+            await asyncio.to_thread(writer.flush)
     except Exception as exc:
         raise HTTPException(500, f"Cleanup failed: {exc}")
 
@@ -590,13 +625,11 @@ async def agent_contribute(req: ContributeRequest):
     Designed for AI coding agents (Claude Code, Cursor, etc.) to call after
     implementing a feature or making an architectural decision.
     """
-    from .query import build_entity_map, apply_contribution
+    from .query import build_entity_map, apply_contribution, _resolve_entity
 
-    writer = _get_writer(req.db, req.path)
-    index  = _get_index(req.db, req.path)
+    writer, index = _get_mutation_writer(req.db, req.path)
 
     entity_map = await asyncio.to_thread(build_entity_map, writer)
-    from .query import _resolve_entity
     entity = _resolve_entity(req.entity_name, entity_map, index)
     if not entity:
         raise HTTPException(404, f"Entity {req.entity_name!r} not found in database {req.db!r}")
@@ -611,4 +644,9 @@ async def agent_contribute(req: ContributeRequest):
         writer,
         index,
     )
+
+    # PM-store databases: persist the in-memory mutations to the snapshot.
+    if hasattr(writer, "flush"):
+        await asyncio.to_thread(writer.flush)
+
     return result
