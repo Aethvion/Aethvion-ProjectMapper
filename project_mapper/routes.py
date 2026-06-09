@@ -358,6 +358,16 @@ class ContributeRequest(BaseModel):
     source:      str = "agent"                     # caller identifier
 
 
+@router.get("/query/cache")
+async def query_cache_stats(
+    db:   str = Query("default"),
+    path: Optional[str] = Query(None),
+):
+    """Return the current state of the in-memory query cache."""
+    from .query_cache import get_query_cache
+    return get_query_cache().stats()
+
+
 @router.post("/query/impact")
 async def query_impact(req: ImpactRequest):
     """
@@ -371,14 +381,14 @@ async def query_impact(req: ImpactRequest):
     depth 2 = dependents of dependents (default)
     depth 3–4 = wider blast radius (can be slow on large graphs)
     """
-    from .query import build_entity_map, impact_query
+    from .query import impact_query
+    from .query_cache import get_query_cache
 
-    depth  = max(1, min(req.depth, 4))
-    writer = _get_writer(req.db, req.path)
-    index  = _get_index(req.db, req.path)
+    depth      = max(1, min(req.depth, 4))
+    root       = _db_root(req.db, req.path)
+    entity_map, index = await get_query_cache().get(root)
 
-    entity_map = await asyncio.to_thread(build_entity_map, writer)
-    result     = await asyncio.to_thread(
+    result = await asyncio.to_thread(
         impact_query, req.entity, entity_map, index, depth,
         req.via_kinds, req.exclude_tests, req.slim, req.summary_depth,
     )
@@ -402,14 +412,14 @@ async def query_context(req: ContextRequest):
       medium — + classes, components, workflows, configs, dependencies
       low    — + functions, endpoints, models (full implementation detail)
     """
-    from .query import build_entity_map, context_query
+    from .query import context_query
+    from .query_cache import get_query_cache
 
-    depth  = max(0, min(req.depth, 2))
-    writer = _get_writer(req.db, req.path)
-    index  = _get_index(req.db, req.path)
+    depth      = max(0, min(req.depth, 2))
+    root       = _db_root(req.db, req.path)
+    entity_map, index = await get_query_cache().get(root)
 
-    entity_map = await asyncio.to_thread(build_entity_map, writer)
-    result     = await asyncio.to_thread(
+    result = await asyncio.to_thread(
         context_query,
         req.q,
         entity_map,
@@ -432,12 +442,13 @@ async def query_path(req: PathRequest):
     Traverses all relation kinds in both directions (undirected).
     Useful for answering "how does the auth system connect to the payment flow?"
     """
-    from .query import build_entity_map, shortest_path
+    from .query import shortest_path
+    from .query_cache import get_query_cache
 
-    writer     = _get_writer(req.db, req.path)
-    index      = _get_index(req.db, req.path)
-    entity_map = await asyncio.to_thread(build_entity_map, writer)
-    result     = await asyncio.to_thread(
+    root       = _db_root(req.db, req.path)
+    entity_map, index = await get_query_cache().get(root)
+
+    result = await asyncio.to_thread(
         shortest_path,
         req.from_entity,
         req.to_entity,
