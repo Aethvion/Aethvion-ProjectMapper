@@ -5,8 +5,9 @@ DB-mutation helpers for retiring stale entities after incremental scans.
 Three distinct operations
 -------------------------
 1. retire_entity()           — soft-delete one entity + append a timeline event.
-2. retire_file_entities()    — retire all entities linked to a deleted source file
-                               and remove the file from the FileManifest.
+2. retire_file_entities()    — retire the module entity AND all contained child
+                               entities (classes / functions) for a deleted source
+                               file, then remove the file from the FileManifest.
 3. prune_removed_symbols()   — retire class/function entities that were removed
                                from a modified source file (called per-file, inline
                                during a scan pass).
@@ -100,14 +101,13 @@ def retire_file_entities(
 
     Steps:
     1. Look up entity IDs from the FileManifest.
-    2. Call retire_entity() for each.
-    3. Remove each entity ID from the manifest (entries with no remaining
+    2. Call retire_entity() for each module entity.
+    3. Retire child entities (classes / functions) contained by the module
+       via prune_removed_symbols(module_id, [], writer) — passing an empty
+       new_child_ids list retires ALL children since nothing survives from
+       a deleted file.
+    4. Remove each entity ID from the manifest (entries with no remaining
        entity_ids are automatically pruned by FileManifest.remove_entity()).
-
-    Note: this does NOT recursively retire child entities (classes / functions
-    contained by the module).  Children are handled by prune_removed_symbols()
-    during a scan pass, or will be orphaned (still queryable but status=deleted
-    on the module entity effectively hides them from normal queries).
     """
     entity_ids = file_manifest.entity_ids_for(path)
     result = RetireFileResult(
@@ -120,6 +120,10 @@ def retire_file_entities(
         try:
             if retire_entity(eid, reason=f"source file deleted: {path}", writer=writer):
                 result.retired_count += 1
+            # Retire child entities (classes / functions) this module contained.
+            # new_child_ids=[] means "no survivors" — all children are retired.
+            pruned = prune_removed_symbols(eid, [], writer)
+            result.retired_count += pruned
         except Exception as exc:
             result.errors.append(f"retire {eid}: {exc}")
 

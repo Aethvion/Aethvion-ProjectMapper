@@ -23,6 +23,7 @@ from .scanner import (
     cancel_scan,
     is_running,
     SCANINFO,
+    _read_scaninfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,23 @@ async def start_project_scan(req: ScanRequest):
         raise HTTPException(400, f"Project root does not exist: {req.project_root}")
     if not project_path.is_dir():
         raise HTTPException(400, f"Project root is not a directory: {req.project_root}")
+
+    # --- Project-root mismatch guard ---
+    # Each database should belong to exactly one project.  If this database
+    # was previously scanned for a DIFFERENT project root, refuse the request
+    # rather than silently mixing two codebases into the same entity graph.
+    existing_info = _read_scaninfo(root)
+    recorded_root = existing_info.get("project_root", "")
+    if recorded_root and Path(recorded_root).resolve() != Path(req.project_root).resolve():
+        suggest = Path(req.project_root).name.lower().replace(" ", "_").replace("-", "_")
+        raise HTTPException(
+            409,
+            f"Database '{req.db}' already contains a scan for '{recorded_root}'. "
+            f"Scanning a different project into the same database would mix their "
+            f"entities and produce incorrect results. "
+            f"Use a different db name — e.g. db='{suggest}'. "
+            f"To start fresh, delete or rename the existing database directory first."
+        )
 
     writer        = _get_writer(req.db, req.db_path)
     index         = _get_index(req.db, req.db_path)
