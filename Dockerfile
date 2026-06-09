@@ -47,8 +47,6 @@ RUN mkdir -p /home/pm/.aethvion_pm/data
 ENV PM_DATA_DIR=/home/pm/.aethvion_pm/data
 ENV PM_LOG_LEVEL=INFO
 
-VOLUME ["/home/pm/.aethvion_pm/data"]
-
 EXPOSE 7474
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
