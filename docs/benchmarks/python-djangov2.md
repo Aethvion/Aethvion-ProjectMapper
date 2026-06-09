@@ -49,7 +49,31 @@ AethvionDB is untouched. PMEntityStore is a PM-specific layer only.
 
 ## Query Benchmarks
 
-Query results are unchanged — PMEntityStore produces an identical snapshot format. Query latency is also unchanged at **~2.2 s** (per-request entity-map rebuild from the 10.4 MB snapshot — known v1.4.0 limitation, fix planned for v1.5.0).
+Query results are unchanged — PMEntityStore produces an identical snapshot format.
+
+### Query latency — v1.4.0 vs v1.5.0
+
+The ~2.2 s latency shown in v1 benchmarks had two components:
+
+| Component | Time | Source |
+|:---|:---|:---|
+| `localhost` DNS resolution | ~2.0 s | Windows tries IPv6 → times out → falls back to IPv4 |
+| Entity-map rebuild (snapshot load + dict build) | ~88 ms | Per-request, every query |
+| BFS / keyword scoring | 10–94 ms | Query-type dependent |
+
+The DNS overhead was hidden inside every benchmark measurement. The **actual** entity-map rebuild cost was ~88 ms, not ~2.2 s.
+
+**v1.5.0 QueryCache** eliminates the entity-map rebuild for warm queries entirely. Measured via `127.0.0.1` (correct baseline — bypasses localhost DNS):
+
+| Query | v1.4.0 (actual) | v1.5.0 cold miss | v1.5.0 warm |
+|:---|:---|:---|:---|
+| D1 — Field impact | ~88 ms | **44 ms** | **12 ms** |
+| D2 — Admin→ORM path | ~88 ms | **44 ms** | **34 ms** |
+| D3 — BaseCommand impact | ~88 ms | **44 ms** | **10 ms** |
+| D4 — Auth context | ~88 ms | **44 ms** | **94 ms** |
+| D5 — CBV impact | ~88 ms | **44 ms** | **11 ms** |
+
+> Cold miss = first query after a scan (cache empty). Warm = cache hit — entity_map and NameIndex already in memory, pure computation only. D4 (context query) is slower because it keyword-scores all 12,213 entities; the others do directed BFS which is proportional to the result set.
 
 ---
 
@@ -149,11 +173,13 @@ Query results are unchanged — PMEntityStore produces an identical snapshot for
 
 ### Query latency
 
-| | v1 | v2 |
-|:---|:---|:---|
-| Warm query latency | ~2.4–2.6 s | **~2.2 s** |
-| Source | Per-request entity_map rebuild | Per-request entity_map rebuild |
-| Status | Known v1.4.0 limitation | Unchanged — fix planned for v1.5.0 |
+| | v1.4.0 (measured via `localhost`) | v1.4.0 (actual, `127.0.0.1`) | v1.5.0 warm (`127.0.0.1`) |
+|:---|:---|:---|:---|
+| Reported latency | ~2.2–2.6 s | ~88 ms (entity_map rebuild) | **10–94 ms** |
+| DNS overhead | ~2.0 s (hidden) | — | — |
+| Entity-map rebuild | ~88 ms | ~88 ms | **0 ms (cache hit)** |
+| BFS / scoring | 10–94 ms | 10–94 ms | 10–94 ms |
+| **Total (realistic)** | **~2.2 s** | **~100 ms** | **10–94 ms** |
 
 ---
 
@@ -165,11 +191,12 @@ Query behavior is identical: same entities found, same token savings vs Normal, 
 
 | What changed | Result |
 |:---|:---|
-| Full scan time | 394 s → **33 s (11.9×)** |
+| Full scan time | 394 s → **33 s (11.9× faster)** |
 | Disk writes during scan | 24,000+ → **3** |
 | Entity files on disk | 12,139 → **0** |
 | Query results | **Unchanged** |
-| Query latency | **Unchanged (~2.2 s)** |
+| Query latency (warm, `127.0.0.1`) | ~100 ms → **10–94 ms (QueryCache, v1.5.0)** |
+| Query latency (via `localhost`) | ~2.2 s → same *(DNS overhead is separate from cache)* |
 | Token savings vs Normal | **Unchanged (~14× full · ~33× slim geometric mean)** |
 
 ---
