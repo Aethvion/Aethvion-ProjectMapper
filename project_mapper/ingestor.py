@@ -94,8 +94,18 @@ def _is_internal_import(imp: ImportInfo, top_pkgs: frozenset[str]) -> bool:
 
 
 def _module_path_from_file(rel_path: str) -> str:
-    """'core/auth/service.py' → 'core.auth.service'"""
-    return rel_path.replace("\\", "/").removesuffix(".py").replace("/", ".")
+    """'core/auth/service.py'  → 'core.auth.service'
+       'src/auth/service.ts'   → 'src.auth.service'
+       'com/example/Foo.java'  → 'com.example.Foo'"""
+    p = rel_path.replace("\\", "/")
+    for ext in (".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".java", ".go", ".cs"):
+        if p.endswith(ext):
+            p = p[: -len(ext)]
+            break
+    # Strip /index suffix (common in TS: src/auth/index.ts → src.auth)
+    if p.endswith("/index"):
+        p = p[:-6]
+    return p.replace("/", ".")
 
 
 def _import_to_file_candidates(
@@ -122,6 +132,8 @@ def _import_to_file_candidates(
     Relative  : module="", level=1, current="core/companions/companion_engine.py"
                 → ["core/companions/__init__.py"]
     """
+    _TS_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs")
+
     candidates: list[str] = []
 
     if level == 0:
@@ -129,22 +141,38 @@ def _import_to_file_candidates(
         if not module:
             return candidates
         base = module.replace(".", "/")
+        # Python-style dotted path
         candidates.append(base + ".py")
         candidates.append(base + "/__init__.py")
+        # TypeScript/JS bare specifier (e.g. "components/Button")
+        for ext in _TS_EXTS:
+            candidates.append(base + ext)
+        candidates.append(base + "/index.ts")
+        candidates.append(base + "/index.js")
+        # Java: dotted package path → directory/ClassName.java
+        # e.g. "com.example.service" → "com/example/service.java"
+        candidates.append(base + ".java")
     else:
-        # Relative import — resolve against the current file's directory tree
+        # Relative import — resolve against the current file's directory
         parts = current_file.replace("\\", "/").split("/")
-        # Go up (level) directories from the file's own directory
-        pkg_parts = parts[:-level]          # e.g. level=1 → drop the filename
+        pkg_parts = parts[:-level]
         if module:
-            sub = module.replace(".", "/")
-            base = "/".join(pkg_parts + [sub])
+            # TypeScript relative: './utils' → module='./utils' (already stripped by caller)
+            # but module here is the bare name after the dots
+            sub = module.replace(".", "/").lstrip("/")
+            base = "/".join(pkg_parts + [sub]) if sub else "/".join(pkg_parts)
             candidates.append(base + ".py")
             candidates.append(base + "/__init__.py")
+            for ext in _TS_EXTS:
+                candidates.append(base + ext)
+            candidates.append(base + "/index.ts")
+            candidates.append(base + "/index.js")
         else:
             # "from . import X" — the module name is empty; point at the package
             base = "/".join(pkg_parts)
             candidates.append(base + "/__init__.py")
+            candidates.append(base + "/index.ts")
+            candidates.append(base + "/index.js")
 
     return candidates
 
@@ -438,15 +466,22 @@ class ProjectIngestor:
         cls_info: Any,
         file_path: str,
     ) -> tuple[dict[str, Any], bool]:
+        # Map cls_info.kind → entity kind and tag
+        # e.g. kind="interface" → "software.interface" / tag "interface"
+        #      kind=""          → "software.class"      / tag "class"
+        cls_kind    = getattr(cls_info, "kind", "") or ""
+        entity_kind = f"software.{cls_kind}" if cls_kind else "software.class"
+        tag         = cls_kind if cls_kind else "class"
+
         entity, was_created = self._writer.create(
             name=cls_info.name,
             entity_type="class",
             source="project_mapper",
-            kind="software.class",
+            kind=entity_kind,
             sections_override={
                 "core": {
                     "summary": cls_info.docstring[:200] if cls_info.docstring else "",
-                    "tags":    ["class"],
+                    "tags":    [tag],
                 },
                 "properties": {
                     "file_path":    file_path,

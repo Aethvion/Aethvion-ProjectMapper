@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aethvion-project-mapper"
-version = "1.1.0"
-description = "Static code analysis + knowledge-graph for AI coding agents — cut token costs by 89–93 %"
+version = "1.3.0"
+description = "Static code analysis + knowledge-graph for AI coding agents — cut token costs by 89–99 %"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
@@ -39,6 +39,34 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Language-specific tree-sitter parsers — install only the ones you need.
+# All are optional; the analyzer falls back to a stub if not installed.
+typescript = [
+    "tree-sitter>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+]
+java = [
+    "tree-sitter>=0.23.0",
+    "tree-sitter-java>=0.23.0",
+]
+go = [
+    "tree-sitter>=0.23.0",
+    "tree-sitter-go>=0.23.0",
+]
+csharp = [
+    "tree-sitter>=0.23.0",
+    "tree-sitter-c-sharp>=0.23.0",
+]
+# Install all tree-sitter parsers at once
+languages = [
+    "tree-sitter>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+    "tree-sitter-java>=0.23.0",
+    "tree-sitter-go>=0.23.0",
+    "tree-sitter-c-sharp>=0.23.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
