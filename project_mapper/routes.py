@@ -129,8 +129,6 @@ class ScanRequest(BaseModel):
     project_root: str                    # absolute path to the project directory
     db:           str = "default"        # target database name
     db_path:      Optional[str] = None   # custom db path (overrides db name)
-    model:        Optional[str] = None   # AI model for LLM enrichment
-    enrich:       bool = True            # run Phase 2 LLM enrichment
     concurrency:  int = 3                # parallel file processing
     incremental:  bool = True            # skip files with unchanged hashes
 
@@ -160,9 +158,9 @@ async def start_project_scan(req: ScanRequest):
     Start a background scan of the given project directory.
     Ingests the project structure into the specified database.
 
-    - Phase 1 (always): Static AST analysis → creates module/class/function entities.
-    - Phase 2 (if enrich=True): LLM enrichment → adds semantic summaries to modules.
-    - If incremental=True: skips files whose hash matches the last scan.
+    Static AST analysis creates module/class/function entities and wires
+    their relations.  If incremental=True, files with unchanged hashes are
+    skipped.
 
     Returns immediately. Poll /scan/status for progress.
     """
@@ -207,8 +205,6 @@ async def start_project_scan(req: ScanRequest):
         writer=writer,
         index=index,
         file_manifest=file_manifest,
-        model=req.model,
-        enrich=req.enrich,
         concurrency=max(1, min(req.concurrency, 8)),
         incremental=req.incremental,
     )
@@ -220,7 +216,6 @@ async def start_project_scan(req: ScanRequest):
         "status":       "started",
         "project_root": req.project_root,
         "db":           req.db,
-        "enrich":       req.enrich,
         "incremental":  req.incremental,
     }
 
@@ -279,69 +274,6 @@ async def project_mapper_stats(
         "entity_counts":      type_counts,
         "total_pm_entities":  total_pm_entities,
     }
-
-
-@router.post("/enrich")
-async def enrich_unenriched_modules(
-    db:          str = Query("default"),
-    path:        Optional[str] = Query(None),
-    model:       Optional[str] = Query(None),
-    limit:       int = Query(20, le=100),
-):
-    """
-    Run LLM enrichment on module entities that have no summary yet.
-    Useful after a static-only scan (enrich=False) or to refresh stale entries.
-    Requires Aethvion Suite's core.providers — skipped in standalone mode.
-    """
-    from .ingestor import ProjectIngestor
-    from .code_analyzer import analyze_python
-
-    root          = _db_root(db, path)
-    writer, index = _get_mutation_writer(db, path)
-    file_manifest = _get_file_manifest(db, path)
-
-    ingestor = ProjectIngestor(
-        db_root=root, writer=writer, index=index,
-        file_manifest=file_manifest, model=model or "auto",
-    )
-
-    # Find module entities with no summary
-    candidates = [
-        e for e in writer.list_all()
-        if e.get("type") == "module"
-        and not e.get("sections", {}).get("core", {}).get("summary", "")
-    ][:limit]
-
-    enriched = 0
-    # Entities store source paths relative to the scanned project root —
-    # resolve them against the recorded root, not the server's CWD.
-    recorded_root = _read_scaninfo(root).get("project_root", "")
-
-    errors:  list[str] = []
-    for e in candidates:
-        source_files = e.get("sections", {}).get("source_files", [])
-        if not source_files:
-            continue
-        sf    = source_files[0]
-        fpath = sf.get("path", "")
-        if not fpath:
-            continue
-        if not Path(fpath).is_absolute() and recorded_root:
-            fpath = str(Path(recorded_root) / fpath)
-        try:
-            content = await asyncio.to_thread(Path(fpath).read_text, encoding="utf-8", errors="replace")
-            analysis = await asyncio.to_thread(analyze_python, fpath, content)
-            ok = await ingestor.enrich_module(e["id"], analysis, model)
-            if ok:
-                enriched += 1
-        except Exception as exc:
-            errors.append(f"{fpath}: {exc}")
-
-    # PM-store databases: persist enriched summaries to the snapshot.
-    if enriched and hasattr(writer, "flush"):
-        await asyncio.to_thread(writer.flush)
-
-    return {"enriched": enriched, "candidates": len(candidates), "errors": errors}
 
 
 # ---------------------------------------------------------------------------

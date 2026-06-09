@@ -2,56 +2,25 @@
 project_mapper/ingestor.py
 Translates CodeAnalysis results into AethvionDB entities.
 
-Two-phase hybrid strategy:
-  Phase 1 (static, instant, no AI):
-    - Creates or updates a module entity for the file.
-    - Creates class entities for every top-level class.
-    - Creates function entities for every top-level public function.
-    - Wires structural relations (contains, imports, depends_on, extends).
-    - Records source provenance in entity.sections.source_files + FileManifest.
-
-  Phase 2 (LLM enrichment, one AI call per module):
-    - Builds a compact structured summary from the CodeAnalysis.
-    - Calls the AI to produce: summary, tags, categories, architectural pattern.
-    - Merges the semantic result back onto the module entity.
-    - Requires the Aethvion Suite's core.providers to be importable.
-      In standalone mode this phase is silently skipped (returns False).
-
-Both phases are opt-in and can be called independently.
+Static ingestion (instant, no AI):
+  - Creates or updates a module entity for the file.
+  - Creates class entities for every top-level class.
+  - Creates function entities for every top-level public function.
+  - Wires structural relations (contains, imports, depends_on, extends).
+  - Records source provenance in entity.sections.source_files + FileManifest.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import re
-import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from .code_analyzer import CodeAnalysis, ImportInfo, build_compact_summary
+from .code_analyzer import CodeAnalysis, ImportInfo
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# LLM enrichment prompt
-# ---------------------------------------------------------------------------
-
-_ENRICH_SYSTEM = """You are a software architecture analyst.
-
-Given a structured summary of a code module, return a JSON object that captures its semantic role in the system.
-
-Output ONLY valid JSON — no markdown, no code fences:
-{
-  "summary": "2-4 sentence description of what this module does and its responsibility",
-  "tags": ["tag1", "tag2"],
-  "categories": ["Architecture Layer", "Domain"],
-  "architectural_pattern": "e.g. Service Layer, Repository, Factory, Middleware, etc. or empty string",
-  "key_concerns": ["concern1", "concern2"]
-}"""
 
 
 # ---------------------------------------------------------------------------
@@ -179,15 +148,6 @@ def _import_to_file_candidates(
     return candidates
 
 
-def _extract_json(raw: str) -> dict[str, Any]:
-    clean = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
-    start = clean.find("{")
-    end   = clean.rfind("}")
-    if start == -1 or end == -1:
-        raise ValueError("No JSON object in AI response")
-    return json.loads(clean[start:end + 1])
-
-
 # ---------------------------------------------------------------------------
 # Ingestor
 # ---------------------------------------------------------------------------
@@ -202,7 +162,6 @@ class ProjectIngestor:
     writer       : EntityWriter for the target DB.
     index        : NameIndex for the target DB.
     file_manifest: FileManifest for provenance tracking.
-    model        : AI model to use for LLM enrichment (Phase 2).
     """
 
     def __init__(
@@ -211,16 +170,14 @@ class ProjectIngestor:
         writer:        Any,
         index:         Any,
         file_manifest: Any,
-        model:         str = "auto",
     ) -> None:
         self._db_root       = db_root
         self._writer        = writer
         self._index         = index
         self._file_manifest = file_manifest
-        self._model         = model
 
     # ------------------------------------------------------------------
-    # Phase 1 — Static ingestion
+    # Static ingestion
     # ------------------------------------------------------------------
 
     def ingest(
@@ -560,79 +517,3 @@ class ProjectIngestor:
             logger.debug(f"[Ingestor] Could not add relation {kind}: {exc}")
             return 0
 
-    # ------------------------------------------------------------------
-    # Phase 2 — LLM enrichment
-    # ------------------------------------------------------------------
-
-    async def enrich_module(
-        self,
-        module_entity_id: str,
-        analysis:         CodeAnalysis,
-        model:            Optional[str] = None,
-    ) -> bool:
-        """
-        Send a compact module summary to the AI and merge the semantic result
-        back onto the module entity.
-
-        Requires the Aethvion Suite's core.providers to be importable.
-        In standalone mode this phase is silently skipped (returns False).
-
-        Returns True on success, False on failure.
-        """
-        try:
-            from core.providers import get_provider_manager
-            from core.ai.call_contexts import CallSource
-        except ImportError:
-            logger.debug(
-                "[Ingestor] LLM enrichment unavailable in standalone mode "
-                "(core.providers not installed) — skipping."
-            )
-            return False
-
-        summary_text = build_compact_summary(analysis)
-        pm = get_provider_manager()
-        try:
-            response = await asyncio.to_thread(
-                pm.call_with_failover,
-                prompt=f"Analyze this code module summary:\n\n{summary_text}",
-                system_prompt=_ENRICH_SYSTEM,
-                model=model or self._model,
-                trace_id=uuid.uuid4().hex,
-                source=CallSource.WORLDSIM,
-            )
-            raw = response.content if hasattr(response, "content") else str(response)
-            data = _extract_json(raw)
-        except Exception as exc:
-            logger.warning(f"[Ingestor] LLM enrichment failed for {module_entity_id}: {exc}")
-            return False
-
-        mutations: dict[str, Any] = {}
-        core_update: dict[str, Any] = {}
-
-        if data.get("summary"):
-            core_update["summary"] = str(data["summary"])[:500]
-        if data.get("tags"):
-            core_update["tags"] = [str(t) for t in data["tags"][:10]]
-        if data.get("categories"):
-            core_update["categories"] = [str(c) for c in data["categories"][:5]]
-
-        prop_update: dict[str, str] = {}
-        if data.get("architectural_pattern"):
-            prop_update["architectural_pattern"] = str(data["architectural_pattern"])[:60]
-        if data.get("key_concerns"):
-            prop_update["key_concerns"] = ", ".join(str(c) for c in data["key_concerns"][:8])
-
-        if core_update:
-            mutations.setdefault("sections", {})["core"] = core_update
-        if prop_update:
-            mutations.setdefault("sections", {})["properties"] = prop_update
-
-        if mutations:
-            try:
-                self._writer.update(module_entity_id, mutations)
-                logger.debug(f"[Ingestor] Enriched module {module_entity_id}")
-                return True
-            except Exception as exc:
-                logger.warning(f"[Ingestor] Could not save enrichment for {module_entity_id}: {exc}")
-
-        return False

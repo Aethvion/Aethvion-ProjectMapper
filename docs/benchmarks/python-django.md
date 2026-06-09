@@ -27,7 +27,7 @@
 | Python | 3.10.11 |
 | Hardware | Desktop PC · Intel i9-13900K (24C/32T) · RTX 4090 |
 | PM server | Standalone · `python -m uvicorn server:app --port 7474` |
-| LLM enrichment | **Disabled** (`enrich=false`) — pure static analysis |
+| Analysis | Static AST only (no LLM calls) |
 
 > **Windows note:** NTFS and Defender I/O overhead inflates scan time vs Linux/macOS (est. 3–5× faster on Linux).
 
@@ -254,7 +254,7 @@ python -m uvicorn server:app --port 7474
 # 3. Full scan
 curl -X POST http://127.0.0.1:7474/api/project-mapper/scan \
   -H "Content-Type: application/json" \
-  -d '{"project_root":"/path/to/django","db":"django","enrich":false,"incremental":false}'
+  -d '{"project_root":"/path/to/django","db":"django","incremental":false}'
 
 # 4. D1 — Field hierarchy
 curl -X POST http://127.0.0.1:7474/api/project-mapper/query/impact \

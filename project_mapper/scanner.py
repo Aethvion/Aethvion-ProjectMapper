@@ -21,7 +21,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .code_analyzer import analyze_file
 from .ingestor import ProjectIngestor
@@ -162,14 +162,12 @@ async def run_scan(
     writer:       Any,
     index:        Any,
     file_manifest: Any,
-    model:        Optional[str] = None,
-    enrich:       bool = True,
     concurrency:  int = 3,
     incremental:  bool = True,
 ) -> None:
     """
     Background task: walk project_root, analyse all supported files,
-    ingest into AethvionDB. Optionally enrich with LLM after each module.
+    ingest into AethvionDB via static AST analysis.
 
     incremental=True (default): skip files whose hash hasn't changed since
     the last scan (uses FileManifest.needs_rescan).
@@ -182,7 +180,6 @@ async def run_scan(
         writer=writer,
         index=index,
         file_manifest=file_manifest,
-        model=model or "auto",
     )
 
     # --- Collect file list (skip hidden/cache dirs) ---
@@ -204,7 +201,6 @@ async def run_scan(
         "entities_updated":        0,
         "entities_pruned":         0,   # symbols removed from changed files
         "relations_created":       0,
-        "enriched":                0,
         "files_deleted":           0,   # set during deletion cleanup pass
         "entities_retired":        0,   # set during deletion cleanup pass
         "errors":                  [],
@@ -289,13 +285,6 @@ async def run_scan(
         stats["relations_created"] += ingest_result.relations_created
         stats["files_scanned"]     += 1
 
-        # Phase 2: LLM enrichment (only for Python modules with real content)
-        if enrich and model and ingest_result.module_entity_id and analysis.language == "python":
-            if analysis.classes or analysis.functions:
-                ok = await ingestor.enrich_module(ingest_result.module_entity_id, analysis, model)
-                if ok:
-                    stats["enriched"] += 1
-
     # Process all files — gather with cancellation support
     try:
         tasks = [asyncio.create_task(_process_one(fp)) for fp in file_paths]
@@ -368,7 +357,7 @@ async def run_scan(
     logger.info(
         f"[Scanner] Scan completed — "
         f"scanned={stats['files_scanned']} skipped={stats['files_skipped_unchanged']} "
-        f"created={stats['entities_created']} enriched={stats['enriched']}"
+        f"created={stats['entities_created']}"
     )
 
     # Build snapshot so the next list_all() call uses the fast single-file path
@@ -400,8 +389,6 @@ def start_scan(
     writer:        Any,
     index:         Any,
     file_manifest: Any,
-    model:         Optional[str] = None,
-    enrich:        bool = True,
     concurrency:   int = 3,
     incremental:   bool = True,
 ) -> bool:
@@ -421,8 +408,6 @@ def start_scan(
             writer=writer,
             index=index,
             file_manifest=file_manifest,
-            model=model,
-            enrich=enrich,
             concurrency=concurrency,
             incremental=incremental,
         )

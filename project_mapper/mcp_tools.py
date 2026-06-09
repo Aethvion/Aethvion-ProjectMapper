@@ -229,9 +229,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "name": "pm_scan",
         "description": (
-            "Scan a project directory and populate the knowledge graph. "
-            "Phase 1 (always): static AST analysis creates module/class/function entities. "
-            "Phase 2 (if enrich=true): LLM enrichment adds semantic summaries to modules. "
+            "Scan a project directory and populate the knowledge graph via static AST analysis. "
+            "Creates module/class/function entities and wires their relations. "
             "With incremental=true (default) only changed files are reprocessed. "
             "This call BLOCKS until the scan completes."
         ),
@@ -241,11 +240,6 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "project_root": {
                     "type": "string",
                     "description": "Absolute path to the project directory to scan.",
-                },
-                "enrich": {
-                    "type": "boolean",
-                    "description": "Run LLM enrichment after static analysis (default false for MCP).",
-                    "default": False,
                 },
                 "incremental": {
                     "type": "boolean",
@@ -686,7 +680,6 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     from .scanner import run_scan
 
     project_root = args.get("project_root") or ctx.project_root
-    enrich       = bool(args.get("enrich", False))
     incremental  = bool(args.get("incremental", True))
     concurrency  = max(1, min(int(args.get("concurrency", 3)), 8))
 
@@ -710,8 +703,6 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
             writer=ctx.writer,
             index=ctx.index,
             file_manifest=ctx.file_manifest,
-            model=None,
-            enrich=enrich,
             concurrency=concurrency,
             incremental=incremental,
         )
@@ -738,9 +729,6 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
         f"{stats.get('entities_pruned', 0)} pruned  "
         f"{stats.get('entities_retired', 0)} retired",
     ]
-    if enrich:
-        lines.append(f"Enriched: {stats.get('enriched', 0)} modules")
-
     errs = stats.get("errors", [])
     if errs:
         lines.append(f"Errors:   {len(errs)} (first: {errs[0].get('error', '')[:80]})")
