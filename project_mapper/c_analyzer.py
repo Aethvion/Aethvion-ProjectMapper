@@ -1,5 +1,5 @@
 """
-core/project_mapper/c_analyzer.py
+project_mapper/c_analyzer.py
 C source-file analyzer using tree-sitter.
 
 Entity kinds extracted:
@@ -15,6 +15,8 @@ Dependencies (optional — falls back to stub if not installed):
 
 from __future__ import annotations
 
+import re
+
 try:
     from tree_sitter import Language, Parser
     import tree_sitter_c as _tsc
@@ -26,6 +28,21 @@ except Exception:
 from .code_analyzer import (
     ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
 )
+
+# ---------------------------------------------------------------------------
+# Macro pre-processing
+# ---------------------------------------------------------------------------
+# Strip GCC/GLib attribute macros that tree-sitter-c cannot parse.
+# These are annotation-only — removing them preserves code structure.
+#
+# GLib/GTK per-parameter annotation:
+#   void fn(int x G_GNUC_UNUSED)  →  void fn(int x)
+_RE_C_ATTRS = re.compile(r'\b(?:G_GNUC_UNUSED|ATTRIBUTE_TARGET_\w+)\b')
+
+
+def _strip_macros_c(content: str) -> str:
+    """Remove known attribute macros before handing content to tree-sitter."""
+    return _RE_C_ATTRS.sub('', content)
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -221,6 +238,7 @@ def analyze_c(path: str, content: str) -> CodeAnalysis:
         )
 
     try:
+        content = _strip_macros_c(content)
         parser = Parser(_C_LANGUAGE)
         src = content.encode("utf-8", errors="replace")
         tree = parser.parse(src)

@@ -1,5 +1,5 @@
 """
-core/project_mapper/cpp_analyzer.py
+project_mapper/cpp_analyzer.py
 C++ source-file analyzer using tree-sitter.
 
 Entity kinds extracted:
@@ -21,6 +21,8 @@ Dependencies (optional — falls back to stub if not installed):
 
 from __future__ import annotations
 
+import re
+
 try:
     from tree_sitter import Language, Parser
     import tree_sitter_cpp as _tscpp
@@ -32,6 +34,51 @@ except Exception:
 from .code_analyzer import (
     ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
 )
+
+# ---------------------------------------------------------------------------
+# Macro pre-processing
+# ---------------------------------------------------------------------------
+# Strip well-known attribute macros that tree-sitter-cpp cannot parse.
+# These are all annotation-only — removing them preserves code structure.
+#
+# Pattern: visibility export macros placed INSIDE declarations, e.g.
+#   class LEVELDB_EXPORT Cache {   →   class Cache {
+# This pattern appears in virtually every cross-platform C++ library
+# (leveldb, Qt, WebKit, WxWidgets, Chromium, etc.) and causes tree-sitter
+# to fail the entire class_specifier node, yielding 0 extracted entities.
+_RE_CPP_EXPORT = re.compile(r'\b[A-Z][A-Z0-9_]+_EXPORT\b')
+
+# Clang Thread-Safety Analysis (TSA) annotations, used by leveldb, Abseil,
+# Chromium, and others.  Covers both class-level qualifiers (LOCKABLE) and
+# method/member-level annotations (GUARDED_BY, EXCLUSIVE_LOCKS_REQUIRED, etc.)
+_RE_THREAD_ANNOT = re.compile(
+    r'\b(?:GUARDED_BY|PT_GUARDED_BY|'
+    r'LOCKS_EXCLUDED|LOCKS_REQUIRED|EXCLUSIVE_LOCKS_REQUIRED|SHARED_LOCKS_REQUIRED|'
+    r'EXCLUSIVE_LOCK_FUNCTION|SHARED_LOCK_FUNCTION|UNLOCK_FUNCTION|'
+    r'ASSERT_EXCLUSIVE_LOCK|ASSERT_SHARED_LOCK|'
+    r'ACQUIRED_BEFORE|ACQUIRED_AFTER|NO_THREAD_SAFETY_ANALYSIS|'
+    r'LOCKABLE|SCOPED_LOCKABLE)'
+    r'(?:\s*\([^)]*\))?'
+)
+
+# Misc GCC/GLib per-parameter or per-function attribute macros
+_RE_CPP_ATTRS = re.compile(r'\b(?:G_GNUC_UNUSED|ATTRIBUTE_TARGET_\w+)\b')
+
+# Raw GCC __attribute__((...)) with up to 3 levels of paren nesting.
+# Handles: __attribute__((__format__(__printf__, 2, 3)))
+_RE_GNU_ATTR = re.compile(
+    r'__attribute__\s*'
+    r'\((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*\)'
+)
+
+
+def _strip_macros_cpp(content: str) -> str:
+    """Remove known attribute macros before handing content to tree-sitter."""
+    content = _RE_CPP_EXPORT.sub('', content)
+    content = _RE_THREAD_ANNOT.sub('', content)
+    content = _RE_CPP_ATTRS.sub('', content)
+    content = _RE_GNU_ATTR.sub('', content)
+    return content
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -204,8 +251,12 @@ def _parse_class_or_struct(node, src: bytes, kind: str) -> ClassInfo | None:
         return None
     name = _t(name_node, src)
 
-    bases = _extract_bases(node, src)
     body = node.child_by_field_name("body")
+    if body is None:
+        # Forward declaration (class Foo;) — no body, skip to avoid noise.
+        return None
+
+    bases = _extract_bases(node, src)
     methods = _extract_methods(body, src)
 
     return ClassInfo(
@@ -271,7 +322,7 @@ def _walk_scope(node, src: bytes,
                 classes: list[ClassInfo],
                 functions: list[FunctionInfo],
                 top_level: bool = True) -> None:
-    """Recursively walk a translation unit or namespace body."""
+    """Recursively walk a translation unit, namespace body, or preproc block."""
     for child in node.children:
         nt = child.type
         if nt == "class_specifier":
@@ -290,6 +341,12 @@ def _walk_scope(node, src: bytes,
             body = child.child_by_field_name("body")
             if body:
                 _walk_scope(body, src, classes, functions, top_level=False)
+        elif nt in ("preproc_ifdef", "preproc_ifndef", "preproc_if",
+                    "preproc_else", "preproc_elif", "preproc_elifdef"):
+            # Recurse into preprocessor conditional blocks.
+            # This handles the extremely common #ifndef / #define header guard
+            # pattern — without this, ALL header files return 0 classes.
+            _walk_scope(child, src, classes, functions, top_level=top_level)
         elif nt == "function_definition" and top_level:
             fn = _parse_function(child, src)
             if fn:
@@ -328,6 +385,7 @@ def analyze_cpp(path: str, content: str) -> CodeAnalysis:
         )
 
     try:
+        content = _strip_macros_cpp(content)
         parser = Parser(_CPP_LANGUAGE)
         src = content.encode("utf-8", errors="replace")
         tree = parser.parse(src)
