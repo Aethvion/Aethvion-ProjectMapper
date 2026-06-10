@@ -16,44 +16,37 @@ Project Mapper scans your codebase once, builds a structured knowledge graph of 
 
 ## Benchmark numbers
 
-Measured on the [Django 5.1.x source](docs/benchmarks/django-5-case-study.md)
-(521 k lines · 2,917 Python files · 11,988 entities · Windows 11 · no LLM enrichment).
+Measured across [10 real-world codebases](docs/benchmarks/README.md) — Python, Java/Kotlin, C#, PHP, C, Ruby, TypeScript/JS, Rust, C++, Swift — ranging from 57 to 11,083 files.
 
-### Token reduction (measured)
+### Token reduction (geometric mean across 10 benchmarks)
 
-| Query type | Without PM | With PM | Reduction |
+| | Normal (Grep + Read) | PM Full | PM Slim |
 |---|---|---|---|
-| Context query (`"authentication middleware security"`) | ~13,141 tokens (5 files) | **1,448 tokens** | **89 %** |
-| Impact query (`Model` class, 2-hop) | ~54,412 tokens (2 core files) | **4,020 tokens** | **93 %** |
+| Tokens per query | baseline | **~6× less** | **~13× less** |
+| At 100,000 input tokens | 100,000 | **~17,000** | **~7,700** |
 
-The without-PM baseline assumes the agent already knows which files to read.
-On a first encounter with a codebase it would read 10–20 files, pushing token
-cost to 25 000–60 000 per query.
+PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. See the [benchmark suite](docs/benchmarks/README.md) for per-codebase numbers.
 
 ### Query latency (measured)
 
 | Query | Latency |
 |---|---|
-| Context query | 79–101 ms |
-| Impact query | 11–57 ms |
+| Context query | 10–100 ms (warm cache) |
+| Impact query | 10–60 ms |
 
 ### Session startup — entity map load (measured)
 
-After a scan, agents load the full entity map at session start.
+The entity map is stored as a single snapshot file built at the end of each scan.
 
-| Method | Load time |
+| Codebase size | Load time |
 |---|---|
-| File-by-file, cold OS cache (restart / idle) | **52,048 ms** |
-| File-by-file, warm OS cache (right after scan) | ~700 ms |
-| **Snapshot** (single pre-built file) | **145 ms** |
-
-The snapshot is built automatically at the end of each scan (82 ms to build,
-9.8 MB for 11,988 entities). It is validated before every load and rebuilt
-automatically when entity files change. **358× faster than a cold start.**
+| ~400 entities | < 50 ms |
+| ~12,000 entities | ~145 ms |
+| ~33,000 entities | ~300 ms |
 
 ### Financial impact at scale (modelled)
 
-> Modelled from the measured 89–93 % per-query token reduction. Assumes
+> Modelled from the measured ~6× Full / ~13× Slim token reduction (geomean, 10 codebases). Assumes
 > 10 tasks/dev/day, 8 turns/task, Claude Sonnet pricing. See the
 > [cost calculator](https://aethvion.com/projectmapper.html) for your own numbers.
 
@@ -123,6 +116,8 @@ PROJECTS_DIR=/home/you/code docker compose up
 
 ### MCP stdio (Claude Code / Cursor / Antigravity)
 
+A single global config gives every session access to Project Mapper. The AI passes the project root when it calls `pm_scan`, so you don't need to specify it upfront — just tell Claude (or Cursor, etc.) to scan the current project and it handles the rest.
+
 **Claude Code** — add to `~/.claude/settings.json`:
 ```json
 {
@@ -132,10 +127,9 @@ PROJECTS_DIR=/home/you/code docker compose up
       "command": "python",
       "args": [
         "-m", "project_mapper.mcp_server",
-        "--db", "my_project",
-        "--project-root", "/absolute/path/to/project"
+        "--db", "workspace"
       ],
-      "cwd": "/absolute/path/to/Aethvion-ProjectMapper"
+      "cwd": "C:\\absolute\\path\\to\\Aethvion-ProjectMapper"
     }
   }
 }
@@ -147,9 +141,8 @@ PROJECTS_DIR=/home/you/code docker compose up
   "mcpServers": {
     "project-mapper": {
       "command": "python",
-      "args": ["-m", "project_mapper.mcp_server", "--db", "my_project"],
-      "cwd": "/absolute/path/to/Aethvion-ProjectMapper",
-      "env": { "PM_PROJECT_ROOT": "/absolute/path/to/project" }
+      "args": ["-m", "project_mapper.mcp_server", "--db", "workspace"],
+      "cwd": "/absolute/path/to/Aethvion-ProjectMapper"
     }
   }
 }
@@ -164,8 +157,7 @@ PROJECTS_DIR=/home/you/code docker compose up
       "command": "python",
       "args": [
         "-m", "project_mapper.mcp_server",
-        "--db", "my_project",
-        "--project-root", "C:/absolute/path/to/project"
+        "--db", "workspace"
       ],
       "cwd": "C:/absolute/path/to/Aethvion-ProjectMapper"
     }
@@ -173,8 +165,22 @@ PROJECTS_DIR=/home/you/code docker compose up
 }
 ```
 
-> All three agents use the same `mcpServers` format — only the config file
-> location differs. Restart the agent after editing the config.
+> All three agents use the same `mcpServers` format — only the config file location differs. Restart the agent after editing the config.
+
+**Optional — pin to a single project:**  
+If you always work on one codebase, add `PM_PROJECT_ROOT` so the AI never needs to specify it:
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "...",
+      "env": { "PM_PROJECT_ROOT": "/absolute/path/to/your/project" }
+    }
+  }
+}
+```
+
+> The `workspace` database is shared — scanning a new project overwrites the previous one. This is fine for single-project sessions; incremental scans on a pre-indexed repo typically finish in under 2 s.
 
 ---
 
@@ -209,7 +215,7 @@ project_mapper/
     ├── entity_writer.py   — Create / update / delete entities
     ├── name_index.py      — Thread-safe name → ID index
     ├── file_manifest.py   — File ↔ entity provenance tracking
-    ├── snapshot.py        — Fast-load snapshot cache (358× speedup)
+    ├── snapshot.py        — Fast-load snapshot cache
     └── db_registry.py     — Named database registry
 server.py              — FastAPI app entry point
 ```
