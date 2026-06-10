@@ -122,7 +122,7 @@ PROJECTS_DIR=/home/you/code docker compose up
 
 A single global config gives every session access to Project Mapper. The AI passes the project root when it calls `pm_scan`, so you don't need to specify it upfront — just tell Claude (or Cursor, etc.) to scan the current project and it handles the rest.
 
-**Prerequisite — install `uv`** (one-time, skippable if you already have it):
+**Step 1 — install `uv`** (one-time, skippable if you already have it):
 
 ```bash
 # macOS / Linux
@@ -137,18 +137,24 @@ pip install uv
 
 `uv` manages its own Python environment — the curl/PowerShell installers above work even if Python is not installed.
 
+**Step 2 — install Project Mapper** (one-time):
+
+```bash
+uv tool install "aethvion-project-mapper[languages]"
+```
+
+This installs `pm-mcp` as a global command and downloads all language parsers. Takes ~30 seconds on first run, instant on subsequent starts.
+
+**Step 3 — add to your agent config and restart:**
+
 **Claude Code** — add to `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--from", "aethvion-project-mapper[languages]",
-        "pm-mcp",
-        "--db", "workspace"
-      ]
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
 }
@@ -159,12 +165,8 @@ pip install uv
 {
   "mcpServers": {
     "project-mapper": {
-      "command": "uvx",
-      "args": [
-        "--from", "aethvion-project-mapper[languages]",
-        "pm-mcp",
-        "--db", "workspace"
-      ]
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
 }
@@ -176,14 +178,18 @@ pip install uv
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--from", "aethvion-project-mapper[languages]",
-        "pm-mcp",
-        "--db", "workspace"
-      ]
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
+}
+```
+
+**Alternative — no install, run directly with uvx:**
+```json
+{
+  "command": "uvx",
+  "args": ["--from", "aethvion-project-mapper[languages]", "pm-mcp", "--db", "workspace"]
 }
 ```
 

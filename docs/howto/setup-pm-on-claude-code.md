@@ -2,15 +2,46 @@
 
 ## Prerequisites
 
-- Python 3.10+ installed and available as `python` on your PATH
-- The [Aethvion-ProjectMapper](https://github.com/Aethvion/Aethvion-ProjectMapper) repo cloned somewhere on your machine
 - Claude Code installed
+- Internet connection (for the one-time download)
+
+No Python installation needed — `uv` handles everything.
 
 ---
 
-## Step 1 — Find your settings file
+## Step 1 — Install `uv`
 
-The global Claude Code settings file lives at:
+`uv` is a fast Python toolchain manager. Install it once and it manages Python and packages for you.
+
+| OS | Command |
+|---|---|
+| **macOS / Linux** | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| **Windows (PowerShell)** | `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+| **Already have Python** | `pip install uv` |
+
+After installing, open a **new terminal window** so the `uv` command is on your PATH.
+
+---
+
+## Step 2 — Install Project Mapper
+
+```bash
+uv tool install "aethvion-project-mapper[languages]"
+```
+
+This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command.
+
+**Verify it worked:**
+
+```bash
+pm-mcp --help
+```
+
+You should see the Project Mapper MCP server help text.
+
+---
+
+## Step 3 — Find your Claude Code settings file
 
 | OS | Path |
 |---|---|
@@ -19,96 +50,40 @@ The global Claude Code settings file lives at:
 
 **How to get there:**
 
-- **Windows** — Open File Explorer and paste `%USERPROFILE%\.claude` into the address bar, then press Enter.
+- **Windows** — Open File Explorer, paste `%USERPROFILE%\.claude` into the address bar, press Enter.
 - **macOS** — Open Finder → Go → Go to Folder → type `~/.claude` → press Go.
 - **Linux** — run `cd ~/.claude` in a terminal.
 
 ---
 
-## Step 2 — Open or create the file
+## Step 4 — Add the mcpServers block
 
-If `settings.json` does not exist yet, create it as an empty JSON file:
+Open `settings.json` in any text editor. If it doesn't exist yet, create it.
 
-```json
-{}
-```
-
-If it already exists, open it in any text editor (Notepad, VS Code, nano, etc.).
-
----
-
-## Step 3 — Add the mcpServers block
-
-Add a `"mcpServers"` key alongside any existing settings. The examples below show the most common starting point (default Claude Code install).
-
-**Windows** — replace `C:\\example-path\\Aethvion-ProjectMapper` with your actual clone path:
+The config is the same on every OS — no paths to set:
 
 ```json
 {
-  "extraKnownMarketplaces": {
-    "claude-plugins-official": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
-      }
-    }
-  },
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:\\example-path\\Aethvion-ProjectMapper"
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
 }
 ```
 
-**Linux / macOS** — replace `/home/you/Aethvion-ProjectMapper` with your actual clone path:
+If your file already has other settings, add only the `"mcpServers"` block:
 
 ```json
 {
-  "extraKnownMarketplaces": {
-    "claude-plugins-official": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
-      }
-    }
-  },
+  "extraKnownMarketplaces": { "...existing settings..." },
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "/home/you/Aethvion-ProjectMapper"
-    }
-  }
-}
-```
-
-> **Windows path note:** JSON requires backslashes to be doubled. So the path
-> `C:\Aethvion\Aethvion-ProjectMapper` becomes `C:\\Aethvion\\Aethvion-ProjectMapper` in the file.
-
-If your `settings.json` was empty (`{}`), the result is simply:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:\\example-path\\Aethvion-ProjectMapper"
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
 }
@@ -116,13 +91,13 @@ If your `settings.json` was empty (`{}`), the result is simply:
 
 ---
 
-## Step 4 — Restart Claude Code
+## Step 5 — Restart Claude Code
 
-Save the file and fully restart Claude Code. The MCP server starts automatically when Claude Code launches.
+Save the file and fully restart Claude Code. The MCP server starts automatically on launch.
 
 ---
 
-## Step 5 — Smoke test
+## Step 6 — Smoke test
 
 Open a new session inside any project folder and say:
 
@@ -146,12 +121,8 @@ If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happe
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:\\example-path\\Aethvion-ProjectMapper",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"],
       "env": { "PM_PROJECT_ROOT": "C:\\path\\to\\your\\project" }
     }
   }
@@ -162,8 +133,8 @@ If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happe
 
 ## Troubleshooting
 
-**`python` not found** — make sure Python 3.10+ is installed and the `python` command works in a new terminal window. On some systems the command is `python3` — change `"command": "python"` to `"command": "python3"` if needed.
+**`pm-mcp` not found** — the `uv tool install` step adds `pm-mcp` to `~/.local/bin` (Linux/macOS) or `%USERPROFILE%\.local\bin` (Windows). Open a **new** terminal window after installing — the PATH update only takes effect in new sessions. If it still doesn't work, run `uv tool list` to confirm the install succeeded.
 
 **MCP server doesn't appear in Claude** — double-check that the JSON in `settings.json` is valid (no missing commas, no unmatched braces). Paste it into [jsonlint.com](https://jsonlint.com) if unsure.
 
-**`cwd` path errors** — make sure the path points to the folder that *contains* `project_mapper/` (i.e. the repo root), not to `project_mapper/` itself.
+**Updating to a new version** — run `uv tool upgrade aethvion-project-mapper` to get the latest release.

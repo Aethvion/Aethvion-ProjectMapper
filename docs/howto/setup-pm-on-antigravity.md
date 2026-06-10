@@ -2,13 +2,42 @@
 
 ## Prerequisites
 
-- Python 3.10+ installed and available as `python` on your PATH
-- The [Aethvion-ProjectMapper](https://github.com/Aethvion/Aethvion-ProjectMapper) repo cloned somewhere on your machine
 - Antigravity installed and set up with your Google account
+- Internet connection (for the one-time download)
+
+No Python installation needed — `uv` handles everything.
 
 ---
 
-## Step 1 — Find your MCP config file
+## Step 1 — Install `uv`
+
+| OS | Command |
+|---|---|
+| **macOS / Linux** | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| **Windows (PowerShell)** | `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+| **Already have Python** | `pip install uv` |
+
+After installing, open a **new terminal window** so the `uv` command is on your PATH.
+
+---
+
+## Step 2 — Install Project Mapper
+
+```bash
+uv tool install "aethvion-project-mapper[languages]"
+```
+
+This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command.
+
+**Verify it worked:**
+
+```bash
+pm-mcp --help
+```
+
+---
+
+## Step 3 — Find your MCP config file
 
 Antigravity reads MCP server configuration from:
 
@@ -25,66 +54,31 @@ Antigravity reads MCP server configuration from:
 
 ---
 
-## Step 2 — Open or create the file
+## Step 4 — Add the mcpServers block
 
-If the file (or the `.gemini/antigravity` folder) doesn't exist yet, create it. Start with an empty object:
-
-```json
-{}
-```
-
----
-
-## Step 3 — Add the mcpServers block
-
-**Windows** — replace `C:/example-path/Aethvion-ProjectMapper` with your actual clone path:
+Open `mcp_config.json` in any text editor. If the file or the `.gemini/antigravity` folder doesn't exist yet, create them. The config is the same on every OS:
 
 ```json
 {
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:/example-path/Aethvion-ProjectMapper"
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
 }
 ```
-
-**Linux / macOS** — replace `/home/you/Aethvion-ProjectMapper` with your actual clone path:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "/home/you/Aethvion-ProjectMapper"
-    }
-  }
-}
-```
-
-> **Windows path note:** Antigravity accepts forward slashes on Windows (`C:/path/to/repo`),
-> which avoids the need to double backslashes. Both styles work.
 
 ---
 
-## Step 4 — Restart Antigravity
+## Step 5 — Restart Antigravity
 
 Save the file and restart Antigravity. MCP servers are loaded at startup.
 
 ---
 
-## Step 5 — Smoke test
+## Step 6 — Smoke test
 
 Open any project and tell the agent:
 
@@ -106,13 +100,9 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:/example-path/Aethvion-ProjectMapper",
-      "env": { "PM_PROJECT_ROOT": "C:/path/to/your/project" }
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"],
+      "env": { "PM_PROJECT_ROOT": "/path/to/your/project" }
     }
   }
 }
@@ -122,8 +112,8 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
 
 ## Troubleshooting
 
-**`python` not found** — confirm Python 3.10+ is installed. Change `"command": "python"` to `"command": "python3"` if your system uses that name.
+**`pm-mcp` not found** — open a **new** terminal window after installing. Run `uv tool list` to confirm the install succeeded.
 
 **Config file not picked up** — make sure the file is named exactly `mcp_config.json` inside the `antigravity` subfolder, not `mcp.json` or `settings.json`.
 
-**`cwd` path errors** — the path must point to the repo root (the folder containing `project_mapper/`), not to `project_mapper/` itself.
+**Updating to a new version** — run `uv tool upgrade aethvion-project-mapper`.

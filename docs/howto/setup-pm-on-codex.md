@@ -2,13 +2,42 @@
 
 ## Prerequisites
 
-- Python 3.10+ installed and available as `python` on your PATH
-- The [Aethvion-ProjectMapper](https://github.com/Aethvion/Aethvion-ProjectMapper) repo cloned somewhere on your machine
 - OpenAI Codex CLI installed (`npm install -g @openai/codex` or via the official installer)
+- Internet connection (for the one-time download)
+
+No Python installation needed — `uv` handles everything.
 
 ---
 
-## Step 1 — Find your config file
+## Step 1 — Install `uv`
+
+| OS | Command |
+|---|---|
+| **macOS / Linux** | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| **Windows (PowerShell)** | `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+| **Already have Python** | `pip install uv` |
+
+After installing, open a **new terminal window** so the `uv` command is on your PATH.
+
+---
+
+## Step 2 — Install Project Mapper
+
+```bash
+uv tool install "aethvion-project-mapper[languages]"
+```
+
+This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command.
+
+**Verify it worked:**
+
+```bash
+pm-mcp --help
+```
+
+---
+
+## Step 3 — Find your config file
 
 Codex CLI reads its configuration from:
 
@@ -25,56 +54,21 @@ Codex CLI reads its configuration from:
 
 ---
 
-## Step 2 — Open or create the file
+## Step 4 — Add the mcpServers block
 
-If `config.json` doesn't exist, create it (and the `.codex` folder if needed) as an empty object:
-
-```json
-{}
-```
-
----
-
-## Step 3 — Add the mcpServers block
-
-**Windows** — replace `C:\\example-path\\Aethvion-ProjectMapper` with your actual clone path:
+Open `config.json` in any text editor. If it doesn't exist yet, create it (and the `.codex` folder if needed). The config is the same on every OS:
 
 ```json
 {
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:\\example-path\\Aethvion-ProjectMapper"
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
     }
   }
 }
 ```
-
-**Linux / macOS** — replace `/home/you/Aethvion-ProjectMapper` with your actual clone path:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "/home/you/Aethvion-ProjectMapper"
-    }
-  }
-}
-```
-
-> **Windows path note:** Backslashes must be doubled in JSON. So
-> `C:\Aethvion\Aethvion-ProjectMapper` becomes `C:\\Aethvion\\Aethvion-ProjectMapper`.
 
 > **Note:** Codex CLI MCP support was introduced in 2025. If the config format has changed
 > in a newer release, check the [official Codex CLI docs](https://github.com/openai/codex) for
@@ -82,13 +76,13 @@ If `config.json` doesn't exist, create it (and the `.codex` folder if needed) as
 
 ---
 
-## Step 4 — Restart Codex CLI
+## Step 5 — Restart Codex CLI
 
 Start a new Codex CLI session. MCP servers are launched automatically at session start.
 
 ---
 
-## Step 5 — Smoke test
+## Step 6 — Smoke test
 
 Open any project and say:
 
@@ -110,13 +104,9 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m", "project_mapper.mcp_server",
-        "--db", "workspace"
-      ],
-      "cwd": "C:\\example-path\\Aethvion-ProjectMapper",
-      "env": { "PM_PROJECT_ROOT": "C:\\path\\to\\your\\project" }
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"],
+      "env": { "PM_PROJECT_ROOT": "/path/to/your/project" }
     }
   }
 }
@@ -126,8 +116,8 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
 
 ## Troubleshooting
 
-**`python` not found** — confirm Python 3.10+ is installed. Change `"command": "python"` to `"command": "python3"` if needed.
+**`pm-mcp` not found** — open a **new** terminal window after installing. Run `uv tool list` to confirm the install succeeded.
 
-**MCP server not connecting** — run `codex --version` to confirm your Codex CLI version supports MCP, then verify the JSON in `config.json` is valid.
+**MCP server not connecting** — run `codex --version` to confirm your Codex CLI version supports MCP, then verify the JSON in `config.json` is valid using [jsonlint.com](https://jsonlint.com).
 
-**`cwd` path errors** — the path must point to the repo root (the folder containing `project_mapper/`), not to `project_mapper/` itself.
+**Updating to a new version** — run `uv tool upgrade aethvion-project-mapper`.
