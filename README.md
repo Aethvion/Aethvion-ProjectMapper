@@ -1,7 +1,40 @@
 # Aethvion Project Mapper
 
-> **Static code analysis + knowledge-graph for AI coding agents.**  
-> Give your AI the map it needs — before it starts writing code.
+> **Give your AI coding agent a living map of your codebase.**  
+> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **6–13× fewer tokens** than reading raw files.
+
+---
+
+## Quick Start
+
+**Step 1 — Install `uv`** (one-time, manages Python automatically):
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Step 2 — Install Project Mapper:**
+
+```bash
+uv tool install "aethvion-project-mapper[languages]"
+```
+
+**Step 3 — Connect to your agent:**
+
+| Agent | Setup guide |
+|---|---|
+| Claude Code | [docs/howto/setup-pm-on-claude-code.md](docs/howto/setup-pm-on-claude-code.md) |
+| Cursor | [docs/howto/setup-pm-on-cursor.md](docs/howto/setup-pm-on-cursor.md) |
+| Antigravity (Google) | [docs/howto/setup-pm-on-antigravity.md](docs/howto/setup-pm-on-antigravity.md) |
+| Codex | [docs/howto/setup-pm-on-codex.md](docs/howto/setup-pm-on-codex.md) |
+
+Or jump to the [full MCP config section](#mcp-stdio-claude-code--cursor--antigravity--codex) below for raw JSON.
+
+New here? The [`docs/explained/`](docs/explained/) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), and [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md).
 
 ---
 
@@ -11,8 +44,6 @@ AI coding agents (Claude Code, Cursor, Copilot, etc.) read your entire codebase 
 That's expensive, slow, and often inaccurate because context windows fill up before the agent sees the relevant files.
 
 Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, at a fraction of the token cost.
-
-New here? The [`docs/explained/`](docs/explained/) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), and [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md).
 
 ---
 
@@ -79,7 +110,7 @@ The entity map is stored as a single snapshot file built at the end of each scan
 
 ---
 
-## Quick start
+## Other access methods
 
 ### HTTP API
 
