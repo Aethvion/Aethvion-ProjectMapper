@@ -14,3 +14,4 @@ Real-world query benchmarks measuring token reduction vs the normal Grep + Read 
 | [ruby-jekyll.md](ruby-jekyll.md) | Ruby | 161 | 382 | < 3 s | **~5× Full / ~10.5× Slim** |
 | [typescriptjs-zod.md](typescriptjs-zod.md) | TypeScript/JS | 405 | 1,453 | ~6 s | **~5.6× Full / ~12× Slim** |
 | [rust-ripgrep.md](rust-ripgrep.md) | Rust | 101 | 800 | < 3 s | **~4× Full / ~9.5× Slim** |
+| [cplusplus-leveldb.md](cplusplus-leveldb.md) | C++ | 133 | 216 | < 2 s | **~6× Full / ~15× Slim** |
