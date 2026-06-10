@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aethvion-project-mapper"
-version = "1.4.0"
-description = "Static code analysis + knowledge-graph for AI coding agents — 10 languages, cut token costs by 89–99 %"
+version = "1.5.0"
+description = "Static code analysis + knowledge-graph for AI coding agents — 10 languages, cut token costs by 83–92 %"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }

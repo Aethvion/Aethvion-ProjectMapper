@@ -23,9 +23,9 @@ startCommand:
     required: []
   commandFunction: |-
     (config) => {
-      const args = ["-m", "project_mapper.mcp_server", "--db", config.db || "default"];
+      const args = ["--from", "aethvion-project-mapper[languages]", "pm-mcp", "--db", config.db || "default"];
       if (config.projectRoot && config.projectRoot.trim() !== "") {
         args.push("--project-root", config.projectRoot.trim());
       }
-      return { command: "python", args };
+      return { command: "uvx", args };
     }
