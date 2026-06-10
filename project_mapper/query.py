@@ -108,6 +108,8 @@ def _entity_stub(
         stub: dict[str, Any] = {"name": entity.get("name", "")}
         if props.get("file_path"):
             stub["file_path"] = props["file_path"]
+        if props.get("line_start"):
+            stub["line"] = props["line_start"]
         if hop > 0:
             stub["hop"] = hop
         if via:
@@ -403,11 +405,18 @@ def _tokenize(text: str) -> list[str]:
     """
     Tokenize query text for keyword scoring.
     Splits on whitespace, punctuation AND camelCase/PascalCase boundaries.
+    Deduplicates so repeated sub-tokens (e.g. 'format' in formatParams + formatStrategyName)
+    don't double-score a single entity.
     """
     spaced = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", text)
     spaced = re.sub(r"([a-z\d])([A-Z])", r"\1 \2", spaced)
-    tokens = re.findall(r"[a-z0-9_]{2,}", spaced.lower())
-    return [t for t in tokens if t not in _TOKENIZE_STOP]
+    seen: set[str] = set()
+    result: list[str] = []
+    for t in re.findall(r"[a-z0-9_]{2,}", spaced.lower()):
+        if t not in _TOKENIZE_STOP and t not in seen:
+            seen.add(t)
+            result.append(t)
+    return result
 
 
 def context_query(

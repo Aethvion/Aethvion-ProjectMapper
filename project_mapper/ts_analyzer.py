@@ -113,6 +113,29 @@ def _end_line(node) -> int:
     return node.end_point[0] + 1
 
 
+def _preceding_jsdoc(node, src: bytes) -> str:
+    """Extract a /** … */ JSDoc comment immediately before a node.
+
+    Strips trailing JS wrapper keywords (export, default, async, declare,
+    abstract) so that exported declarations find their JSDoc correctly.
+    """
+    before = src[:node.start_byte].decode("utf-8", errors="replace")
+    # Strip keyword tokens that may appear between the JSDoc and this node
+    before = re.sub(r"\s*\b(export|default|async|declare|abstract)\b\s*$", "", before.rstrip(), count=3)
+    before = before.rstrip()
+    if not before.endswith("*/"):
+        return ""
+    start = before.rfind("/**")
+    if start < 0:
+        return ""
+    inner = before[start + 3:]       # skip leading /**
+    if inner.endswith("*/"):
+        inner = inner[:-2]            # strip trailing */
+    lines = inner.split("\n")
+    text = " ".join(l.strip().lstrip("*").strip() for l in lines if l.strip().lstrip("*").strip())
+    return text[:200]
+
+
 # ---------------------------------------------------------------------------
 # Import extraction
 # ---------------------------------------------------------------------------
@@ -240,7 +263,7 @@ def _parse_class(node, src: bytes, out: list[ClassInfo], is_abstract: bool = Fal
         methods=methods,
         class_vars=class_vars,
         decorators=[],
-        docstring="",
+        docstring=_preceding_jsdoc(node, src),
         line_start=_line(node),
         line_end=_end_line(node),
         calls=calls,
@@ -400,7 +423,7 @@ def _parse_interface(node, src: bytes, out: list[ClassInfo]) -> None:
         methods=methods,
         class_vars=[],
         decorators=[],
-        docstring="",
+        docstring=_preceding_jsdoc(node, src),
         line_start=_line(node),
         line_end=_end_line(node),
         calls=[],
@@ -465,7 +488,7 @@ def _parse_named_function(node, src: bytes, out: list[FunctionInfo]) -> None:
 
     out.append(FunctionInfo(
         name=name, args=args, return_type=return_type, decorators=[],
-        docstring="", is_async=is_async,
+        docstring=_preceding_jsdoc(node, src), is_async=is_async,
         line_start=_line(node), line_end=_end_line(node),
         calls=_extract_function_calls(node, src, name),
     ))
@@ -473,6 +496,8 @@ def _parse_named_function(node, src: bytes, out: list[FunctionInfo]) -> None:
 
 def _parse_arrow_declarations(node, src: bytes, out: list[FunctionInfo]) -> None:
     """Parse top-level: const foo = (...) => {} or const foo = async function() {}"""
+    # JSDoc lives before the const/let declaration (node), not the declarator
+    jsdoc = _preceding_jsdoc(node, src)
     for decl in _all(node, "variable_declarator"):
         name_node = _field(decl, "name") or _first(decl, "identifier")
         value_node = _field(decl, "value")
@@ -500,7 +525,7 @@ def _parse_arrow_declarations(node, src: bytes, out: list[FunctionInfo]) -> None
 
         out.append(FunctionInfo(
             name=name, args=args, return_type=return_type, decorators=[],
-            docstring="", is_async=is_async,
+            docstring=jsdoc, is_async=is_async,
             line_start=_line(decl), line_end=_end_line(decl),
             calls=_extract_function_calls(value_node, src, name),
         ))
