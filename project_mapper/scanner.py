@@ -237,6 +237,16 @@ async def run_scan(
             stats["files_skipped_unsupported"] += 1
             return
 
+        # Skip oversized files — minified bundles and generated assets can exceed
+        # hundreds of KB as a single line, stalling tree-sitter and spiking memory.
+        if len(content) > 250_000:
+            stats["files_skipped_unsupported"] += 1
+            return
+        # Minification heuristic: substantial content with almost no line breaks.
+        if len(content) > 10_000 and content.count("\n") < 5:
+            stats["files_skipped_unsupported"] += 1
+            return
+
         file_hash = _content_hash(content)
 
         # Incremental: skip unchanged files

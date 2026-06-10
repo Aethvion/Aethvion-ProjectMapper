@@ -255,7 +255,10 @@ class MCPServer:
             f"db_root={self._db_root}  project={self._project_root or '(unset)'}"
         )
 
-        # UTF-8 stdin/stdout on Windows
+        # UTF-8 stdin/stdout/stderr on Windows
+        # stderr must also be re-wrapped: the startup log contains em-dashes and
+        # other non-ASCII characters that crash cp1252 consoles, killing the
+        # subprocess and producing a client-side EOF before any tool is called.
         if sys.platform == "win32":
             import io
             sys.stdin  = io.TextIOWrapper(
@@ -263,6 +266,9 @@ class MCPServer:
             )
             self._out = io.TextIOWrapper(
                 sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace"
             )
 
         for raw_line in sys.stdin:
