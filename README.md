@@ -40,10 +40,9 @@ New here? The [`docs/explained/`](docs/explained/) folder covers [what Project M
 
 ## Why it exists
 
-AI coding agents (Claude Code, Cursor, Copilot, etc.) read your entire codebase on every task.
-That's expensive, slow, and often inaccurate because context windows fill up before the agent sees the relevant files.
+AI coding agents (Claude Code, Cursor, Copilot, etc.) search through your files on every task — reading source files, following imports, grepping for context. That's expensive and slow, and context windows fill up with semi-relevant content before the agent sees what actually matters.
 
-Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, at a fraction of the token cost.
+Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, reducing token costs by **83–92% on average**.
 
 ---
 
