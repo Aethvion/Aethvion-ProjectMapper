@@ -12,6 +12,8 @@ That's expensive, slow, and often inaccurate because context windows fill up bef
 
 Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, at a fraction of the token cost.
 
+New here? The [`docs/explained/`](docs/explained/) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), and [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md).
+
 ---
 
 ## Benchmark numbers
