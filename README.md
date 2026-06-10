@@ -131,11 +131,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows (PowerShell)
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Or via pip
+# Already have Python? Alternatively:
 pip install uv
 ```
 
-`uv` manages its own Python environment, so you do **not** need Python pre-installed.
+`uv` manages its own Python environment — the curl/PowerShell installers above work even if Python is not installed.
 
 **Claude Code** — add to `~/.claude/settings.json`:
 ```json
