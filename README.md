@@ -122,18 +122,33 @@ PROJECTS_DIR=/home/you/code docker compose up
 
 A single global config gives every session access to Project Mapper. The AI passes the project root when it calls `pm_scan`, so you don't need to specify it upfront — just tell Claude (or Cursor, etc.) to scan the current project and it handles the rest.
 
+**Prerequisite — install `uv`** (one-time, skippable if you already have it):
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip
+pip install uv
+```
+
+`uv` manages its own Python environment, so you do **not** need Python pre-installed.
+
 **Claude Code** — add to `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
+      "command": "uvx",
       "args": [
-        "-m", "project_mapper.mcp_server",
+        "--from", "aethvion-project-mapper[languages]",
+        "pm-mcp",
         "--db", "workspace"
-      ],
-      "cwd": "C:\\absolute\\path\\to\\Aethvion-ProjectMapper"
+      ]
     }
   }
 }
@@ -144,9 +159,12 @@ A single global config gives every session access to Project Mapper. The AI pass
 {
   "mcpServers": {
     "project-mapper": {
-      "command": "python",
-      "args": ["-m", "project_mapper.mcp_server", "--db", "workspace"],
-      "cwd": "/absolute/path/to/Aethvion-ProjectMapper"
+      "command": "uvx",
+      "args": [
+        "--from", "aethvion-project-mapper[languages]",
+        "pm-mcp",
+        "--db", "workspace"
+      ]
     }
   }
 }
@@ -158,12 +176,12 @@ A single global config gives every session access to Project Mapper. The AI pass
   "mcpServers": {
     "project-mapper": {
       "type": "stdio",
-      "command": "python",
+      "command": "uvx",
       "args": [
-        "-m", "project_mapper.mcp_server",
+        "--from", "aethvion-project-mapper[languages]",
+        "pm-mcp",
         "--db", "workspace"
-      ],
-      "cwd": "C:/absolute/path/to/Aethvion-ProjectMapper"
+      ]
     }
   }
 }
