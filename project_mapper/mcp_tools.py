@@ -279,9 +279,16 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
     etype     = entity.get("type", "")
     kind      = entity.get("kind", "")
     status    = entity.get("status", "active")
-    core      = entity.get("sections", {}).get("core", {})
-    props     = entity.get("sections", {}).get("properties", {})
-    relations = entity.get("sections", {}).get("relations", [])
+
+    if "sections" in entity:
+        core      = entity["sections"].get("core", {})
+        props     = entity["sections"].get("properties", {})
+        relations = entity["sections"].get("relations", [])
+    else:
+        # Flat stub from context_query / _entity_stub() — fields live at root level
+        core      = entity
+        props     = entity
+        relations = []
 
     label = kind if kind and kind != etype else etype
     if status not in ("active", ""):
@@ -297,14 +304,13 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
     if tags:
         lines.append(f"    Tags:    {', '.join(tags[:8])}")
 
-    # Show useful properties
-    useful_props = {
-        k: v for k, v in props.items()
-        if k not in ("file_path", "line_start", "line_end") and v
-    }
+    # Exclude stub meta-fields so they don't appear as spurious properties
+    _SKIP = {"file_path", "line_start", "line_end", "id", "name", "type",
+              "kind", "status", "tags", "summary", "relevance_score", "hop", "via"}
+    useful_props = {k: v for k, v in props.items() if k not in _SKIP and v}
     if useful_props:
         for k, v in list(useful_props.items())[:4]:
-            lines.append(f"    {k}: {v[:80]}")
+            lines.append(f"    {k}: {str(v)[:80]}")
 
     if show_relations and relations:
         for r in relations[:5]:

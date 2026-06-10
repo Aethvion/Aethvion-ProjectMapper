@@ -153,6 +153,14 @@ def compute_delta(
             if ext not in SUPPORTED_EXTENSIONS:
                 continue
 
+            # Mirror scanner.py's size filter so minified bundles don't show
+            # up as perpetual "new files" after every scan
+            try:
+                if fp.stat().st_size > 250_000:
+                    continue
+            except OSError:
+                pass
+
             rel = str(fp.relative_to(root)).replace("\\", "/")
             seen_paths.add(rel)
 
