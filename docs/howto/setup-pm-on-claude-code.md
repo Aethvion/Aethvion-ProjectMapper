@@ -123,7 +123,7 @@ If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happe
       "type": "stdio",
       "command": "pm-mcp",
       "args": ["--db", "workspace"],
-      "env": { "PM_PROJECT_ROOT": "C:\\path\\to\\your\\project" }
+      "env": { "PM_PROJECT_ROOT": "/absolute/path/to/your/project" }
     }
   }
 }
