@@ -112,18 +112,18 @@ class MCPServer:
         if self._ctx is not None:
             return self._ctx
 
-        from .db.name_index import NameIndex
-        from .db.entity_writer import EntityWriter
+        from .db.pm_store import PMEntityStore, PMNameIndex
         from .db.file_manifest import FileManifest
+        from .db import snapshot as _snap
         from .mcp_tools import MCPContext
 
-        (self._db_root / "entities").mkdir(parents=True, exist_ok=True)
-        name_index = NameIndex(index_path=self._db_root / "name_index.json")
-        writer     = EntityWriter(
-            entities_dir=self._db_root / "entities",
-            index=name_index,
-        )
-        manifest   = FileManifest(self._db_root)
+        self._db_root.mkdir(parents=True, exist_ok=True)
+        name_index = PMNameIndex(index_path=self._db_root / "name_index.json")
+        if _snap.snapshot_path(self._db_root).exists():
+            writer = PMEntityStore.from_snapshot(self._db_root, name_index)
+        else:
+            writer = PMEntityStore(self._db_root, name_index)
+        manifest = FileManifest(self._db_root)
 
         self._ctx = MCPContext(
             db_root=self._db_root,
