@@ -680,7 +680,7 @@ _LANGUAGE_BY_EXT: dict[str, str] = {
     ".py": "python",
     ".js": "javascript", ".mjs": "javascript",
     ".ts": "typescript", ".tsx": "typescript", ".jsx": "javascript",
-    ".java": "java", ".cpp": "cpp", ".c": "c", ".h": "c", ".hpp": "cpp",
+    ".java": "java", ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".c": "c", ".h": "c", ".hpp": "cpp",
     ".rb": "ruby", ".go": "go", ".rs": "rust", ".php": "php",
     ".cs": "csharp", ".swift": "swift", ".kt": "kotlin",
 }

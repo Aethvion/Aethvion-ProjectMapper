@@ -33,7 +33,7 @@ SCANINFO = "ProjectMapper.SCANINFO"
 # Supported extensions for static analysis
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({
     ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs",
-    ".java", ".cpp", ".c", ".h", ".hpp",
+    ".java", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp",
     ".rb", ".go", ".rs", ".php", ".cs", ".swift", ".kt",
 })
 
