@@ -114,7 +114,9 @@ Mount your projects:
 PROJECTS_DIR=/home/you/code docker compose up
 ```
 
-### MCP stdio (Claude Code / Cursor / Antigravity)
+### MCP stdio (Claude Code / Cursor / Antigravity / Codex)
+
+> Detailed step-by-step setup guides (including Windows and Linux/macOS paths) are in [`docs/howto/`](docs/howto/).
 
 A single global config gives every session access to Project Mapper. The AI passes the project root when it calls `pm_scan`, so you don't need to specify it upfront — just tell Claude (or Cursor, etc.) to scan the current project and it handles the rest.
 
