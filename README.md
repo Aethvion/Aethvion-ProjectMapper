@@ -326,4 +326,6 @@ If Project Mapper saves you tokens, time, or money — consider sponsoring. It k
 
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-30363D?logo=githubsponsors&logoColor=EA4AAA)](https://github.com/sponsors/Aethvion)
 
+See the full [sponsors list](https://github.com/Aethvion/.github/blob/main/SPONSORS.md).
+
 *Built with care by the Aethvion team.*
