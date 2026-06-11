@@ -187,6 +187,39 @@ def _parse_typedef(node, src: bytes) -> ClassInfo | None:
 
 
 # ---------------------------------------------------------------------------
+# call graph extraction
+# ---------------------------------------------------------------------------
+
+
+def _collect_calls_c(body_node, src: bytes) -> list[tuple[str, str]]:
+    """Walk a compound_statement body and return (callee_name, "") for each call."""
+    if body_node is None:
+        return []
+    calls: list[tuple[str, str]] = []
+
+    def _walk(node):
+        if node.type == "call_expression":
+            fn = node.child_by_field_name("function")
+            if fn:
+                if fn.type == "identifier":
+                    name = _t(fn, src)
+                    if name and name.isidentifier():
+                        calls.append((name, ""))
+                elif fn.type == "field_expression":
+                    # obj->method() or obj.method()
+                    f = fn.child_by_field_name("field")
+                    if f and f.type == "field_identifier":
+                        name = _t(f, src)
+                        if name and name.isidentifier():
+                            calls.append((name, ""))
+        for c in node.children:
+            _walk(c)
+
+    _walk(body_node)
+    return calls
+
+
+# ---------------------------------------------------------------------------
 # function parsing
 # ---------------------------------------------------------------------------
 
@@ -208,10 +241,14 @@ def _parse_c_function(node, src: bytes) -> FunctionInfo | None:
     ret_node = node.child_by_field_name("type")
     return_type = _t(ret_node, src) if ret_node else ""
 
+    body_node = node.child_by_field_name("body")
+    calls = _collect_calls_c(body_node, src)
+
     return FunctionInfo(
         name=name,
         args=[ArgInfo(name=a) for a in args_names],
         return_type=return_type,
+        calls=calls,
         line_start=_line(node),
         line_end=_end_line(node),
     )

@@ -84,6 +84,8 @@ def _strip_macros_cpp(content: str) -> str:
 # helpers
 # ---------------------------------------------------------------------------
 
+_CPP_SKIP_NAMESPACES: frozenset[str] = frozenset({"std", "boost", "Eigen", "cv", "llvm", "clang"})
+
 
 def _t(node, src: bytes) -> str:
     return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
@@ -100,6 +102,47 @@ def _line(node) -> int:
 
 def _end_line(node) -> int:
     return node.end_point[0] + 1
+
+
+# ---------------------------------------------------------------------------
+# call graph extraction
+# ---------------------------------------------------------------------------
+
+
+def _collect_calls_cpp(body_node, src: bytes) -> list[tuple[str, str]]:
+    """Walk a C++ compound_statement body and return (callee_name, "") for each call."""
+    if body_node is None:
+        return []
+    calls: list[tuple[str, str]] = []
+
+    def _walk(node):
+        if node.type == "call_expression":
+            fn = node.child_by_field_name("function")
+            if fn:
+                fnt = fn.type
+                if fnt == "identifier":
+                    name = _t(fn, src)
+                    if name and name.isidentifier():
+                        calls.append((name, ""))
+                elif fnt == "field_expression":
+                    f = fn.child_by_field_name("field")
+                    if f and f.type in ("field_identifier", "identifier"):
+                        name = _t(f, src)
+                        if name and name.isidentifier():
+                            calls.append((name, ""))
+                elif fnt == "qualified_identifier":
+                    # e.g. Foo::bar or std::make_shared
+                    raw = _t(fn, src)
+                    parts = [p.strip() for p in raw.split("::") if p.strip()]
+                    if parts and parts[0] not in _CPP_SKIP_NAMESPACES:
+                        first = parts[0]
+                        if first and first[0].isupper() and first.isidentifier():
+                            calls.append((first, ""))
+        for c in node.children:
+            _walk(c)
+
+    _walk(body_node)
+    return calls
 
 
 # ---------------------------------------------------------------------------
@@ -259,8 +302,15 @@ def _parse_class_or_struct(node, src: bytes, kind: str) -> ClassInfo | None:
     bases = _extract_bases(node, src)
     methods = _extract_methods(body, src)
 
+    # Aggregate call graph from all inline method bodies
+    calls: list[tuple[str, str]] = []
+    for child in body.children:
+        if child.type == "function_definition":
+            calls.extend(_collect_calls_cpp(child.child_by_field_name("body"), src))
+
     return ClassInfo(
         name=name, kind=kind, bases=bases, methods=methods, class_vars=[],
+        calls=calls,
         line_start=_line(node), line_end=_end_line(node),
     )
 
@@ -304,10 +354,13 @@ def _parse_function(node, src: bytes) -> FunctionInfo | None:
     args = _parse_params(param_list, src)
     ret_node = node.child_by_field_name("type")
     return_type = _t(ret_node, src) if ret_node else ""
+    body_node = node.child_by_field_name("body")
+    calls = _collect_calls_cpp(body_node, src)
     return FunctionInfo(
         name=name,
         args=[ArgInfo(name=a) for a in args],
         return_type=return_type,
+        calls=calls,
         line_start=_line(node),
         line_end=_end_line(node),
     )

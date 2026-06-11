@@ -75,6 +75,68 @@ def _parse_params(params_node, src: bytes) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# call graph extraction
+# ---------------------------------------------------------------------------
+
+_RUST_CRATE_PREFIXES: frozenset[str] = frozenset({"crate", "self", "super", "std", "core", "alloc"})
+
+
+def _collect_calls_rust(body_node, src: bytes) -> list[tuple[str, str]]:
+    """Walk a Rust block body and return (callee_name, "") for each call."""
+    if body_node is None:
+        return []
+    calls: list[tuple[str, str]] = []
+
+    def _walk(node):
+        nt = node.type
+        if nt == "call_expression":
+            fn = node.child_by_field_name("function")
+            if fn:
+                fnt = fn.type
+                if fnt == "identifier":
+                    name = _t(fn, src)
+                    if name and name.isidentifier():
+                        calls.append((name, ""))
+                elif fnt == "scoped_identifier":
+                    # Foo::new, crate::bar::Baz — take first non-crate part
+                    raw = _t(fn, src)
+                    parts = [p.strip() for p in raw.split("::") if p.strip()]
+                    for part in parts:
+                        if part not in _RUST_CRATE_PREFIXES and part.isidentifier():
+                            calls.append((part, ""))
+                            break
+                elif fnt == "field_expression":
+                    f = fn.child_by_field_name("field")
+                    if f:
+                        name = _t(f, src)
+                        if name and name.isidentifier():
+                            calls.append((name, ""))
+        elif nt == "method_call_expression":
+            name_node = node.child_by_field_name("name")
+            if name_node:
+                name = _t(name_node, src)
+                if name and name.isidentifier():
+                    calls.append((name, ""))
+        for c in node.children:
+            _walk(c)
+
+    _walk(body_node)
+    return calls
+
+
+def _collect_impl_calls_rust(impl_node, src: bytes) -> list[tuple[str, str]]:
+    """Aggregate calls from all method bodies within an impl block."""
+    body = impl_node.child_by_field_name("body")
+    if not body:
+        return []
+    calls: list[tuple[str, str]] = []
+    for child in body.children:
+        if child.type == "function_item":
+            calls.extend(_collect_calls_rust(child.child_by_field_name("body"), src))
+    return calls
+
+
+# ---------------------------------------------------------------------------
 # function / method parsing
 # ---------------------------------------------------------------------------
 
@@ -102,11 +164,14 @@ def _parse_fn(node, src: bytes) -> MethodInfo:
 
 def _parse_fn_info(node, src: bytes) -> FunctionInfo:
     m = _parse_fn(node, src)
+    body_node = node.child_by_field_name("body")
+    calls = _collect_calls_rust(body_node, src)
     return FunctionInfo(
         name=m.name,
         args=[ArgInfo(name=a) for a in m.args],
         return_type=m.return_type,
         is_async=m.is_async,
+        calls=calls,
         line_start=_line(node),
         line_end=_end_line(node),
     )
@@ -286,15 +351,17 @@ def analyze_rust(path: str, content: str) -> CodeAnalysis:
             elif nt == "function_item":
                 functions.append(_parse_fn_info(node, src))
 
-        # Pass 2 — attach impl methods to their types
+        # Pass 2 — attach impl methods to their types + collect call graph
         for node in impl_queue:
             impl_type = _impl_type_name(node, src)
             trait_name = _impl_trait_name(node, src)
             methods = _parse_impl_methods(node, src)
+            impl_calls = _collect_impl_calls_rust(node, src)
 
             if impl_type in type_map:
                 existing = type_map[impl_type]
                 existing.methods.extend(methods)
+                existing.calls.extend(impl_calls)
                 if trait_name and trait_name not in existing.bases:
                     existing.bases.append(trait_name)
             elif impl_type:
@@ -305,6 +372,7 @@ def analyze_rust(path: str, content: str) -> CodeAnalysis:
                     bases=[trait_name] if trait_name else [],
                     methods=methods,
                     class_vars=[],
+                    calls=impl_calls,
                     line_start=_line(node),
                     line_end=_end_line(node),
                 )

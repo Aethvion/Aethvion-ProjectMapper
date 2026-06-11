@@ -63,6 +63,46 @@ def _end_line(node) -> int:
 
 
 # ---------------------------------------------------------------------------
+# call graph extraction
+# ---------------------------------------------------------------------------
+
+
+def _collect_calls_swift(body_node, src: bytes) -> list[tuple[str, str]]:
+    """Walk a Swift code block and return (callee_name, "") for each call."""
+    if body_node is None:
+        return []
+    calls: list[tuple[str, str]] = []
+
+    def _walk(node):
+        if node.type == "call_expression":
+            children = node.children
+            if children:
+                callee = children[0]
+                ct = callee.type
+                if ct == "simple_identifier":
+                    name = _t(callee, src)
+                    if name and name.isidentifier():
+                        calls.append((name, ""))
+                elif ct == "navigation_expression":
+                    # e.g. SomeType.method() or obj.property.method()
+                    # Take the last navigation_suffix's simple_identifier
+                    for nc in reversed(callee.children):
+                        if nc.type == "navigation_suffix":
+                            for ncc in nc.children:
+                                if ncc.type == "simple_identifier":
+                                    name = _t(ncc, src)
+                                    if name and name.isidentifier():
+                                        calls.append((name, ""))
+                                    break
+                            break
+        for c in node.children:
+            _walk(c)
+
+    _walk(body_node)
+    return calls
+
+
+# ---------------------------------------------------------------------------
 # kind detection (class_declaration covers class / struct / enum / actor / extension)
 # ---------------------------------------------------------------------------
 
@@ -229,13 +269,16 @@ def _parse_init_decl(node, src: bytes) -> MethodInfo | None:
 # ---------------------------------------------------------------------------
 
 
-def _parse_class_body(body_node, src: bytes, kind: str) -> tuple[list[MethodInfo], list[str]]:
-    """Extract methods and class_vars from a class_body or enum_class_body."""
+def _parse_class_body(
+    body_node, src: bytes, kind: str
+) -> tuple[list[MethodInfo], list[str], list[tuple[str, str]]]:
+    """Extract methods, class_vars, and call graph from a class body."""
     methods: list[MethodInfo] = []
     class_vars: list[str] = []
+    calls: list[tuple[str, str]] = []
 
     if body_node is None:
-        return methods, class_vars
+        return methods, class_vars, calls
 
     for child in body_node.children:
         nt = child.type
@@ -243,17 +286,19 @@ def _parse_class_body(body_node, src: bytes, kind: str) -> tuple[list[MethodInfo
             m = _parse_func_decl(child, src)
             if m:
                 methods.append(m)
+            calls.extend(_collect_calls_swift(child.child_by_field_name("body"), src))
         elif nt == "init_declaration":
             m = _parse_init_decl(child, src)
             if m:
                 methods.append(m)
+            calls.extend(_collect_calls_swift(child.child_by_field_name("body"), src))
         elif nt == "enum_entry":
             # enum cases
             name_node = child.child_by_field_name("name")
             if name_node:
                 class_vars.append(_t(name_node, src))
 
-    return methods, class_vars
+    return methods, class_vars, calls
 
 
 def _parse_protocol_body(body_node, src: bytes) -> list[MethodInfo]:
@@ -288,10 +333,11 @@ def _parse_class_decl(node, src: bytes) -> ClassInfo | None:
     bases = _swift_bases(node, src)
 
     body_node = node.child_by_field_name("body")
-    methods, class_vars = _parse_class_body(body_node, src, kind)
+    methods, class_vars, calls = _parse_class_body(body_node, src, kind)
 
     return ClassInfo(
         name=name, kind=kind, bases=bases, methods=methods, class_vars=class_vars,
+        calls=calls,
         line_start=_line(node), line_end=_end_line(node),
     )
 
@@ -341,11 +387,13 @@ def _walk(node, src: bytes,
         elif nt == "function_declaration":
             m = _parse_func_decl(child, src)
             if m:
+                fn_calls = _collect_calls_swift(child.child_by_field_name("body"), src)
                 functions.append(FunctionInfo(
                     name=m.name,
                     args=[ArgInfo(name=a) for a in m.args],
                     return_type=m.return_type,
                     is_async=m.is_async,
+                    calls=fn_calls,
                     line_start=_line(child),
                     line_end=_end_line(child),
                 ))

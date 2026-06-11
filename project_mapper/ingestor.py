@@ -290,24 +290,22 @@ class ProjectIngestor:
                 )
 
         # ---- 6. Class calls relations (static call graph) -----------
-        # For each class, try to resolve its extracted callee names to known
-        # entities.  Only uppercase names (class/object names) are wired —
-        # raw attribute names that the call-extractor couldn't resolve to a
-        # class are skipped.  Uses the same stub-creation pattern as extends.
+        # Wire extracted callee names to known entities.  Uppercase names also
+        # get stubs (forward-reference support); lowercase names are only wired
+        # if the entity already exists in the index (no stub creation for them).
         for cls_info, cls_id in zip(analysis.classes, result.class_entity_ids):
             for callee_name, via_method in cls_info.calls:
-                # Only wire uppercase-first names (class names, not attr names)
-                if not callee_name or not callee_name[0].isupper():
+                if not callee_name:
                     continue
-                # Skip ALL_CAPS names — these are module-level constants,
-                # not classes (e.g. WORKSPACE_ROOT, PROVIDER_CLASSES)
+                # Skip ALL_CAPS names — module-level constants, not classes
                 if callee_name.isupper():
                     continue
-                # Try existing index first (entity already scanned)
                 target_id = self._index.get(callee_name)
-                if not target_id:
-                    # Create a stub so forward-references are captured even if
-                    # the target file hasn't been scanned yet.
+                if not target_id and callee_name[0].isupper():
+                    # Create stubs only for uppercase (class/type) names so
+                    # forward-references are captured even before the target
+                    # file is scanned.  Lowercase function names get no stub —
+                    # we only wire them if they already exist.
                     stub, _ = self._writer.create(
                         name=callee_name,
                         entity_type="class",
@@ -323,17 +321,15 @@ class ProjectIngestor:
                     )
 
         # ---- 7. Function calls relations (static call graph) --------
-        # Mirror of step 6 but for top-level functions.  Functions cannot
-        # have self-attribute assignments, so only direct instantiations and
-        # factory-function patterns are captured.
+        # Same logic as step 6 but for top-level functions.
         for fn_info, fn_id in zip(analysis.functions, result.function_entity_ids):
             for callee_name, via_method in fn_info.calls:
-                if not callee_name or not callee_name[0].isupper():
+                if not callee_name:
                     continue
                 if callee_name.isupper():
                     continue
                 target_id = self._index.get(callee_name)
-                if not target_id:
+                if not target_id and callee_name[0].isupper():
                     stub, _ = self._writer.create(
                         name=callee_name,
                         entity_type="class",

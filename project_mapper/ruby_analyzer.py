@@ -53,6 +53,33 @@ def _end_line(node) -> int:
 
 
 # ---------------------------------------------------------------------------
+# call graph extraction
+# ---------------------------------------------------------------------------
+
+_RUBY_IMPORT_METHODS: frozenset[str] = frozenset({"require", "require_relative", "include", "extend"})
+
+
+def _collect_calls_rb(body_node, src: bytes) -> list[tuple[str, str]]:
+    """Walk a Ruby method body and return (callee_name, "") for each call."""
+    if body_node is None:
+        return []
+    calls: list[tuple[str, str]] = []
+
+    def _walk(node):
+        if node.type == "call":
+            method_node = node.child_by_field_name("method")
+            if method_node:
+                name = _t(method_node, src).rstrip("!?")
+                if name and name not in _RUBY_IMPORT_METHODS and name.isidentifier():
+                    calls.append((name, ""))
+        for c in node.children:
+            _walk(c)
+
+    _walk(body_node)
+    return calls
+
+
+# ---------------------------------------------------------------------------
 # parameter parsing
 # ---------------------------------------------------------------------------
 
@@ -133,30 +160,35 @@ def _parse_class_or_module(node, src: bytes, kind: str) -> ClassInfo | None:
     body = node.child_by_field_name("body")
     methods: list[MethodInfo] = []
     class_vars: list[str] = []
+    calls: list[tuple[str, str]] = []
 
     if body:
-        _collect_body(body, src, methods, class_vars)
+        _collect_body(body, src, methods, class_vars, calls)
 
     return ClassInfo(
         name=name, kind=kind, bases=bases, methods=methods, class_vars=class_vars,
+        calls=calls,
         line_start=_line(node), line_end=_end_line(node),
     )
 
 
 def _collect_body(body_node, src: bytes,
                   methods: list[MethodInfo],
-                  class_vars: list[str]) -> None:
-    """Collect methods and constants from a class/module body."""
+                  class_vars: list[str],
+                  calls: list[tuple[str, str]]) -> None:
+    """Collect methods, constants, and call graph from a class/module body."""
     for child in body_node.children:
         nt = child.type
         if nt == "method":
             m = _parse_method(child, src)
             if m:
                 methods.append(m)
+            calls.extend(_collect_calls_rb(child.child_by_field_name("body"), src))
         elif nt == "singleton_method":
             m = _parse_singleton_method(child, src)
             if m:
                 methods.append(m)
+            calls.extend(_collect_calls_rb(child.child_by_field_name("body"), src))
         elif nt == "assignment":
             # Capture CONSTANT = ... as class_vars
             target = child.child_by_field_name("left")
@@ -235,9 +267,11 @@ def _walk(node, src: bytes,
             # Only capture truly top-level (not inside any class) methods as functions
             m = _parse_method(child, src)
             if m:
+                fn_calls = _collect_calls_rb(child.child_by_field_name("body"), src)
                 functions.append(FunctionInfo(
                     name=m.name,
                     args=[ArgInfo(name=a) for a in m.args],
+                    calls=fn_calls,
                     line_start=_line(child),
                     line_end=_end_line(child),
                 ))
