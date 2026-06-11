@@ -269,16 +269,28 @@ def _parse_trait(node, src: bytes) -> ClassInfo:
 # ---------------------------------------------------------------------------
 
 
+_RUST_INTERNAL_PREFIXES: frozenset[str] = frozenset({"crate", "self", "super"})
+
+
 def _parse_use(node, src: bytes) -> ImportInfo:
     text = _t(node, src)
-    module = text.removeprefix("use ").rstrip(";").strip()
-    parts = module.replace("{", "").replace("}", "").split("::")
-    symbol = parts[-1].strip() if parts else module
+    raw = text.removeprefix("use ").rstrip(";").strip()
+    # Flatten use tree syntax: "use foo::{A, B}" → treat as "foo::A" for module path
+    parts = [p.strip() for p in raw.replace("{", "").replace("}", "").split("::") if p.strip()]
+    is_relative = False
+    level = 0
+    if parts and parts[0] in _RUST_INTERNAL_PREFIXES:
+        is_relative = True
+        level = 1
+        parts = parts[1:]  # strip crate:: / self:: / super:: prefix
+    module = ".".join(parts)
+    symbol = parts[-1] if parts else ""
     return ImportInfo(
         module=module,
         names=[symbol] if symbol and symbol not in ("*", "") else [],
         is_from=False,
-        is_relative=False,
+        is_relative=is_relative,
+        level=level,
     )
 
 

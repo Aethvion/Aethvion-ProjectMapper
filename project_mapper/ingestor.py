@@ -43,12 +43,26 @@ class IngestResult:
 # ---------------------------------------------------------------------------
 
 def _top_level_packages(project_root: Path) -> frozenset[str]:
-    """Return the set of top-level directory names in the project root."""
+    """Return the set of names that indicate an intra-project import.
+
+    Includes top-level directory names plus subdirectory names of lib/ (Ruby
+    convention) and src/ (PHP/Java convention), since those languages resolve
+    require/use paths relative to those roots rather than the project root.
+    """
     try:
-        return frozenset(
-            d.name for d in project_root.iterdir()
-            if d.is_dir() and not d.name.startswith(".") and d.name != "__pycache__"
-        )
+        pkgs: set[str] = set()
+        for d in project_root.iterdir():
+            if d.is_dir() and not d.name.startswith(".") and d.name != "__pycache__":
+                pkgs.add(d.name)
+        # Ruby: lib/jekyll/... → "jekyll" is the importable name, not "lib"
+        # PHP/Java: src/App/... → "App" (or "app") is importable
+        for subdir in ("lib", "src"):
+            sub = project_root / subdir
+            if sub.is_dir():
+                for d in sub.iterdir():
+                    if d.is_dir() and not d.name.startswith("."):
+                        pkgs.add(d.name)
+        return frozenset(pkgs)
     except Exception:
         return frozenset()
 
@@ -59,7 +73,19 @@ def _is_internal_import(imp: ImportInfo, top_pkgs: frozenset[str]) -> bool:
         return True
     if not imp.module:
         return False
-    return imp.module.split(".")[0] in top_pkgs
+    # Dot-separated first component (Python, JS/TS, Go, PHP-normalized)
+    first = imp.module.split(".")[0]
+    if first in top_pkgs:
+        return True
+    # Case-insensitive: PHP PSR-4 namespaces are PascalCase but dirs are lowercase
+    # e.g. "App.Models.User" (from App\Models\User) → matches "app/" directory
+    if first.lower() in {p.lower() for p in top_pkgs}:
+        return True
+    # Slash-separated first component (Ruby require "jekyll/drops/drop")
+    first_slash = imp.module.split("/")[0]
+    if first_slash and first_slash != first and first_slash in top_pkgs:
+        return True
+    return False
 
 
 def _module_path_from_file(rel_path: str) -> str:
@@ -123,6 +149,19 @@ def _import_to_file_candidates(
         # Java: dotted package path → directory/ClassName.java
         # e.g. "com.example.service" → "com/example/service.java"
         candidates.append(base + ".java")
+        # Rust: module path → module.rs or module/mod.rs
+        candidates.append(base + ".rs")
+        candidates.append(base + "/mod.rs")
+        # Ruby: module path → module.rb (for absolute require paths)
+        candidates.append(base + ".rb")
+        # Also try with last component dropped (Type import: crate::module::Type → module.rs)
+        base_no_last = "/".join(base.split("/")[:-1])
+        if base_no_last:
+            candidates.append(base_no_last + ".rs")
+            candidates.append(base_no_last + "/mod.rs")
+            candidates.append("lib/" + base_no_last + ".rb")
+        # Ruby lib/ prefix convention: require "jekyll/drops/drop" → lib/jekyll/drops/drop.rb
+        candidates.append("lib/" + base + ".rb")
     else:
         # Relative import — resolve against the current file's directory
         parts = current_file.replace("\\", "/").split("/")
@@ -138,6 +177,25 @@ def _import_to_file_candidates(
                 candidates.append(base + ext)
             candidates.append(base + "/index.ts")
             candidates.append(base + "/index.js")
+            # Rust relative: use crate::module::Type (level=1 set by rust_analyzer)
+            # Try anchored from current file's dir (self::module)
+            candidates.append(base + ".rs")
+            candidates.append(base + "/mod.rs")
+            base_no_last = "/".join(base.split("/")[:-1])
+            if base_no_last:
+                candidates.append(base_no_last + ".rs")
+                candidates.append(base_no_last + "/mod.rs")
+            # Also try anchored from src/ (crate:: always refers to crate root)
+            if current_file.endswith(".rs"):
+                rust_sub = module.replace(".", "/")
+                candidates.append("src/" + rust_sub + ".rs")
+                candidates.append("src/" + rust_sub + "/mod.rs")
+                rust_no_last = "/".join(rust_sub.split("/")[:-1])
+                if rust_no_last:
+                    candidates.append("src/" + rust_no_last + ".rs")
+                    candidates.append("src/" + rust_no_last + "/mod.rs")
+            # Ruby require_relative
+            candidates.append(base + ".rb")
         else:
             # "from . import X" — the module name is empty; point at the package
             base = "/".join(pkg_parts)

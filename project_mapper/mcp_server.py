@@ -80,7 +80,7 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.5.3"
+SERVER_VERSION   = "1.5.4"
 
 
 # ---------------------------------------------------------------------------
