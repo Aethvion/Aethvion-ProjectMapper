@@ -15,6 +15,8 @@ Tools
 5. pm_stats      — database overview + last scan status
 6. pm_delta      — filesystem diff vs. the manifest (no DB writes)
 7. pm_scan       — synchronous full or incremental project scan
+8. pm_find       — exact/partial symbol lookup with location, callers, callees
+9. pm_orphans    — dead-code detection: entities with no inbound dependencies
 """
 
 from __future__ import annotations
@@ -221,6 +223,73 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Absolute path to the project directory. "
                                    "Uses the server default if omitted.",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "pm_find",
+        "description": (
+            "Look up a symbol by name and return its definition location, callers, "
+            "and callees. Searches by exact name first (case-insensitive), then "
+            "suffix/method match, then substring. "
+            "Use this when you know — or partially know — the name of a function, "
+            "class, or module and need to find where it lives, what calls it, "
+            "and what it calls. Faster and more precise than pm_context for "
+            "direct symbol lookups."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": (
+                        "Symbol name to look up, e.g. 'UserService', 'get_user', "
+                        "'auth'. Exact match tried first; partial matches returned "
+                        "if no exact match."
+                    ),
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum matches to return when multiple symbols share the name (default 10).",
+                    "default": 10,
+                },
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "pm_orphans",
+        "description": (
+            "Find entities that have no inbound calls, imports, or dependencies — "
+            "potential dead code. Entry points, dunder methods, and test functions "
+            "are filtered out automatically. "
+            "Use before a cleanup pass to identify candidates for removal. "
+            "Note: dynamic dispatch, decorator-registered handlers, and public API "
+            "won't have graph callers — review results before deleting anything."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Limit to specific entity types, e.g. ['function', 'class']. "
+                        "Returns all code types if omitted."
+                    ),
+                    "default": [],
+                },
+                "include_modules": {
+                    "type": "boolean",
+                    "description": "Include module-level entities (files/packages, often entry points). Default false.",
+                    "default": False,
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum entities to return (default 100).",
+                    "default": 100,
                 },
             },
             "required": [],
@@ -742,6 +811,173 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     return "\n".join(lines)
 
 
+def _format_find_result(m: dict[str, Any]) -> str:
+    """Format a single pm_find match as a detailed block."""
+    name      = m.get("name", "?")
+    etype     = m.get("type", "")
+    kind      = m.get("kind") or etype
+    fp        = m.get("file_path", "")
+    line_start = str(m.get("line_start", ""))
+    line_end   = str(m.get("line_end", ""))
+
+    loc = ""
+    if fp:
+        loc = fp
+        if line_start:
+            loc += f"  line {line_start}"
+            if line_end and line_end != line_start:
+                loc += f"–{line_end}"
+
+    lines = [f"Symbol: {name} [{kind}]"]
+    if loc:
+        lines.append(f"File:   {loc}")
+
+    status = m.get("status", "active")
+    if status not in ("active", ""):
+        lines.append(f"Status: {status}")
+
+    summary = m.get("summary", "")
+    if summary:
+        lines.append(f"Summary: {summary}")
+
+    tags = m.get("tags", [])
+    if tags:
+        lines.append(f"Tags:   {', '.join(tags)}")
+
+    sig = m.get("signature", "")
+    if sig:
+        lines.append(f"Signature: {sig[:120]}")
+
+    callers = m.get("callers", [])
+    if callers:
+        lines.append(f"\nCallers ({len(callers)}):")
+        for c in callers:
+            lines.append(f"  * {c['name']} [{c.get('type', '?')}]  → {c.get('via', '?')}")
+    else:
+        lines.append("\nCallers: none found in graph")
+
+    callees = m.get("callees", [])
+    if callees:
+        lines.append(f"\nCalls/uses ({len(callees)}):")
+        for c in callees:
+            lines.append(f"  * {c['name']} [{c.get('type', '?')}]  ({c.get('via', '?')})")
+
+    return "\n".join(lines)
+
+
+def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
+    from .query import build_entity_map, find_query
+
+    name = args.get("name", "").strip()
+    if not name:
+        raise ValueError("'name' is required")
+
+    max_results = min(int(args.get("max_results", 10)), 20)
+
+    entity_map = build_entity_map(ctx.writer)
+    if not entity_map:
+        return "The knowledge graph is empty. Run pm_scan first."
+
+    result = find_query(name, entity_map, ctx.index, max_results=max_results)
+
+    if result.get("not_found"):
+        return (
+            f"Symbol {name!r} not found in the graph.\n"
+            "Check spelling, or run pm_scan if the codebase hasn't been indexed yet."
+        )
+
+    matches = result.get("matches", [])
+    total   = result.get("total", 0)
+
+    if total == 0:
+        return f"No symbols found for {name!r}."
+
+    if total == 1:
+        return _format_find_result(matches[0])
+
+    lines = [
+        f"Found {total} symbols matching {name!r}:",
+        "",
+    ]
+    for i, m in enumerate(matches, 1):
+        fp    = m.get("file_path", "")
+        line  = str(m.get("line_start", ""))
+        loc   = f"  {fp}:{line}" if fp and line else f"  {fp}" if fp else ""
+        label = m.get("kind") or m.get("type") or "?"
+        desc  = f" — {m['summary'][:60]}" if m.get("summary") else ""
+        lines.append(f"  {i}. {m['name']} [{label}]{loc}{desc}")
+
+    lines.append("")
+    lines.append(
+        "Use a more specific name to get the detailed view, "
+        "or pm_context for task-oriented search."
+    )
+    return "\n".join(lines)
+
+
+def handle_pm_orphans(args: dict[str, Any], ctx: MCPContext) -> str:
+    from .query import build_entity_map, orphan_query
+
+    types_filter    = args.get("types") or None
+    include_modules = bool(args.get("include_modules", False))
+    max_results     = min(int(args.get("max_results", 100)), 200)
+
+    entity_map = build_entity_map(ctx.writer)
+    if not entity_map:
+        return "The knowledge graph is empty. Run pm_scan first."
+
+    result = orphan_query(
+        entity_map,
+        types=types_filter,
+        include_modules=include_modules,
+        max_results=max_results,
+    )
+
+    total     = result.get("total", 0)
+    skipped   = result.get("skipped_count", 0)
+    orphans   = result.get("orphans", [])
+
+    if total == 0:
+        return (
+            "No orphaned entities found — everything has at least one inbound dependency.\n"
+            f"({skipped} entry points / dunder methods / test functions filtered out.)"
+        )
+
+    lines = [
+        f"Orphaned entities (no inbound calls/imports): {total}",
+        f"Filtered out: {skipped} entry points / dunder methods / test functions",
+        "",
+        "Note: dynamic callers (decorators, dynamic dispatch, reflection) won't",
+        "      appear in the graph. Review before removing anything.",
+        "",
+    ]
+
+    by_type: dict[str, list[dict]] = {}
+    for o in orphans:
+        by_type.setdefault(o.get("type", "other"), []).append(o)
+
+    type_order = ["class", "function", "endpoint", "model", "service",
+                  "component", "workflow", "config", "module", "other"]
+    ordered_types = [t for t in type_order if t in by_type] + \
+                    [t for t in by_type if t not in type_order]
+
+    for etype in ordered_types:
+        items = by_type[etype]
+        heading = etype.upper() + ("S" if not etype.endswith("s") else "")
+        lines.append(f"{heading} ({len(items)}):")
+        for o in items:
+            name    = o.get("name", "?")
+            fp      = o.get("file_path", "")
+            line    = str(o.get("line_start", ""))
+            loc     = f"  {fp}:{line}" if fp and line else f"  {fp}" if fp else ""
+            summary = o.get("summary", "")
+            desc    = f"\n      {summary[:80]}" if summary else ""
+            lines.append(f"  * {name}{loc}{desc}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -754,4 +990,6 @@ HANDLERS = {
     "pm_stats":      handle_pm_stats,
     "pm_delta":      handle_pm_delta,
     "pm_scan":       handle_pm_scan,
+    "pm_find":       handle_pm_find,
+    "pm_orphans":    handle_pm_orphans,
 }

@@ -2,10 +2,12 @@
 project_mapper/query.py
 Agent-optimized query engine for ProjectMapper.
 
-Three query primitives:
+Five query primitives:
   impact_query   — "what is affected if I change entity X?" (directed BFS)
   context_query  — "I'm working on X, what should I know?" (keyword + expansion)
   shortest_path  — "how does entity A connect to entity B?" (undirected BFS)
+  find_query     — "where is symbol X defined, who calls it?" (name lookup)
+  orphan_query   — "what entities have no inbound dependencies?" (dead code)
 
 All functions accept a pre-loaded entity_map for performance. Build it once per
 request with build_entity_map() and pass it to whichever queries you need.
@@ -387,6 +389,26 @@ _QUERY_SYNONYMS: dict[str, list[str]] = {
     "job":             ["task", "queue"],
     "async":           ["worker", "task"],
 }
+
+
+# ---------------------------------------------------------------------------
+# Constants for orphan / dead-code detection
+# ---------------------------------------------------------------------------
+
+# Names that are commonly entry points — not dead even if nothing calls them.
+_ORPHAN_ENTRY_NAMES: frozenset[str] = frozenset({
+    "main", "run", "start", "setup", "teardown", "configure", "create_app",
+    "application", "app", "wsgi", "asgi", "celery", "init_app",
+})
+
+# Files whose entities are framework entry points or test fixtures — skip them.
+_ORPHAN_SKIP_FILES: tuple[str, ...] = (
+    "setup.py", "conftest.py", "wsgi.py", "asgi.py",
+    "__init__.py", "__main__.py", "manage.py", "cli.py",
+)
+
+# Any __dunder__ method — used implicitly by Python, never "called" in the graph.
+_DUNDER_PAT: re.Pattern = re.compile(r"^__[a-z_]+__$")
 
 
 _TOKENIZE_STOP: frozenset[str] = frozenset({
@@ -815,4 +837,191 @@ def apply_contribution(
         "relations_added": added_rels,
         "rationale_stored": bool(rationale),
         "changes_made":   changes_made,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 5. Symbol Lookup
+# ---------------------------------------------------------------------------
+
+def find_query(
+    name:        str,
+    entity_map:  dict[str, dict],
+    index:       Any,
+    max_results: int = 10,
+) -> dict[str, Any]:
+    """
+    Look up a symbol by exact or partial name.
+
+    Match priority (lowest number wins):
+      0 — case-insensitive exact match on entity name
+      1 — entity name ends with .<name> or _<name>  (method/suffix match)
+      2 — entity name contains <name>  (substring)
+
+    Returns up to max_results matches, each with full location context,
+    callers (inbound dependency relations), and callees (outbound relations).
+    """
+    name_lower = name.lower()
+    scored: list[tuple[int, str]] = []
+
+    for eid, entity in entity_map.items():
+        if entity.get("status") == "deleted":
+            continue
+        ename = entity.get("name", "").lower()
+        if ename == name_lower:
+            scored.append((0, eid))
+        elif ename.endswith(f".{name_lower}") or ename.endswith(f"_{name_lower}"):
+            scored.append((1, eid))
+        elif name_lower in ename:
+            scored.append((2, eid))
+
+    if not scored:
+        return {"query": name, "matches": [], "total": 0, "not_found": True}
+
+    scored.sort(key=lambda x: x[0])
+    seen:    set[str]  = set()
+    ordered: list[str] = []
+    for _, eid in scored:
+        if eid not in seen:
+            seen.add(eid)
+            ordered.append(eid)
+    ordered = ordered[:max_results]
+
+    rev_adj  = build_reverse_impact_adj(entity_map)
+    _OUTBOUND = frozenset({"calls", "imports", "depends_on", "uses",
+                           "extends", "implements"})
+
+    matches: list[dict] = []
+    for eid in ordered:
+        entity    = entity_map[eid]
+        props     = entity.get("sections", {}).get("properties", {})
+        core      = entity.get("sections", {}).get("core", {})
+        relations = entity.get("sections", {}).get("relations", [])
+
+        callers: list[dict] = []
+        for caller_id, _cname, rel_kind in rev_adj.get(eid, [])[:8]:
+            caller = entity_map.get(caller_id)
+            if caller:
+                callers.append({
+                    "name":      caller.get("name", ""),
+                    "type":      caller.get("type", ""),
+                    "via":       rel_kind,
+                    "file_path": caller.get("sections", {})
+                                       .get("properties", {})
+                                       .get("file_path", ""),
+                })
+
+        callees: list[dict] = []
+        for rel in relations[:8]:
+            if rel.get("kind") in _OUTBOUND:
+                target = entity_map.get(rel.get("target_id", ""))
+                if target:
+                    callees.append({
+                        "name": target.get("name", ""),
+                        "type": target.get("type", ""),
+                        "via":  rel.get("kind", ""),
+                    })
+
+        matches.append({
+            "id":         eid,
+            "name":       entity.get("name", ""),
+            "type":       entity.get("type", ""),
+            "kind":       entity.get("kind"),
+            "status":     entity.get("status", "active"),
+            "file_path":  props.get("file_path", ""),
+            "line_start": props.get("line_start", ""),
+            "line_end":   props.get("line_end", ""),
+            "summary":    core.get("summary", "")[:200],
+            "signature":  props.get("signature", ""),
+            "tags":       core.get("tags", [])[:6],
+            "callers":    callers,
+            "callees":    callees,
+        })
+
+    return {
+        "query":     name,
+        "matches":   matches,
+        "total":     len(matches),
+        "not_found": False,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 6. Orphan / Dead-Code Detection
+# ---------------------------------------------------------------------------
+
+def orphan_query(
+    entity_map:      dict[str, dict],
+    types:           Optional[list[str]] = None,
+    include_modules: bool = False,
+    max_results:     int  = 100,
+) -> dict[str, Any]:
+    """
+    Find entities with no inbound dependency-forming relations — potential dead code.
+
+    An entity is an orphan if no other entity has a relation in
+    IMPACT_INCOMING_KINDS pointing to it. Known false positives are filtered:
+      - dunder methods  (__init__, __str__, …)
+      - named entry points  (main, run, create_app, …)
+      - test entities  (test_* files / tests/ directories)
+      - entities living in framework entry-point files  (wsgi.py, manage.py, …)
+      - module-level entities  (unless include_modules=True)
+    """
+    referenced_ids: set[str] = set()
+    for entity in entity_map.values():
+        for rel in entity.get("sections", {}).get("relations", []):
+            if rel.get("kind") in IMPACT_INCOMING_KINDS:
+                tid = rel.get("target_id", "")
+                if tid:
+                    referenced_ids.add(tid)
+
+    allowed_types = set(types) if types else None
+    orphans:       list[dict] = []
+    skipped_count: int        = 0
+
+    for eid, entity in entity_map.items():
+        if entity.get("status") in ("deleted", "stub"):
+            continue
+        if eid in referenced_ids:
+            continue
+
+        etype = entity.get("type", "")
+        if etype == "module" and not include_modules:
+            continue
+        if allowed_types and etype not in allowed_types:
+            continue
+
+        name      = entity.get("name", "")
+        props     = entity.get("sections", {}).get("properties", {})
+        file_path = props.get("file_path", "")
+
+        is_false_positive = (
+            name.lower() in _ORPHAN_ENTRY_NAMES
+            or bool(_DUNDER_PAT.match(name))
+            or _is_test_entity(entity)
+            or any(file_path.endswith(skip) for skip in _ORPHAN_SKIP_FILES)
+        )
+        if is_false_positive:
+            skipped_count += 1
+            continue
+
+        orphans.append({
+            "id":         eid,
+            "name":       name,
+            "type":       etype,
+            "kind":       entity.get("kind"),
+            "file_path":  file_path,
+            "line_start": props.get("line_start", ""),
+            "summary":    entity.get("sections", {})
+                               .get("core", {})
+                               .get("summary", "")[:120],
+        })
+
+    orphans.sort(key=lambda x: (x["type"], x["name"]))
+
+    return {
+        "orphans":          orphans[:max_results],
+        "total":            len(orphans),
+        "skipped_count":    skipped_count,
+        "referenced_count": len(referenced_ids),
     }
