@@ -407,6 +407,14 @@ _ORPHAN_SKIP_FILES: tuple[str, ...] = (
     "__init__.py", "__main__.py", "manage.py", "cli.py",
 )
 
+# Path segments that indicate third-party vendored assets.
+# Entities from these directories are excluded from orphan results because
+# nothing in the project graph calls into vendor internals directly.
+# Kept at the query layer (not scan-time) so pm_find can still locate them.
+_ORPHAN_VENDOR_DIRS: frozenset[str] = frozenset({
+    "vendor", "node_modules", "bower_components",
+})
+
 # Any __dunder__ method — used implicitly by Python, never "called" in the graph.
 _DUNDER_PAT: re.Pattern = re.compile(r"^__[a-z_]+__$")
 
@@ -995,11 +1003,13 @@ def orphan_query(
         props     = entity.get("sections", {}).get("properties", {})
         file_path = props.get("file_path", "")
 
+        fp_parts = set(file_path.replace("\\", "/").split("/"))
         is_false_positive = (
             name.lower() in _ORPHAN_ENTRY_NAMES
             or bool(_DUNDER_PAT.match(name))
             or _is_test_entity(entity)
             or any(file_path.endswith(skip) for skip in _ORPHAN_SKIP_FILES)
+            or bool(fp_parts & _ORPHAN_VENDOR_DIRS)
         )
         if is_false_positive:
             skipped_count += 1

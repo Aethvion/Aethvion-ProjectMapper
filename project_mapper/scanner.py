@@ -224,6 +224,13 @@ async def run_scan(
 
     async def _process_one(fp: Path) -> None:
         rel = str(fp.relative_to(root)).replace("\\", "/")
+
+        # Skip node_modules — always third-party packages, never project code.
+        # Check before reading to avoid the I/O cost entirely.
+        if "node_modules" in fp.parts:
+            stats["files_skipped_unsupported"] += 1
+            return
+
         try:
             content = await asyncio.to_thread(fp.read_text, encoding="utf-8", errors="replace")
         except Exception as exc:
