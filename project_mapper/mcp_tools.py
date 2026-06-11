@@ -303,7 +303,9 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "Scan a project directory and populate the knowledge graph via static AST analysis. "
             "Creates module/class/function entities and wires their relations. "
             "With incremental=true (default) only changed files are reprocessed. "
-            "This call BLOCKS until the scan completes."
+            "By default this call BLOCKS until the scan completes. "
+            "Pass background=true to return immediately and poll pm_stats for progress — "
+            "recommended for large projects (500+ files) over MCP to avoid timeouts."
         ),
         "inputSchema": {
             "type": "object",
@@ -319,8 +321,17 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 },
                 "concurrency": {
                     "type": "integer",
-                    "description": "Parallel file processing limit (default 3).",
-                    "default": 3,
+                    "description": "Parallel file processing limit (default 4).",
+                    "default": 4,
+                },
+                "background": {
+                    "type": "boolean",
+                    "description": (
+                        "Start scan in a background thread and return immediately (default false). "
+                        "Use background=true for large projects to avoid MCP client timeouts; "
+                        "then call pm_stats to check when the scan completes."
+                    ),
+                    "default": False,
                 },
             },
             "required": ["project_root"],
@@ -772,12 +783,13 @@ def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
-    import asyncio, time
+    import asyncio, threading, time
     from .scanner import run_scan
 
     project_root = args.get("project_root") or ctx.project_root
     incremental  = bool(args.get("incremental", True))
-    concurrency  = max(1, min(int(args.get("concurrency", 3)), 8))
+    concurrency  = max(1, min(int(args.get("concurrency", 4)), 8))
+    background   = bool(args.get("background", False))
 
     if not project_root:
         raise ValueError(
@@ -791,6 +803,40 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
         raise ValueError(f"Not a directory: {project_root}")
 
     lock = ctx.scan_lock
+
+    if background:
+        # Non-blocking: start scan in background thread, return immediately
+        def _run_bg():
+            if lock is not None:
+                lock.acquire()
+            try:
+                asyncio.run(
+                    run_scan(
+                        db_root=ctx.db_root,
+                        project_root=project_root,
+                        db_name=ctx.db_name,
+                        writer=ctx.writer,
+                        index=ctx.index,
+                        file_manifest=ctx.file_manifest,
+                        concurrency=concurrency,
+                        incremental=incremental,
+                    )
+                )
+            finally:
+                if lock is not None:
+                    lock.release()
+
+        t = threading.Thread(target=_run_bg, daemon=True)
+        t.start()
+        mode = "incremental" if incremental else "full"
+        return (
+            f"Scan started ({mode}): {project_root}\n"
+            f"Database: {ctx.db_name}\n\n"
+            "Scan is running in the background.\n"
+            "Call pm_stats to check progress — status will change from 'scanning' to 'completed'."
+        )
+
+    # Blocking mode (default)
     if lock is not None:
         lock.acquire()
     t0 = time.monotonic()
