@@ -5,17 +5,20 @@ Minimal MCP (Model Context Protocol) stdio server for ProjectMapper.
 Protocol: JSON-RPC 2.0, newline-delimited, over stdin/stdout.
 No external dependencies beyond Python stdlib + fastapi/uvicorn (for the HTTP server).
 
-Usage
------
-    # from the Aethvion-ProjectMapper root:
+Recommended install
+-------------------
+    uv tool install "aethvion-project-mapper[languages]"
+    # installs pm-mcp as a global command — no Python or repo clone required
+
+Usage (after uv tool install)
+------------------------------
+    pm-mcp --db workspace
+
+Usage (direct, for development)
+--------------------------------
     python -m project_mapper.mcp_server --db my_project
-
-    # with an explicit database path:
     python -m project_mapper.mcp_server --db-path /data/pm/my_project
-
-    # preset project root for pm_scan / pm_delta:
-    python -m project_mapper.mcp_server --db my_project \\
-           --project-root /path/to/my_project
+    python -m project_mapper.mcp_server --db my_project --project-root /path/to/project
 
 Environment variable equivalents (CLI overrides env):
     PM_DB_NAME        — same as --db
@@ -29,26 +32,19 @@ Claude Code config  (~/.claude/settings.json  or  .claude/settings.json)
       "mcpServers": {
         "project-mapper": {
           "type": "stdio",
-          "command": "python",
-          "args": [
-            "-m", "project_mapper.mcp_server",
-            "--db",           "my_project",
-            "--project-root", "/absolute/path/to/project"
-          ],
-          "cwd": "/absolute/path/to/Aethvion-ProjectMapper"
+          "command": "pm-mcp",
+          "args": ["--db", "workspace"]
         }
       }
     }
 
-Cursor config  (cursor://mcp or .cursor/mcp.json)
---------------------------------------------------
+Cursor config  (~/.cursor/mcp.json)
+------------------------------------
     {
       "mcpServers": {
         "project-mapper": {
-          "command": "python",
-          "args": ["-m", "project_mapper.mcp_server", "--db", "my_project"],
-          "cwd": "/absolute/path/to/Aethvion-ProjectMapper",
-          "env": { "PM_PROJECT_ROOT": "/absolute/path/to/project" }
+          "command": "pm-mcp",
+          "args": ["--db", "workspace"]
         }
       }
     }
@@ -75,7 +71,7 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.0.0"
+SERVER_VERSION   = "1.5.1"
 
 
 # ---------------------------------------------------------------------------

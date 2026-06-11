@@ -533,7 +533,7 @@ async def list_mcp_tools():
 
     These are the same schemas exposed by the standalone MCP server
     (project_mapper.mcp_server) and published in tools.json.
-    Useful for Cursor, Windsurf, and other HTTP-based MCP hosts.
+    Useful for Cursor, Antigravity, and other HTTP-based MCP hosts.
     """
     from .mcp_tools import TOOL_SCHEMAS
     return {
@@ -541,7 +541,7 @@ async def list_mcp_tools():
         "server":         "project-mapper",
         "tools":          TOOL_SCHEMAS,
         "tool_count":     len(TOOL_SCHEMAS),
-        "stdio_command":  "python -m project_mapper.mcp_server --db <db_name>",
+        "stdio_command":  "pm-mcp --db <db_name>",
     }
 
 
