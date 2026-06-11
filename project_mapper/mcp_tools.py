@@ -38,6 +38,8 @@ class MCPContext:
     index:          Any    # NameIndex
     file_manifest:  Any    # FileManifest
     project_root:   Optional[str] = None   # default project dir for scan/delta
+    scan_lock:      Optional[Any] = None   # threading.Lock — shared with AutoScanner
+    auto_scanner:   Optional[Any] = None   # AutoScanner instance (when --watch active)
 
 
 # ---------------------------------------------------------------------------
@@ -685,6 +687,25 @@ def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
             f"{scan_stats.get('entities_pruned', 0)} pruned"
         )
 
+    lines.append("")
+    if ctx.auto_scanner is not None:
+        ws = ctx.auto_scanner.status_dict()
+        state = "active" if ws["active"] else "stopped"
+        lines.append(
+            f"Auto-scan: {state}  "
+            f"(poll={ws['poll_interval_s']:.0f}s  debounce={ws['debounce_s']:.0f}s)"
+        )
+        lines.append(f"  Project:    {ws['project_root']}")
+        lines.append(f"  Scans run:  {ws['scan_count']}")
+        last_scan_info = ws["last_scan"]
+        if ws["last_scan_files"] and ws["last_scan"] != "never":
+            last_scan_info += f"  ({ws['last_scan_files']} file(s))"
+        lines.append(
+            f"  Last check: {ws['last_check']}  |  Last scan: {last_scan_info}"
+        )
+    else:
+        lines.append("Auto-scan: off  (start server with --watch to enable)")
+
     return "\n".join(lines)
 
 
@@ -769,20 +790,27 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     if not project_path.is_dir():
         raise ValueError(f"Not a directory: {project_root}")
 
+    lock = ctx.scan_lock
+    if lock is not None:
+        lock.acquire()
     t0 = time.monotonic()
-    asyncio.run(
-        run_scan(
-            db_root=ctx.db_root,
-            project_root=project_root,
-            db_name=ctx.db_name,
-            writer=ctx.writer,
-            index=ctx.index,
-            file_manifest=ctx.file_manifest,
-            concurrency=concurrency,
-            incremental=incremental,
+    try:
+        asyncio.run(
+            run_scan(
+                db_root=ctx.db_root,
+                project_root=project_root,
+                db_name=ctx.db_name,
+                writer=ctx.writer,
+                index=ctx.index,
+                file_manifest=ctx.file_manifest,
+                concurrency=concurrency,
+                incremental=incremental,
+            )
         )
-    )
-    elapsed = time.monotonic() - t0
+    finally:
+        elapsed = time.monotonic() - t0
+        if lock is not None:
+            lock.release()
 
     # Read the final scan stats
     from .scanner import scan_status

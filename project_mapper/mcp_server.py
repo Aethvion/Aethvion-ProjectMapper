@@ -20,11 +20,19 @@ Usage (direct, for development)
     python -m project_mapper.mcp_server --db-path /data/pm/my_project
     python -m project_mapper.mcp_server --db my_project --project-root /path/to/project
 
+Watch mode (auto-scan)
+---------------------
+    # Poll every 10 s; rescan when changes detected (requires --project-root)
+    pm-mcp --db workspace --project-root /path/to/project --watch
+    pm-mcp --db workspace --project-root /path/to/project --watch --watch-interval 30
+
 Environment variable equivalents (CLI overrides env):
     PM_DB_NAME        — same as --db
     PM_DB_PATH        — same as --db-path
     PM_PROJECT_ROOT   — same as --project-root
     PM_DATA_DIR       — root directory for all databases (default: ~/.aethvion_pm/data)
+    PM_WATCH          — "1" / "true" / "yes" to enable watch mode
+    PM_WATCH_INTERVAL — poll interval in seconds (default: 10)
 
 Claude Code config  (~/.claude/settings.json  or  .claude/settings.json)
 ------------------------------------------------------------------------
@@ -55,6 +63,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 import traceback
 from pathlib import Path
 from typing import Any, Optional
@@ -71,7 +80,7 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.5.1"
+SERVER_VERSION   = "1.5.2"
 
 
 # ---------------------------------------------------------------------------
@@ -88,14 +97,19 @@ class MCPServer:
 
     def __init__(
         self,
-        db_root:      Path,
-        db_name:      str,
-        project_root: Optional[str] = None,
+        db_root:       Path,
+        db_name:       str,
+        project_root:  Optional[str] = None,
+        watch:         bool = False,
+        watch_interval: float = 10.0,
     ) -> None:
-        self._db_root     = db_root
-        self._db_name     = db_name
-        self._project_root = project_root
-        self._ctx         = None   # built lazily on first tool call
+        self._db_root       = db_root
+        self._db_name       = db_name
+        self._project_root  = project_root
+        self._watch         = watch
+        self._watch_interval = watch_interval
+        self._scan_lock     = threading.Lock()
+        self._ctx           = None   # built lazily on first tool call
 
         # stdout must be unbuffered text so responses are flushed immediately
         self._out = sys.stdout
@@ -128,6 +142,7 @@ class MCPServer:
             index=name_index,
             file_manifest=manifest,
             project_root=self._project_root,
+            scan_lock=self._scan_lock,
         )
         return self._ctx
 
@@ -251,6 +266,27 @@ class MCPServer:
             f"db_root={self._db_root}  project={self._project_root or '(unset)'}"
         )
 
+        if self._watch:
+            if not self._project_root:
+                self._log(
+                    "[ProjectMapper MCP] --watch ignored: --project-root not set."
+                )
+            else:
+                from .watcher import AutoScanner
+                ctx = self._get_ctx()   # initialise eagerly so watcher shares the same objects
+                scanner = AutoScanner(
+                    project_root=self._project_root,
+                    db_root=self._db_root,
+                    db_name=self._db_name,
+                    writer=ctx.writer,
+                    index=ctx.index,
+                    file_manifest=ctx.file_manifest,
+                    scan_lock=self._scan_lock,
+                    poll_interval=self._watch_interval,
+                )
+                scanner.start()
+                ctx.auto_scanner = scanner
+
         # UTF-8 stdin/stdout/stderr on Windows
         # stderr must also be re-wrapped: the startup log contains em-dashes and
         # other non-ASCII characters that crash cp1252 consoles, killing the
@@ -348,6 +384,22 @@ def main() -> None:
         metavar="PATH",
         help="Default project root for pm_scan and pm_delta",
     )
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        default=os.environ.get("PM_WATCH", "").lower() in ("1", "true", "yes"),
+        help=(
+            "Enable auto-scan: poll --project-root for file changes and run "
+            "incremental scans automatically (requires --project-root)"
+        ),
+    )
+    parser.add_argument(
+        "--watch-interval",
+        type=float,
+        default=float(os.environ.get("PM_WATCH_INTERVAL", "10")),
+        metavar="SECONDS",
+        help="Seconds between file-change polls when --watch is active (default: 10)",
+    )
     args = parser.parse_args()
 
     db_root, db_name = _resolve_db_root(
@@ -360,6 +412,8 @@ def main() -> None:
         db_root=db_root,
         db_name=db_name,
         project_root=project_root,
+        watch=args.watch,
+        watch_interval=args.watch_interval,
     )
     server.run()
 
