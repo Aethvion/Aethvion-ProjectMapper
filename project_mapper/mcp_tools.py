@@ -90,6 +90,15 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "description": "Maximum entities to include (default 30).",
                     "default": 30,
                 },
+                "slim": {
+                    "type": "boolean",
+                    "description": (
+                        "Slim output: one line per entity showing name + file:line only. "
+                        "Cuts token cost ~65% vs full mode. "
+                        "Use when you only need to know what files to read, not what the entities do."
+                    ),
+                    "default": False,
+                },
             },
             "required": ["query"],
         },
@@ -113,6 +122,14 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "type": "integer",
                     "description": "BFS depth: 1=direct dependents, 2=transitive (default), 3–4=wide radius.",
                     "default": 2,
+                },
+                "slim": {
+                    "type": "boolean",
+                    "description": (
+                        "Slim output: one line per entity showing name + file:line only. "
+                        "Cuts token cost ~65% vs full mode."
+                    ),
+                    "default": False,
                 },
             },
             "required": ["entity"],
@@ -357,6 +374,15 @@ def _prop_line(entity: dict[str, Any]) -> str:
 
 def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> str:
     """Multi-line entity description for context results."""
+    # Slim stub: returned by _entity_stub(slim=True) — only name + file_path + line.
+    # No id, no type, no sections. Render as a compact single line.
+    if "sections" not in entity and "id" not in entity and "type" not in entity:
+        name = entity.get("name", "?")
+        fp   = entity.get("file_path", "")
+        line = entity.get("line", "")
+        loc  = f" — {fp}:{line}" if fp and line else (f" — {fp}" if fp else "")
+        return f"  * {name}{loc}"
+
     name      = entity.get("name", "?")
     etype     = entity.get("type", "")
     kind      = entity.get("kind", "")
@@ -413,6 +439,7 @@ def handle_pm_context(args: dict[str, Any], ctx: MCPContext) -> str:
     detail_level = args.get("detail_level", "medium")
     depth        = max(0, min(int(args.get("depth", 1)), 2))
     max_results  = min(int(args.get("max_results", 30)), 60)
+    slim         = bool(args.get("slim", False))
 
     if not q:
         raise ValueError("'query' is required")
@@ -428,6 +455,7 @@ def handle_pm_context(args: dict[str, Any], ctx: MCPContext) -> str:
         expansion_hops=depth,
         detail_level=detail_level,
         max_results=max_results,
+        slim=slim,
     )
 
     if not result.get("total"):
@@ -465,6 +493,7 @@ def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
 
     entity_name = args.get("entity", "").strip()
     depth       = max(1, min(int(args.get("depth", 2)), 4))
+    slim        = bool(args.get("slim", False))
 
     if not entity_name:
         raise ValueError("'entity' is required")
@@ -473,7 +502,7 @@ def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
     if not entity_map:
         return "The knowledge graph is empty. Run pm_scan first."
 
-    result = impact_query(entity_name, entity_map, ctx.index, max_depth=depth)
+    result = impact_query(entity_name, entity_map, ctx.index, max_depth=depth, slim=slim)
 
     if result.get("not_found"):
         return (
@@ -564,13 +593,16 @@ def handle_pm_path(args: dict[str, Any], ctx: MCPContext) -> str:
         "Chain:",
     ]
 
-    # Path steps are _entity_stub dicts: {name, type, kind, relation (edge to next)}
+    # Path steps are _entity_stub dicts: {name, type, kind, relation, relation_reverse}
+    # relation_reverse=True means this node was reached via a reversed edge —
+    # i.e. the actual graph edge points the other way.
     chain_parts = []
     for step in path:
-        node = step.get("name", step.get("id", "?"))
-        rel  = step.get("relation", "")   # edge label to the NEXT node
+        node    = step.get("name", step.get("id", "?"))
+        rel     = step.get("relation", "")
+        is_rev  = step.get("relation_reverse", False)
         if rel:
-            chain_parts.append(f"{node} --{rel}-->")
+            chain_parts.append(f"{node} {'<--' + rel + '--' if is_rev else '--' + rel + '-->'}")
         else:
             chain_parts.append(node)
 
@@ -968,6 +1000,16 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
 
     if total == 1:
         return _format_find_result(matches[0])
+
+    # If there is exactly one exact-name match, show its full detail even when
+    # substring matches also exist (e.g. "ChatRequest" + "SyncChatRequest").
+    exact = [m for m in matches if m.get("name", "").lower() == name.lower()]
+    if len(exact) == 1:
+        note = (
+            f"\n(Note: {total - 1} additional symbol(s) contain '{name}' as a substring — "
+            "use pm_context for broader search.)"
+        )
+        return _format_find_result(exact[0]) + note
 
     lines = [
         f"Found {total} symbols matching {name!r}:",

@@ -661,7 +661,8 @@ def _bfs_path(
     Returns the path as a list of entity stubs, or None if no path is found.
     """
     visited: set[str] = {from_id}
-    queue: deque[tuple[str, list[tuple[str, str, str]]]] = deque()
+    # path step: (neighbor_id, rel_kind, edge_note, is_reverse)
+    queue: deque[tuple[str, list[tuple[str, str, str, bool]]]] = deque()
     queue.append((from_id, []))
 
     while queue:
@@ -669,21 +670,23 @@ def _bfs_path(
         if len(path_so_far) >= max_hops:
             continue
 
-        neighbors = fwd.get(current_id, []) + rev.get(current_id, [])
-        for neighbor_id, rel_kind, edge_note in neighbors:
+        fwd_nb = [(nid, kind, note, False) for nid, kind, note in fwd.get(current_id, [])]
+        rev_nb = [(nid, kind, note, True)  for nid, kind, note in rev.get(current_id, [])]
+        for neighbor_id, rel_kind, edge_note, is_reverse in fwd_nb + rev_nb:
             if neighbor_id in visited:
                 continue
             if neighbor_id != to_id and neighbor_id in skip_ids:
                 continue
             visited.add(neighbor_id)
-            new_path = path_so_far + [(neighbor_id, rel_kind, edge_note)]
+            new_path = path_so_far + [(neighbor_id, rel_kind, edge_note, is_reverse)]
 
             if neighbor_id == to_id:
                 path_entities: list[dict] = []
                 prev_id = from_id
-                for step_id, edge_label, note in new_path:
+                for step_id, edge_label, note, edge_rev in new_path:
                     node = _entity_stub(entity_map.get(prev_id, {}), slim=slim)
                     node["relation"] = edge_label
+                    node["relation_reverse"] = edge_rev
                     if note:
                         node["note"] = note
                     path_entities.append(node)

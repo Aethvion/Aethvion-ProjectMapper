@@ -237,10 +237,8 @@ async def run_scan(
             stats["errors"].append({"path": rel, "error": f"read: {exc}"})
             return
 
-        # Skip binary / empty
-        # content.count("\x00") counts actual null bytes — a reliable heuristic
-        # for binary files read via text mode (errors="replace").
-        if not content.strip() or (len(content) > 100 and content.count("\x00") / len(content) > 0.1):
+        # Skip binary — null bytes heuristic for files read in text mode.
+        if len(content) > 100 and content.count("\x00") / len(content) > 0.1:
             stats["files_skipped_unsupported"] += 1
             return
 
@@ -255,6 +253,13 @@ async def run_scan(
             return
 
         file_hash = _content_hash(content)
+
+        # Empty file (e.g. __init__.py) — record in manifest with no entities so
+        # pm_delta doesn't re-flag it as new on every run.
+        if not content.strip():
+            stats["files_skipped_unsupported"] += 1
+            file_manifest.record(rel, file_hash, [])
+            return
 
         # Incremental: skip unchanged files
         if incremental and not file_manifest.needs_rescan(rel, file_hash):
