@@ -320,4 +320,10 @@ pytest
 
 ---
 
+## Support development
+
+If Project Mapper saves you tokens, time, or money — consider sponsoring. It keeps the project maintained and new languages / features coming.
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-30363D?logo=githubsponsors&logoColor=EA4AAA)](https://github.com/sponsors/Aethvion)
+
 *Built with care by the Aethvion team.*
