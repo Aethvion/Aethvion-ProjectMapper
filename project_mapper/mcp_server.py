@@ -80,7 +80,7 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.5.13"
+SERVER_VERSION   = "1.5.15"
 
 # Injected into the client agent's context at session start (MCP `instructions`
 # field of the initialize response). Keep this short — it costs context tokens
@@ -105,8 +105,10 @@ into the graph for future sessions.
 Important notes:
 - One database per project root. Scanning a different root into the same \
 database retires the previous project's entities.
-- Class METHODS are not separate entities — look up the class name instead; \
-its methods, and which method drives each relation ("via"), are listed there.
+- Class METHODS are not separate entities. You can search by class-qualified \
+name (pm_find "DBImpl::Write" or pm_find "ZodObject.parse") and pm_find \
+routes you to the parent class automatically. The class entry lists all \
+methods and which method drives each relation ("via").
 - pm_orphans is a heuristic for dead-code candidates: entities with no inbound \
 relations. Verify with a text search before deleting anything.
 - Relations come from static analysis: dynamic dispatch, reflection, and \

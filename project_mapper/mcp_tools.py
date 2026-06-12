@@ -1035,8 +1035,39 @@ def _format_find_result(m: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_method_find(queried: str, result: dict[str, Any]) -> str:
+    """Format pm_find result when the query matched a class method, not a top-level entity."""
+    method_name = result.get("matched_method", queried)
+    matches     = result.get("matches", [])
+    total       = result.get("total", 0)
+
+    note = (
+        f"Note: {queried!r} matched as a method, not a top-level entity — "
+        "methods are stored as properties of their parent class.\n"
+    )
+
+    if total == 1:
+        return note + _format_find_result(matches[0])
+
+    lines = [
+        note,
+        f"Found method {method_name!r} in {total} classes:",
+        "",
+    ]
+    for m in matches:
+        fp    = m.get("file_path", "")
+        line  = str(m.get("line_start", ""))
+        loc   = f"  {fp}:{line}" if fp and line else (f"  {fp}" if fp else "")
+        label = m.get("kind") or m.get("type") or "?"
+        desc  = f" — {m['summary'][:60]}" if m.get("summary") else ""
+        lines.append(f"  * {m['name']} [{label}]{loc}{desc}")
+    lines.append("")
+    lines.append("Use pm_find <ClassName> to get the full class detail.")
+    return "\n".join(lines)
+
+
 def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, find_query
+    from .query import build_entity_map, find_query, find_by_method
 
     name = args.get("name", "").strip()
     if not name:
@@ -1051,6 +1082,10 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
     result = find_query(name, entity_map, ctx.index, max_results=max_results)
 
     if result.get("not_found"):
+        method_result = find_by_method(name, entity_map, ctx.index,
+                                       max_results=max_results)
+        if not method_result.get("not_found"):
+            return _format_method_find(name, method_result)
         return (
             f"Symbol {name!r} not found in the graph.\n"
             "Check spelling, or run pm_scan if the codebase hasn't been indexed yet."
