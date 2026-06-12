@@ -436,6 +436,39 @@ def _walk_scope(node, src: bytes,
             body = child.child_by_field_name("body")
             if body:
                 _walk_scope(body, src, classes, functions, top_level=False)
+        elif nt == "type_definition":
+            # C-style typedef struct: typedef struct Foo { ... } Bar;
+            # Common in C headers that the C++ analyzer handles (.h files).
+            # Collect the typedef alias (last type_identifier child) and parse
+            # the struct/enum body; use the alias as the canonical entity name.
+            alias = None
+            for c in child.children:
+                if c.type == "type_identifier":
+                    alias = _t(c, src)   # last one wins = typedef alias name
+            for c in child.children:
+                if c.type in ("struct_specifier", "class_specifier"):
+                    cls = _parse_class_or_struct(c, src, kind="struct")
+                    if cls:
+                        ename = alias or cls.name
+                        if ename:
+                            classes.append(ClassInfo(
+                                name=ename, kind="struct",
+                                bases=cls.bases, methods=cls.methods,
+                                class_vars=cls.class_vars, calls=cls.calls,
+                                line_start=cls.line_start, line_end=cls.line_end,
+                                docstring=cls.docstring,
+                            ))
+                elif c.type == "enum_specifier":
+                    cls = _parse_enum(c, src)
+                    if cls:
+                        ename = alias or cls.name
+                        if ename:
+                            classes.append(ClassInfo(
+                                name=ename, kind="enum",
+                                bases=[], methods=[], class_vars=cls.class_vars,
+                                calls=[], line_start=cls.line_start,
+                                line_end=cls.line_end, docstring=cls.docstring,
+                            ))
         elif nt in ("preproc_ifdef", "preproc_ifndef", "preproc_if",
                     "preproc_else", "preproc_elif", "preproc_elifdef"):
             # Recurse into preprocessor conditional blocks.
