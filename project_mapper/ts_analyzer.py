@@ -355,6 +355,14 @@ def _extract_class_calls(body, src: bytes, own_name: str) -> list[tuple[str, str
                         if pair not in seen:
                             seen.add(pair)
                             results.append(pair)
+                elif func and func.type == "member_expression":
+                    cname = _text(func, src).split(".")[0]
+                    if (cname and cname[0].isupper() and cname not in _JS_IGNORE
+                            and cname != own_name):
+                        pair = (cname, method_name)
+                        if pair not in seen:
+                            seen.add(pair)
+                            results.append(pair)
 
             _scan(child, method_name)
 
@@ -545,9 +553,15 @@ def _extract_function_calls(node, src: bytes, fn_name: str) -> list[tuple[str, s
                     seen.add(cname)
                     results.append((cname, fn_name))
         elif n.type == "call_expression":
-            func = _field(n, "function") or _first(n, "identifier")
+            func = _field(n, "function") or _first(n, "identifier", "member_expression")
             if func and func.type == "identifier":
                 cname = _text(func, src)
+                if (cname and cname[0].isupper() and cname not in _JS_IGNORE
+                        and cname not in seen):
+                    seen.add(cname)
+                    results.append((cname, fn_name))
+            elif func and func.type == "member_expression":
+                cname = _text(func, src).split(".")[0]
                 if (cname and cname[0].isupper() and cname not in _JS_IGNORE
                         and cname not in seen):
                     seen.add(cname)
