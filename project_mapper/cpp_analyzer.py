@@ -104,6 +104,47 @@ def _end_line(node) -> int:
     return node.end_point[0] + 1
 
 
+def _preceding_cpp_doc(node, src: bytes) -> str:
+    before = src[:node.start_byte].decode("utf-8", errors="replace").rstrip()
+    lines = before.split("\n")
+    doc_lines = []
+    for line in reversed(lines):
+        line_stripped = line.strip()
+        if line_stripped.startswith("///"):
+            doc_lines.append(line_stripped.removeprefix("///").strip())
+        elif line_stripped.startswith("//!"):
+            doc_lines.append(line_stripped.removeprefix("//!").strip())
+        elif line_stripped.startswith("//"):
+            doc_lines.append(line_stripped.removeprefix("//").strip())
+        elif not line_stripped:
+            if doc_lines:
+                break
+        elif line_stripped.startswith("/**") or line_stripped.startswith("/*!") or line_stripped.startswith("/*"):
+            inner = line_stripped
+            if inner.startswith("/**"):
+                inner = inner.removeprefix("/**")
+            elif inner.startswith("/*!"):
+                inner = inner.removeprefix("/*!")
+            else:
+                inner = inner.removeprefix("/*")
+            if inner.endswith("*/"):
+                inner = inner.removesuffix("*/")
+            doc_lines.append(inner.strip())
+            break
+        elif line_stripped.startswith("template"):
+            continue
+        elif line_stripped.startswith("public:") or line_stripped.startswith("private:") or line_stripped.startswith("protected:"):
+            continue
+        else:
+            if doc_lines:
+                break
+    if not doc_lines:
+        return ""
+    doc_lines.reverse()
+    text = " ".join(doc_lines)
+    return text[:200]
+
+
 # ---------------------------------------------------------------------------
 # call graph extraction
 # ---------------------------------------------------------------------------
@@ -312,6 +353,7 @@ def _parse_class_or_struct(node, src: bytes, kind: str) -> ClassInfo | None:
         name=name, kind=kind, bases=bases, methods=methods, class_vars=[],
         calls=calls,
         line_start=_line(node), line_end=_end_line(node),
+        docstring=_preceding_cpp_doc(node, src),
     )
 
 
@@ -334,6 +376,7 @@ def _parse_enum(node, src: bytes) -> ClassInfo | None:
     return ClassInfo(
         name=name, kind="enum", bases=[], methods=[], class_vars=class_vars,
         line_start=_line(node), line_end=_end_line(node),
+        docstring=_preceding_cpp_doc(node, src),
     )
 
 
@@ -363,6 +406,7 @@ def _parse_function(node, src: bytes) -> FunctionInfo | None:
         calls=calls,
         line_start=_line(node),
         line_end=_end_line(node),
+        docstring=_preceding_cpp_doc(node, src),
     )
 
 

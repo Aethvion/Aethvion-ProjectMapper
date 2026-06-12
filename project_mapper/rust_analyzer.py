@@ -52,6 +52,43 @@ def _end_line(node) -> int:
     return node.end_point[0] + 1
 
 
+def _preceding_rust_doc(node, src: bytes) -> str:
+    before = src[:node.start_byte].decode("utf-8", errors="replace").rstrip()
+    lines = before.split("\n")
+    doc_lines = []
+    for line in reversed(lines):
+        line_stripped = line.strip()
+        if line_stripped.startswith("///"):
+            doc_lines.append(line_stripped.removeprefix("///").strip())
+        elif line_stripped.startswith("//!"):
+            doc_lines.append(line_stripped.removeprefix("//!").strip())
+        elif not line_stripped:
+            if doc_lines:
+                break
+        elif line_stripped.startswith("/**") or line_stripped.startswith("/*!"):
+            inner = line_stripped
+            if inner.startswith("/**"):
+                inner = inner.removeprefix("/**")
+            else:
+                inner = inner.removeprefix("/*!")
+            if inner.endswith("*/"):
+                inner = inner.removesuffix("*/")
+            doc_lines.append(inner.strip())
+            break
+        elif line_stripped.startswith("#["):
+            continue
+        elif line_stripped.startswith("pub") or line_stripped.startswith("crate") or line_stripped.startswith("async"):
+            continue
+        else:
+            if doc_lines:
+                break
+    if not doc_lines:
+        return ""
+    doc_lines.reverse()
+    text = " ".join(doc_lines)
+    return text[:200]
+
+
 # ---------------------------------------------------------------------------
 # parameter parsing
 # ---------------------------------------------------------------------------
@@ -174,6 +211,7 @@ def _parse_fn_info(node, src: bytes) -> FunctionInfo:
         calls=calls,
         line_start=_line(node),
         line_end=_end_line(node),
+        docstring=_preceding_rust_doc(node, src),
     )
 
 
@@ -231,6 +269,7 @@ def _parse_struct(node, src: bytes) -> ClassInfo:
     return ClassInfo(
         name=name, kind="struct", bases=[], methods=[], class_vars=class_vars,
         line_start=_line(node), line_end=_end_line(node),
+        docstring=_preceding_rust_doc(node, src),
     )
 
 
@@ -247,6 +286,7 @@ def _parse_enum(node, src: bytes) -> ClassInfo:
     return ClassInfo(
         name=name, kind="enum", bases=[], methods=[], class_vars=class_vars,
         line_start=_line(node), line_end=_end_line(node),
+        docstring=_preceding_rust_doc(node, src),
     )
 
 
@@ -261,6 +301,7 @@ def _parse_trait(node, src: bytes) -> ClassInfo:
     return ClassInfo(
         name=name, kind="trait", bases=[], methods=methods, class_vars=[],
         line_start=_line(node), line_end=_end_line(node),
+        docstring=_preceding_rust_doc(node, src),
     )
 
 
