@@ -38,7 +38,7 @@ _LANGUAGE_BY_EXT: dict[str, str] = {
     ".jsx":   "javascript",  ".tsx": "typescript",
     ".java":  "java",
     ".cpp":   "cpp",   ".cc": "cpp",   ".cxx": "cpp",
-    ".c":     "c",     ".h":  "c",     ".hpp": "cpp",
+    ".c":     "c",     ".h":  "cpp",   ".hpp": "cpp",
     ".rb":    "ruby",
     ".go":    "go",
     ".rs":    "rust",

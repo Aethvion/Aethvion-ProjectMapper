@@ -886,6 +886,13 @@ def find_query(
         elif ename.endswith(f".{name_lower}") or ename.endswith(f"_{name_lower}"):
             scored.append((1, eid))
         elif name_lower in ename:
+            # Guard: for "::" qualified queries, block partial-suffix matches.
+            # "DBImpl::Write" must not match "DBImpl::Writer" (Write is a prefix
+            # of Writer). Require the match is not followed by an alphanumeric char.
+            if "::" in name_lower and re.search(
+                re.escape(name_lower) + r"[a-z0-9_]", ename
+            ):
+                continue
             scored.append((2, eid))
 
     if not scored:
