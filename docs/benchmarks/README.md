@@ -1,9 +1,21 @@
 # Project Mapper Benchmarks
 
-Real-world benchmarks measured on open-source projects across 11 languages.
-All numbers from v1.6.0 running on Windows 11 · i9-13900K · Python 3.10.11.
+Real-world benchmarks on open-source projects across 11 languages (v1.6.0).
 
-> **Date:** 2026-06-12 · **PM version:** v1.6.0
+**Date:** 2026-06-12
+
+---
+
+## Summary (Geometric Mean across all 11 projects)
+
+| Mode       | Token Reduction | Multiplier vs Normal |
+|------------|-----------------|----------------------|
+| **PM Full**    | 83%             | **~6×** less         |
+| **PM Slim**    | 92%             | **~13×** less        |
+
+At 100,000 input tokens, PM typically uses **~17k** (Full) or **~7.7k** (Slim) tokens.
+
+**Navigation Speed:** Agents locate relevant code **39× to >15,000×** faster than grep + manual file reading.
 
 ---
 
