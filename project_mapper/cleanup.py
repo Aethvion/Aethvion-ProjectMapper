@@ -133,6 +133,11 @@ def retire_file_entities(
         except Exception as exc:
             result.errors.append(f"manifest remove {eid}: {exc}")
 
+    try:
+        file_manifest.remove_file(path)
+    except Exception as exc:
+        result.errors.append(f"manifest remove file {path}: {exc}")
+
     return result
 
 
@@ -285,6 +290,13 @@ def run_deletion_cleanup(
             for fn in files:
                 fp  = Path(dirpath) / fn
                 if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
+                    # Mirror scanner.py's size filter so minified bundles don't show
+                    # up as perpetual "new files" after every scan
+                    try:
+                        if fp.stat().st_size > 250_000:
+                            continue
+                    except OSError:
+                        pass
                     rel = str(fp.relative_to(root)).replace("\\", "/")
                     existing_paths.add(rel)
 

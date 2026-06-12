@@ -380,8 +380,10 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
         name = entity.get("name", "?")
         fp   = entity.get("file_path", "")
         line = entity.get("line", "")
+        via  = entity.get("via", "")
         loc  = f" — {fp}:{line}" if fp and line else (f" — {fp}" if fp else "")
-        return f"  * {name}{loc}"
+        via_part = f" (via: {via})" if via else ""
+        return f"  * {name}{loc}{via_part}"
 
     name      = entity.get("name", "?")
     etype     = entity.get("type", "")
@@ -540,12 +542,18 @@ def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
         lines.append(f"HOP {hop} — {label} ({len(items)}):")
         for item in items:
             name  = item.get("name", item.get("entity_id", "?"))
-            etype = item.get("type", "")
             via   = item.get("via", "")
-            summary = item.get("summary", "")
-            desc  = f" — {summary[:60]}" if summary else ""
             via_str = f"  (via: {via})" if via else ""
-            lines.append(f"  * {name} [{etype}]{desc}{via_str}")
+            if slim or ("type" not in item and "entity_id" not in item):
+                fp   = item.get("file_path", "")
+                line = item.get("line", "")
+                loc  = f" — {fp}:{line}" if fp and line else (f" — {fp}" if fp else "")
+                lines.append(f"  * {name}{loc}{via_str}")
+            else:
+                etype = item.get("type", "")
+                summary = item.get("summary", "")
+                desc  = f" — {summary[:60]}" if summary else ""
+                lines.append(f"  * {name} [{etype}]{desc}{via_str}")
         lines.append("")
 
     lines.append(
