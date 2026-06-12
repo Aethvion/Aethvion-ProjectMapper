@@ -245,9 +245,9 @@ def impact_query(
             if via_kinds is not None and rel_kind not in via_kinds:
                 continue
             current_name = entity_map.get(current_id, {}).get("name", current_id)
-            via = f"{rel_kind} → {current_name}" if via_path else rel_kind
+            via = f"{rel_kind} -> {current_name}" if via_path else rel_kind
             if via_path:
-                via = f"{via_path} → {rel_kind}"
+                via = f"{via_path} -> {rel_kind}"
             visited[source_id] = (hop + 1, via)
             if hop + 1 <= max_depth:
                 queue.append((source_id, hop + 1, via))
@@ -828,7 +828,7 @@ def apply_contribution(
                 if note:
                     entry["note"] = note
                 new_rels.append(entry)
-                added_rels.append(f"{kind} → {target_name}")
+                added_rels.append(f"{kind} -> {target_name}")
         if new_rels:
             mutations.setdefault("sections", {})["relations"] = new_rels
 

@@ -1010,7 +1010,7 @@ def _format_find_result(m: dict[str, Any]) -> str:
     if callers:
         lines.append(f"\nCallers ({len(callers)}):")
         for c in callers:
-            lines.append(f"  * {c['name']} [{c.get('type', '?')}]  → {c.get('via', '?')}")
+            lines.append(f"  * {c['name']} [{c.get('type', '?')}]  -> {c.get('via', '?')}")
     else:
         lines.append("\nCallers: none found in graph")
 
