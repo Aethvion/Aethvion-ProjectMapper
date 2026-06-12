@@ -80,7 +80,38 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.5.7"
+SERVER_VERSION   = "1.5.12"
+
+# Injected into the client agent's context at session start (MCP `instructions`
+# field of the initialize response). Keep this short — it costs context tokens
+# in every session. Content targets the misunderstandings agents actually hit.
+SERVER_INSTRUCTIONS = """\
+ProjectMapper builds a knowledge graph of a codebase via static AST analysis \
+(Python, JS/TS, Go, Rust, C, C++, C#, Java, Kotlin, Ruby, PHP, Swift). \
+Entities are modules, classes, and top-level functions, wired with calls / \
+imports / extends / contains relations.
+
+Recommended workflow:
+1. pm_stats to check index state; pm_delta to preview changes since last scan.
+2. pm_scan to index. Use background=true for projects with 500+ files, then \
+poll pm_stats. Incremental (default) only re-processes changed files.
+3. pm_context slim=true to locate relevant files cheaply (name + file:line); \
+use slim=false when you need docstrings/summaries instead.
+4. pm_find for one symbol's definition, callers, and callees. pm_impact for \
+blast radius before a change. pm_path to connect two entities.
+5. pm_contribute to save your findings (properties, relations, rationale) back \
+into the graph for future sessions.
+
+Important notes:
+- One database per project root. Scanning a different root into the same \
+database retires the previous project's entities.
+- Class METHODS are not separate entities — look up the class name instead; \
+its methods, and which method drives each relation ("via"), are listed there.
+- pm_orphans is a heuristic for dead-code candidates: entities with no inbound \
+relations. Verify with a text search before deleting anything.
+- Relations come from static analysis: dynamic dispatch, reflection, and \
+string-based references are not captured.\
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +214,7 @@ class MCPServer:
                 "name":    SERVER_NAME,
                 "version": SERVER_VERSION,
             },
+            "instructions": SERVER_INSTRUCTIONS,
         })
 
     def _handle_tools_list(self, req_id: Any, params: dict) -> None:
