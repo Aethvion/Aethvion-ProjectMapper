@@ -255,6 +255,50 @@ def _parse_c_function(node, src: bytes) -> FunctionInfo | None:
 
 
 # ---------------------------------------------------------------------------
+# Recursive scope walker
+# ---------------------------------------------------------------------------
+
+# Preprocessor conditional blocks — their children are C declarations that
+# the top-level loop would otherwise miss.  Redis, LevelDB, and virtually
+# every large C project wrap all declarations in #ifndef HEADER_H guards.
+_PREPROC_BLOCK_TYPES: frozenset[str] = frozenset({
+    "preproc_ifdef", "preproc_if", "preproc_else", "preproc_elif",
+})
+
+
+def _walk_c_scope(
+    node,
+    src:       bytes,
+    imports:   list,
+    classes:   list,
+    functions: list,
+) -> None:
+    """Recursively walk a C translation unit or preprocessor block."""
+    for child in node.children:
+        nt = child.type
+        if nt == "preproc_include":
+            path_node = child.child_by_field_name("path")
+            if path_node:
+                raw = _t(path_node, src)
+                is_rel = raw.startswith('"')
+                module = raw.strip('"<>')
+                imports.append(ImportInfo(
+                    module=module, names=[], is_from=False, is_relative=is_rel,
+                ))
+        elif nt == "type_definition":
+            cls = _parse_typedef(child, src)
+            if cls:
+                classes.append(cls)
+        elif nt == "function_definition":
+            fn = _parse_c_function(child, src)
+            if fn:
+                functions.append(fn)
+        elif nt in _PREPROC_BLOCK_TYPES:
+            # Recurse so declarations inside #ifdef / #ifndef / #if are found.
+            _walk_c_scope(child, src, imports, classes, functions)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -289,25 +333,7 @@ def analyze_c(path: str, content: str) -> CodeAnalysis:
         classes: list[ClassInfo] = []
         functions: list[FunctionInfo] = []
 
-        for node in root.children:
-            nt = node.type
-            if nt == "preproc_include":
-                path_node = node.child_by_field_name("path")
-                if path_node:
-                    raw = _t(path_node, src)
-                    is_rel = raw.startswith('"')
-                    module = raw.strip('"<>')
-                    imports.append(ImportInfo(
-                        module=module, names=[], is_from=False, is_relative=is_rel,
-                    ))
-            elif nt == "type_definition":
-                cls = _parse_typedef(node, src)
-                if cls:
-                    classes.append(cls)
-            elif nt == "function_definition":
-                fn = _parse_c_function(node, src)
-                if fn:
-                    functions.append(fn)
+        _walk_c_scope(root, src, imports, classes, functions)
 
         return CodeAnalysis(
             path=path, language="c", line_count=line_count,
