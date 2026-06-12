@@ -132,6 +132,8 @@ def _entity_stub(
         stub["summary"] = summary[:max_summary]
     if props.get("file_path"):
         stub["file_path"] = props["file_path"]
+    if props.get("line_start"):
+        stub["line"] = props["line_start"]
     if props.get("architectural_pattern"):
         stub["architectural_pattern"] = props["architectural_pattern"]
     if hop > 0:

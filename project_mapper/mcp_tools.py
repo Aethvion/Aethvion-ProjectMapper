@@ -408,7 +408,7 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
 
     if "sections" in entity or isinstance(props, dict):
         fp   = props.get("file_path", "")
-        line = props.get("line_start", "")
+        line = props.get("line_start", "") or props.get("line", "")
         if fp:
             loc = f"{fp}:{line}" if line else fp
             lines.append(f"    File:    {loc}")
@@ -422,7 +422,7 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
         lines.append(f"    Tags:    {', '.join(tags[:8])}")
 
     # Exclude stub meta-fields so they don't appear as spurious properties
-    _SKIP = {"file_path", "line_start", "line_end", "id", "name", "type",
+    _SKIP = {"file_path", "line_start", "line_end", "line", "id", "name", "type",
               "kind", "status", "tags", "summary", "relevance_score", "hop", "via"}
     useful_props = {k: v for k, v in props.items() if k not in _SKIP and v}
     if useful_props:
@@ -566,8 +566,11 @@ def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
             else:
                 etype = item.get("type", "")
                 summary = item.get("summary", "")
+                fp    = item.get("file_path", "")
+                line  = item.get("line", "")
+                loc   = f"  ({fp}:{line})" if fp and line else (f"  ({fp})" if fp else "")
                 desc  = f" — {summary[:60]}" if summary else ""
-                lines.append(f"  * {name} [{etype}]{desc}{via_str}")
+                lines.append(f"  * {name} [{etype}]{loc}{desc}{via_str}")
         lines.append("")
 
     lines.append(
@@ -860,18 +863,19 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
         raise ValueError(f"Not a directory: {project_root}")
 
     # Warn if this database was previously scanned from a different project.
-    # Cross-project scans into the same database cause stub contamination.
-    # A full scan (incremental=False) purges stale stubs automatically.
+    # The scan's deletion-cleanup pass will retire the previous project's
+    # entities and prune their stubs, but the agent should know it happened.
     project_mismatch_warning = ""
     try:
         from .scanner import _read_scaninfo
         prev_info = _read_scaninfo(ctx.db_root)
         prev_root = prev_info.get("project_root", "")
-        if prev_root and str(Path(prev_root).resolve()) != project_root and incremental:
+        if prev_root and str(Path(prev_root).resolve()) != project_root:
             project_mismatch_warning = (
-                f"\nNote: This database was last scanned from a different project "
-                f"('{Path(prev_root).name}'). "
-                "Use incremental=false to purge cross-project data and start clean."
+                f"\nNote: This database previously indexed a different project "
+                f"('{Path(prev_root).name}'). That project's entities will be "
+                "retired by this scan — use one database per project to keep "
+                "both indexed."
             )
     except Exception:
         pass

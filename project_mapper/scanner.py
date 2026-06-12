@@ -253,18 +253,25 @@ async def run_scan(
             return
 
         # Skip binary — null bytes heuristic for files read in text mode.
+        # Record in manifest (no entities) so pm_delta doesn't re-flag as new.
         if len(content) > 100 and content.count("\x00") / len(content) > 0.1:
             stats["files_skipped_unsupported"] += 1
+            file_manifest.record(rel, _content_hash(content), [])
             return
 
         # Skip oversized files — minified bundles and generated assets can exceed
         # hundreds of KB as a single line, stalling tree-sitter and spiking memory.
+        # NOT recorded in manifest: delta's walk excludes >250KB files, so a
+        # manifest entry would be flagged as perpetually "deleted" instead.
         if len(content) > 250_000:
             stats["files_skipped_unsupported"] += 1
             return
         # Minification heuristic: substantial content with almost no line breaks.
+        # Recorded in manifest — delta walks these files (they pass its size
+        # filter), so without a record they'd show as "new" on every delta.
         if len(content) > 10_000 and content.count("\n") < 5:
             stats["files_skipped_unsupported"] += 1
+            file_manifest.record(rel, _content_hash(content), [])
             return
 
         file_hash = _content_hash(content)
@@ -350,21 +357,22 @@ async def run_scan(
         logger.info(f"[Scanner] Scan cancelled ({stats['files_scanned']}/{total} processed)")
         return
 
-    # --- Deletion cleanup pass (incremental mode only) ---
+    # --- Deletion cleanup pass (all scans) ---
     # Retire entities whose source files have been removed from the project.
-    if incremental:
-        try:
-            from .cleanup import run_deletion_cleanup
-            _update_scaninfo(db_root, status="cleanup", current_file="[deletion cleanup]")
-            cleanup = await asyncio.to_thread(
-                run_deletion_cleanup, root, file_manifest, writer, index
-            )
-            stats["files_deleted"]   = cleanup.deleted_file_count
-            stats["entities_retired"] = cleanup.retired_count
-            if cleanup.errors:
-                stats["errors"].extend([{"path": "cleanup", "error": e} for e in cleanup.errors])
-        except Exception as exc:
-            logger.warning(f"[Scanner] Deletion cleanup failed (non-critical): {exc}")
+    # Runs on full scans too: after a root switch, the manifest still holds the
+    # previous project's files, which would otherwise stay active forever.
+    try:
+        from .cleanup import run_deletion_cleanup
+        _update_scaninfo(db_root, status="cleanup", current_file="[deletion cleanup]")
+        cleanup = await asyncio.to_thread(
+            run_deletion_cleanup, root, file_manifest, writer, index
+        )
+        stats["files_deleted"]   = cleanup.deleted_file_count
+        stats["entities_retired"] = cleanup.retired_count
+        if cleanup.errors:
+            stats["errors"].extend([{"path": "cleanup", "error": e} for e in cleanup.errors])
+    except Exception as exc:
+        logger.warning(f"[Scanner] Deletion cleanup failed (non-critical): {exc}")
 
     # --- Stub resolution pass (always, every full scan) ---
     # Re-wire relations from stubs to real entities where the target was
@@ -381,6 +389,18 @@ async def run_scan(
                                      for e in stub_result.errors])
     except Exception as exc:
         logger.warning(f"[Scanner] Stub resolution failed (non-critical): {exc}")
+
+    # --- Orphan stub pruning (always) ---
+    # Delete stubs that no active entity references — they accumulate when
+    # project roots change in a shared database and pollute stats/search.
+    try:
+        from .cleanup import prune_orphan_stubs
+        _update_scaninfo(db_root, status="cleanup", current_file="[stub pruning]")
+        stubs_pruned = await asyncio.to_thread(prune_orphan_stubs, writer)
+        if stubs_pruned:
+            stats["stubs_pruned"] = stubs_pruned
+    except Exception as exc:
+        logger.warning(f"[Scanner] Stub pruning failed (non-critical): {exc}")
 
     _write_scaninfo(db_root, {
         **_read_scaninfo(db_root),

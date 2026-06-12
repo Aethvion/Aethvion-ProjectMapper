@@ -482,3 +482,47 @@ def resolve_stubs(
         f"re-wired {result.relations_rewired} relations"
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# 6. Orphan stub pruning
+# ---------------------------------------------------------------------------
+
+def prune_orphan_stubs(writer: "EntityWriter") -> int:
+    """
+    Delete stub entities that no active entity references.
+
+    Stubs exist only as relation targets (forward references, external base
+    classes, unresolved imports).  When the entities that referenced a stub
+    are retired — e.g. after switching project roots in a shared database —
+    the stub remains with zero inbound relations and pollutes stats and
+    keyword searches.  This pass removes exactly those unreferenced stubs.
+
+    A stub referenced by at least one ACTIVE entity is always kept, so no
+    live forward-reference is ever lost.
+
+    Returns the number of stubs pruned.
+    """
+    all_entities = writer.list_all(include_deleted=False)
+
+    referenced: set[str] = set()
+    for entity in all_entities:
+        if entity.get("status") != "active":
+            continue
+        for rel in entity.get("sections", {}).get("relations", []):
+            tid = rel.get("target_id", "")
+            if tid:
+                referenced.add(tid)
+
+    pruned = 0
+    for entity in all_entities:
+        if entity.get("status") == "stub" and entity["id"] not in referenced:
+            try:
+                writer.update(entity["id"], {"status": "deleted"})
+                pruned += 1
+            except Exception as exc:
+                logger.debug(f"[StubPrune] Could not prune {entity['id']}: {exc}")
+
+    if pruned:
+        logger.info(f"[StubPrune] Pruned {pruned} unreferenced stubs")
+    return pruned
