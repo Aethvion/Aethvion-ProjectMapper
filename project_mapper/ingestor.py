@@ -473,9 +473,12 @@ class ProjectIngestor:
             },
         )
         if not was_created:
-            # Refresh structural properties on re-scan
+            # Refresh AST-derived fields on re-scan
             self._writer.update(entity["id"], {
                 "sections": {
+                    "core": {
+                        "summary": analysis.module_docstring[:200] if analysis.module_docstring else "",
+                    },
                     "properties": {
                         "language":       analysis.language,
                         "line_count":     str(analysis.line_count),
@@ -519,6 +522,26 @@ class ProjectIngestor:
                 },
             },
         )
+        if not was_created:
+            # Refresh AST-derived fields on re-scan. pm_contribute data lives in
+            # sections.properties (custom keys) and sections.timeline — not touched here.
+            self._writer.update(entity["id"], {
+                "sections": {
+                    "core": {
+                        "summary": cls_info.docstring[:200] if cls_info.docstring else "",
+                        "tags":    [tag],
+                    },
+                    "properties": {
+                        "file_path":    file_path,
+                        "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
+                        "method_count": str(len(cls_info.methods)),
+                        "line_start":   str(cls_info.line_start),
+                        "line_end":     str(cls_info.line_end),
+                        "methods":      ", ".join(m.name for m in cls_info.methods[:15]),
+                        "decorators":   ", ".join(cls_info.decorators) if cls_info.decorators else "",
+                    },
+                },
+            })
         return entity, was_created
 
     def _upsert_function(
@@ -556,6 +579,23 @@ class ProjectIngestor:
                 },
             },
         )
+        if not was_created:
+            self._writer.update(entity["id"], {
+                "sections": {
+                    "core": {
+                        "summary": fn_info.docstring[:150] if fn_info.docstring else "",
+                        "tags":    ["async" if fn_info.is_async else "sync"],
+                    },
+                    "properties": {
+                        "file_path":  file_path,
+                        "signature":  signature,
+                        "is_async":   str(fn_info.is_async).lower(),
+                        "line_start": str(fn_info.line_start),
+                        "line_end":   str(fn_info.line_end),
+                        "decorators": ", ".join(fn_info.decorators) if fn_info.decorators else "",
+                    },
+                },
+            })
         return entity, was_created
 
     def _add_relation(
