@@ -90,11 +90,12 @@ class CodeAnalysis:
     line_count:       int
     module_docstring: str
     classes:          list[ClassInfo]
-    functions:        list[FunctionInfo]   # top-level public functions only
+    functions:        list[FunctionInfo]   # top-level functions (public + private)
     imports:          list[ImportInfo]
     all_exports:      list[str]            # __all__ contents
     constants:        list[tuple[str, str]]  # (name, value_repr) for UPPER_CASE
     parse_errors:     list[str]
+    module_calls:     list[tuple[str, str]] = field(default_factory=list)  # (callee_name, "module_level")
 
 
 # ---------------------------------------------------------------------------
@@ -487,15 +488,37 @@ def _extract_class_calls(
 
 class _PythonVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.classes:   list[ClassInfo] = []
-        self.functions: list[FunctionInfo] = []
-        self.imports:   list[ImportInfo] = []
-        self.all_exports: list[str] = []
-        self.constants: list[tuple[str, str]] = []
+        self.classes:      list[ClassInfo] = []
+        self.functions:    list[FunctionInfo] = []
+        self.imports:      list[ImportInfo] = []
+        self.all_exports:  list[str] = []
+        self.constants:    list[tuple[str, str]] = []
+        self.module_calls: list[tuple[str, str]] = []
         self._class_stack: list[str] = []   # track nesting
 
     def _in_class(self) -> bool:
         return bool(self._class_stack)
+
+    # ------------------------------------------------------------------
+    # Module-level calls (statements outside any function/class body)
+    # ------------------------------------------------------------------
+
+    def visit_Module(self, node: ast.Module) -> None:
+        _skip = (
+            ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+            ast.Import, ast.ImportFrom,
+        )
+        seen: set[str] = set()
+        for stmt in node.body:
+            if isinstance(stmt, _skip):
+                continue
+            ext = _CallExtractor()
+            ext.visit(stmt)
+            for name in ext.instantiated | ext.fn_calls:
+                if name not in seen:
+                    seen.add(name)
+                    self.module_calls.append((name, "module_level"))
+        self.generic_visit(node)
 
     # ------------------------------------------------------------------
     # Imports
@@ -596,15 +619,12 @@ class _PythonVisitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if not self._in_class():
-            # Skip private/dunder functions
-            if not node.name.startswith("_"):
-                self._record_function(node, is_async=False)
+            self._record_function(node, is_async=False)
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         if not self._in_class():
-            if not node.name.startswith("_"):
-                self._record_function(node, is_async=True)
+            self._record_function(node, is_async=True)
         self.generic_visit(node)
 
     def _record_function(
@@ -719,6 +739,7 @@ def analyze_python(path: str, content: str) -> CodeAnalysis:
         all_exports=visitor.all_exports,
         constants=visitor.constants[:30],
         parse_errors=parse_errors,
+        module_calls=visitor.module_calls,
     )
 
 

@@ -406,6 +406,13 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
 
     lines = [f"  [{name}] ({label})"]
 
+    if "sections" in entity or isinstance(props, dict):
+        fp   = props.get("file_path", "")
+        line = props.get("line_start", "")
+        if fp:
+            loc = f"{fp}:{line}" if line else fp
+            lines.append(f"    File:    {loc}")
+
     summary = core.get("summary", "")
     if summary:
         lines.append(f"    Summary: {summary[:200]}")
@@ -852,6 +859,23 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     if not project_path.is_dir():
         raise ValueError(f"Not a directory: {project_root}")
 
+    # Warn if this database was previously scanned from a different project.
+    # Cross-project scans into the same database cause stub contamination.
+    # A full scan (incremental=False) purges stale stubs automatically.
+    project_mismatch_warning = ""
+    try:
+        from .scanner import _read_scaninfo
+        prev_info = _read_scaninfo(ctx.db_root)
+        prev_root = prev_info.get("project_root", "")
+        if prev_root and str(Path(prev_root).resolve()) != project_root and incremental:
+            project_mismatch_warning = (
+                f"\nNote: This database was last scanned from a different project "
+                f"('{Path(prev_root).name}'). "
+                "Use incremental=false to purge cross-project data and start clean."
+            )
+    except Exception:
+        pass
+
     lock = ctx.scan_lock
 
     if background:
@@ -879,12 +903,15 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
         t = threading.Thread(target=_run_bg, daemon=True)
         t.start()
         mode = "incremental" if incremental else "full"
-        return (
+        msg = (
             f"Scan started ({mode}): {project_root}\n"
             f"Database: {ctx.db_name}\n\n"
             "Scan is running in the background.\n"
             "Call pm_stats to check progress — status will change from 'scanning' to 'completed'."
         )
+        if project_mismatch_warning:
+            msg += project_mismatch_warning
+        return msg
 
     # Blocking mode (default)
     if lock is not None:
@@ -931,6 +958,9 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     errs = stats.get("errors", [])
     if errs:
         lines.append(f"Errors:   {len(errs)} (first: {errs[0].get('error', '')[:80]})")
+
+    if project_mismatch_warning:
+        lines.append(project_mismatch_warning)
 
     return "\n".join(lines)
 

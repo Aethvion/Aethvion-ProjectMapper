@@ -175,6 +175,21 @@ async def run_scan(
     key = str(db_root)
     root = Path(project_root)
 
+    # On a full (non-incremental) scan, purge all stub entities that have no
+    # file_path.  These accumulate when multiple projects are scanned into the
+    # same database and cause cross-project relation contamination.
+    if not incremental:
+        try:
+            stubs_purged = 0
+            for entity in writer.list_all(include_deleted=False):
+                if entity.get("status") == "stub":
+                    writer.update(entity["id"], {"status": "deleted"})
+                    stubs_purged += 1
+            if stubs_purged:
+                logger.info(f"[Scanner] Full scan: purged {stubs_purged} stale stubs")
+        except Exception as exc:
+            logger.warning(f"[Scanner] Stub purge failed: {exc}")
+
     ingestor = ProjectIngestor(
         db_root=db_root,
         writer=writer,

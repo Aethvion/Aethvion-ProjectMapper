@@ -402,7 +402,19 @@ class ProjectIngestor:
                         note=f"via {via_method}" if via_method else "",
                     )
 
-        # ---- 8. Provenance -------------------------------------------
+        # ---- 8. Module-level calls -----------------------------------
+        # Wire calls made at module scope (outside any function/class body).
+        # Only wires to already-indexed entities — no stubs for module-level calls.
+        for callee_name, _ in analysis.module_calls:
+            if not callee_name or callee_name.isupper():
+                continue
+            target_id = self._index.get(callee_name)
+            if target_id and target_id != module_entity["id"]:
+                result.relations_created += self._add_relation(
+                    module_entity["id"], "calls", target_id,
+                )
+
+        # ---- 9. Provenance -------------------------------------------
         from datetime import datetime, timezone
         scanned_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         sf_entry = {
