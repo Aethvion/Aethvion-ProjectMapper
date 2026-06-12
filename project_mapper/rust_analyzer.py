@@ -63,8 +63,7 @@ def _preceding_rust_doc(node, src: bytes) -> str:
         elif line_stripped.startswith("//!"):
             doc_lines.append(line_stripped.removeprefix("//!").strip())
         elif not line_stripped:
-            if doc_lines:
-                break
+            break
         elif line_stripped.startswith("/**") or line_stripped.startswith("/*!"):
             inner = line_stripped
             if inner.startswith("/**"):
@@ -80,8 +79,7 @@ def _preceding_rust_doc(node, src: bytes) -> str:
         elif line_stripped.startswith("pub") or line_stripped.startswith("crate") or line_stripped.startswith("async"):
             continue
         else:
-            if doc_lines:
-                break
+            break
     if not doc_lines:
         return ""
     doc_lines.reverse()

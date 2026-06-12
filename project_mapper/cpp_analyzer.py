@@ -117,8 +117,7 @@ def _preceding_cpp_doc(node, src: bytes) -> str:
         elif line_stripped.startswith("//"):
             doc_lines.append(line_stripped.removeprefix("//").strip())
         elif not line_stripped:
-            if doc_lines:
-                break
+            break
         elif line_stripped.startswith("/**") or line_stripped.startswith("/*!") or line_stripped.startswith("/*"):
             inner = line_stripped
             if inner.startswith("/**"):
@@ -136,8 +135,7 @@ def _preceding_cpp_doc(node, src: bytes) -> str:
         elif line_stripped.startswith("public:") or line_stripped.startswith("private:") or line_stripped.startswith("protected:"):
             continue
         else:
-            if doc_lines:
-                break
+            break
     if not doc_lines:
         return ""
     doc_lines.reverse()
