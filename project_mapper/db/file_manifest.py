@@ -121,7 +121,15 @@ class FileManifest:
     # Public API
     # ------------------------------------------------------------------
 
-    def record(self, path: str, file_hash: str, entity_ids: list[str]) -> None:
+    def record(
+        self,
+        path: str,
+        file_hash: str,
+        entity_ids: list[str],
+        *,
+        size: int = 0,
+        mtime: float = 0.0,
+    ) -> None:
         """Record a file and its associated entity IDs in the manifest directly."""
         lang = detect_language(path)
         with self._lock:
@@ -130,7 +138,8 @@ class FileManifest:
                 "hash":         file_hash,
                 "entity_ids":   list(entity_ids),
                 "language":     lang,
-                "size":         0,
+                "size":         size,
+                "mtime":        mtime,
                 "last_scanned": _now_iso(),
             }
             self._save()
@@ -209,6 +218,51 @@ class FileManifest:
         if entry is None:
             return True
         return entry.get("hash", "") != current_hash
+
+    def stat_unchanged(self, path: str, size: int, mtime: float) -> bool:
+        """
+        Fast change check from filesystem metadata alone (no file read).
+
+        Returns True only when the entry exists AND its stored size and mtime
+        both match — meaning the file can be safely skipped without hashing.
+        Entries without stored stat data (older manifests, or size/mtime of 0)
+        return False so the caller falls back to the content-hash path.
+
+        Same trade-off as git's index: an edit that preserves both size and
+        mtime exactly would be missed; a full scan (incremental=false) always
+        rehashes everything.
+        """
+        with self._lock:
+            entry = self._data["files"].get(path)
+        if entry is None:
+            return False
+        stored_size  = entry.get("size", 0)
+        stored_mtime = entry.get("mtime", 0.0)
+        if not stored_size or not stored_mtime:
+            return False
+        return stored_size == size and stored_mtime == mtime
+
+    def set_stat(self, path: str, size: int, mtime: float, *, save: bool = True) -> None:
+        """
+        Update stored size+mtime for *path* (no-op if the path is unknown or
+        the values already match). Pass save=False when updating many entries
+        in a loop, then call save() once afterwards.
+        """
+        with self._lock:
+            entry = self._data["files"].get(path)
+            if entry is None:
+                return
+            if entry.get("size") == size and entry.get("mtime") == mtime:
+                return
+            entry["size"]  = size
+            entry["mtime"] = mtime
+            if save:
+                self._save()
+
+    def save(self) -> None:
+        """Persist the manifest to disk (for use after batched set_stat calls)."""
+        with self._lock:
+            self._save()
 
     def remove_entity(self, entity_id: str) -> int:
         """

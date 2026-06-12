@@ -156,40 +156,53 @@ def compute_delta(
             # Mirror scanner.py's size filter so minified bundles don't show
             # up as perpetual "new files" after every scan
             try:
-                if fp.stat().st_size > 250_000:
-                    continue
+                st = fp.stat()
             except OSError:
-                pass
+                st = None
+            if st is not None and st.st_size > 250_000:
+                continue
 
             rel = str(fp.relative_to(root)).replace("\\", "/")
             seen_paths.add(rel)
 
             manifest_entry = manifest_entries.get(rel)
-            current_hash   = _file_hash(fp) if compute_hashes else ""
 
             if manifest_entry is None:
                 # File has never been scanned
                 new_files.append(FileStatus(
                     path=rel,
                     abs_path=str(fp),
+                    hash=_file_hash(fp) if compute_hashes else "",
+                ))
+                continue
+
+            # Stat fast path: stored size+mtime both match → unchanged without
+            # reading the file. Entries without stat data (older manifests)
+            # fall through to the hash comparison.
+            if (st is not None
+                    and manifest_entry.get("size", 0)
+                    and manifest_entry.get("mtime", 0.0)
+                    and manifest_entry["size"] == st.st_size
+                    and manifest_entry["mtime"] == st.st_mtime):
+                unchanged += 1
+                continue
+
+            stored_hash  = manifest_entry.get("hash", "")
+            entity_ids   = manifest_entry.get("entity_ids", [])
+            current_hash = _file_hash(fp) if compute_hashes else ""
+
+            if compute_hashes and current_hash and stored_hash and current_hash != stored_hash:
+                # Content changed since last scan
+                modified_files.append(FileStatus(
+                    path=rel,
+                    abs_path=str(fp),
                     hash=current_hash,
+                    old_hash=stored_hash,
+                    entity_ids=list(entity_ids),
                 ))
             else:
-                stored_hash = manifest_entry.get("hash", "")
-                entity_ids  = manifest_entry.get("entity_ids", [])
-
-                if compute_hashes and current_hash and stored_hash and current_hash != stored_hash:
-                    # Content changed since last scan
-                    modified_files.append(FileStatus(
-                        path=rel,
-                        abs_path=str(fp),
-                        hash=current_hash,
-                        old_hash=stored_hash,
-                        entity_ids=list(entity_ids),
-                    ))
-                else:
-                    # Not hashing, or hash matches → treat as unchanged
-                    unchanged += 1
+                # Not hashing, or hash matches → treat as unchanged
+                unchanged += 1
 
     # Files recorded in the manifest that no longer exist on disk
     deleted_files = [rel for rel in manifest_entries if rel not in seen_paths]

@@ -247,6 +247,29 @@ async def run_scan(
             return
 
         try:
+            st = await asyncio.to_thread(fp.stat)
+        except OSError as exc:
+            stats["errors"].append({"path": rel, "error": f"stat: {exc}"})
+            return
+        file_size  = st.st_size
+        file_mtime = st.st_mtime
+
+        # Oversized — same byte threshold as delta.py/cleanup.py, checked from
+        # stat so the file is never read. NOT recorded in manifest: delta's
+        # walk excludes >250KB files, so an entry would be flagged as
+        # perpetually "deleted" instead.
+        if file_size > 250_000:
+            stats["files_skipped_unsupported"] += 1
+            return
+
+        # Incremental fast path: size+mtime match the manifest → skip without
+        # reading or hashing. Entries lacking stat data (older manifests) fall
+        # through to the content-hash check below and self-heal via set_stat.
+        if incremental and file_manifest.stat_unchanged(rel, file_size, file_mtime):
+            stats["files_skipped_unchanged"] += 1
+            return
+
+        try:
             content = await asyncio.to_thread(fp.read_text, encoding="utf-8", errors="replace")
         except Exception as exc:
             stats["errors"].append({"path": rel, "error": f"read: {exc}"})
@@ -256,22 +279,15 @@ async def run_scan(
         # Record in manifest (no entities) so pm_delta doesn't re-flag as new.
         if len(content) > 100 and content.count("\x00") / len(content) > 0.1:
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, _content_hash(content), [])
+            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime)
             return
 
-        # Skip oversized files — minified bundles and generated assets can exceed
-        # hundreds of KB as a single line, stalling tree-sitter and spiking memory.
-        # NOT recorded in manifest: delta's walk excludes >250KB files, so a
-        # manifest entry would be flagged as perpetually "deleted" instead.
-        if len(content) > 250_000:
-            stats["files_skipped_unsupported"] += 1
-            return
         # Minification heuristic: substantial content with almost no line breaks.
         # Recorded in manifest — delta walks these files (they pass its size
         # filter), so without a record they'd show as "new" on every delta.
         if len(content) > 10_000 and content.count("\n") < 5:
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, _content_hash(content), [])
+            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime)
             return
 
         file_hash = _content_hash(content)
@@ -280,18 +296,15 @@ async def run_scan(
         # pm_delta doesn't re-flag it as new on every run.
         if not content.strip():
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, file_hash, [])
+            file_manifest.record(rel, file_hash, [], size=file_size, mtime=file_mtime)
             return
 
-        # Incremental: skip unchanged files
+        # Incremental: skip unchanged files (hash check — catches stat-only
+        # changes like `touch`; store fresh stat so the next scan fast-paths)
         if incremental and not file_manifest.needs_rescan(rel, file_hash):
             stats["files_skipped_unchanged"] += 1
+            file_manifest.set_stat(rel, file_size, file_mtime)
             return
-
-        try:
-            file_size = fp.stat().st_size
-        except OSError:
-            file_size = 0
 
         from .code_analyzer import detect_language_for_path  # inline to avoid circular
         language = detect_language_for_path(str(fp))
@@ -328,6 +341,10 @@ async def run_scan(
 
         stats["relations_created"] += ingest_result.relations_created
         stats["files_scanned"]     += 1
+
+        # Store stat data so the next incremental scan can skip this file
+        # without reading it (stat_unchanged fast path).
+        file_manifest.set_stat(rel, file_size, file_mtime)
 
     # Process all files — gather with cancellation support
     try:
