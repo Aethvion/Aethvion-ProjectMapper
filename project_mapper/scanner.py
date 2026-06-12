@@ -44,6 +44,18 @@ _EXCLUDED_DIRS: frozenset[str] = frozenset({
     ".mypy_cache", ".ruff_cache", ".eggs", ".cache",
 })
 
+# Exact filenames never indexed (credential / env files)
+_EXCLUDED_FILENAMES: frozenset[str] = frozenset({
+    ".env", ".env.local", ".env.development", ".env.production",
+    ".env.staging", ".env.test", ".env.example", ".env.sample",
+})
+
+# File suffixes that indicate credential/certificate files
+_EXCLUDED_CREDENTIAL_SUFFIXES: frozenset[str] = frozenset({
+    ".pem", ".key", ".p12", ".pfx", ".jks", ".crt", ".cert",
+    ".keystore", ".secret",
+})
+
 # In-process task registry
 _active_scans: dict[str, asyncio.Task] = {}   # key: str(db_root)
 
@@ -216,6 +228,18 @@ async def run_scan(
         "errors":                    [],
     }
 
+    # Security findings: keyed by relative file path.
+    # On incremental scans, pre-populated from the existing SECURITY file so
+    # findings for unchanged files are preserved without re-scanning.
+    _sec_findings: dict[str, list] = {}
+    try:
+        from .security_patterns import read_security_store
+        _sec_findings = read_security_store(db_root).get("findings_by_file", {})
+        if not incremental:
+            _sec_findings = {}   # full scan: start fresh
+    except Exception:
+        pass
+
     def _prefilter() -> tuple[list[tuple[Path, str, int, float]], int]:
         """Walk root, apply stat fast-path, return (to_process, total_supported)."""
         to_process: list[tuple[Path, str, int, float]] = []
@@ -224,7 +248,11 @@ async def run_scan(
             dirs[:] = [d for d in dirs
                        if not d.startswith(".") and d not in _EXCLUDED_DIRS]
             for fn in sorted(files):
+                if fn in _EXCLUDED_FILENAMES:
+                    continue
                 fp  = Path(dirpath) / fn
+                if fp.suffix.lower() in _EXCLUDED_CREDENTIAL_SUFFIXES:
+                    continue
                 if fp.suffix.lower() not in SUPPORTED_EXTENSIONS:
                     continue
                 total += 1
@@ -314,6 +342,14 @@ async def run_scan(
         from .code_analyzer import detect_language_for_path  # inline to avoid circular
         language = detect_language_for_path(str(fp))
         analysis = await asyncio.to_thread(analyze_file, rel, content, language)
+
+        # Security scan: run on the already-read content, no extra I/O
+        try:
+            from .security_patterns import scan_file_security
+            sec = await asyncio.to_thread(scan_file_security, rel, content, language)
+            _sec_findings[rel] = [f.to_dict() for f in sec]
+        except Exception:
+            pass
 
         _update_scaninfo(db_root, current_file=rel)
 
@@ -460,6 +496,16 @@ async def run_scan(
             await asyncio.to_thread(_snap.build, db_root, all_for_snap)
     except Exception as exc:
         logger.warning(f"[Scanner] Snapshot build failed (non-critical): {exc}")
+
+    # Write security findings — done after snapshot so it doesn't delay the scan
+    try:
+        from .security_patterns import write_security_store
+        await asyncio.to_thread(write_security_store, db_root, _sec_findings)
+        total_findings = sum(len(v) for v in _sec_findings.values())
+        if total_findings:
+            logger.info(f"[Scanner] Security findings: {total_findings} across {len(_sec_findings)} files")
+    except Exception as exc:
+        logger.warning(f"[Scanner] Could not write security findings: {exc}")
 
 
 def start_scan(

@@ -354,6 +354,80 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "required": ["project_root"],
         },
     },
+    {
+        "name": "pm_security",
+        "description": (
+            "Return security findings detected during the last scan. "
+            "Findings are detected statically via OWASP Top 10 patterns covering "
+            "SQL/command/NoSQL injection, XSS, open redirect, path traversal, "
+            "insecure deserialization, SSRF, weak crypto, and hardcoded secrets — "
+            "across Python, JavaScript/TypeScript, PHP, Ruby, Go, Java, and C/C++. "
+            "Run pm_scan first to populate findings; they are updated on every scan. "
+            "Use pm_security_max for deeper taint-propagation analysis and a "
+            "persistent .SECURITYSNAPSHOT tracking file."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "severity": {
+                    "type": "string",
+                    "enum": ["critical", "high", "medium", "low", "all"],
+                    "description": (
+                        "Minimum severity to return. "
+                        "'critical' = critical only; 'all' = every finding. "
+                        "Default: 'high' (returns critical + high)."
+                    ),
+                    "default": "high",
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Filter to a specific language (e.g. 'python', 'typescript'). Omit for all.",
+                },
+                "owasp": {
+                    "type": "string",
+                    "description": "Filter by OWASP category prefix (e.g. 'A03' or 'Injection'). Case-insensitive.",
+                },
+                "file": {
+                    "type": "string",
+                    "description": "Return findings for a specific file path (substring match).",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum findings to return (default 50).",
+                    "default": 50,
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "pm_security_max",
+        "description": (
+            "Deep security analysis: combines all pm_security findings with "
+            "route-handler reachability heuristics, then writes a .SECURITYSNAPSHOT "
+            "file to the project root. "
+            "The snapshot tracks findings over time with statuses (open/fixed/acknowledged/"
+            "false_positive) so you can re-run after fixing issues and see progress. "
+            "Call pm_security_max again after fixing findings to update the snapshot — "
+            "resolved findings are automatically marked as fixed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_root": {
+                    "type": "string",
+                    "description": "Project root for the .SECURITYSNAPSHOT file. Defaults to configured project root.",
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["critical", "high", "medium", "low", "all"],
+                    "description": "Minimum severity to include in the snapshot. Default: 'medium'.",
+                    "default": "medium",
+                },
+            },
+            "required": [],
+        },
+    },
 ]
 
 
@@ -1194,6 +1268,321 @@ def handle_pm_orphans(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 # ---------------------------------------------------------------------------
+# pm_security / pm_security_max handlers
+# ---------------------------------------------------------------------------
+
+_SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+_SEVERITY_THRESHOLD = {
+    "critical": {"critical"},
+    "high":     {"critical", "high"},
+    "medium":   {"critical", "high", "medium"},
+    "low":      {"critical", "high", "medium", "low"},
+    "all":      {"critical", "high", "medium", "low"},
+}
+
+
+def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
+    from .security_patterns import read_security_store
+
+    severity_filter = args.get("severity", "high").lower()
+    lang_filter     = (args.get("language") or "").lower().strip()
+    owasp_filter    = (args.get("owasp") or "").lower().strip()
+    file_filter     = (args.get("file") or "").lower().strip()
+    max_results     = min(int(args.get("max_results", 50)), 200)
+
+    allowed_severities = _SEVERITY_THRESHOLD.get(severity_filter, {"critical", "high"})
+
+    store = read_security_store(ctx.db_root)
+    if not store.get("findings_by_file"):
+        return (
+            "No security findings stored. Run pm_scan first to populate findings.\n"
+            "If you just scanned, the project may have no detected issues — that's good!"
+        )
+
+    # Flatten and filter
+    all_findings: list[dict] = []
+    for file_path, file_findings in store["findings_by_file"].items():
+        for f in file_findings:
+            if f.get("severity") not in allowed_severities:
+                continue
+            if lang_filter and f.get("language", "") != lang_filter:
+                continue
+            if owasp_filter and owasp_filter not in f.get("owasp", "").lower():
+                continue
+            if file_filter and file_filter not in file_path.lower():
+                continue
+            all_findings.append(f)
+
+    if not all_findings:
+        return (
+            f"No findings matching the given filters "
+            f"(severity≥{severity_filter}"
+            + (f", language={lang_filter}" if lang_filter else "")
+            + (f", owasp={owasp_filter}" if owasp_filter else "")
+            + (f", file={file_filter}" if file_filter else "")
+            + ").\n"
+            "Try severity='all' to see all findings, or run pm_scan to refresh."
+        )
+
+    # Sort: critical first, then by file for readability
+    all_findings.sort(key=lambda f: (
+        _SEVERITY_RANK.get(f.get("severity", "low"), 9),
+        f.get("file", ""),
+        f.get("line", 0),
+    ))
+
+    total = len(all_findings)
+    shown = all_findings[:max_results]
+
+    # Count by severity
+    counts: dict[str, int] = {}
+    for f in all_findings:
+        sev = f.get("severity", "?")
+        counts[sev] = counts.get(sev, 0) + 1
+
+    scanned_at = store.get("scanned_at", "unknown")
+    count_str = "  ".join(
+        f"{sev}: {n}"
+        for sev, n in sorted(counts.items(), key=lambda kv: _SEVERITY_RANK.get(kv[0], 9))
+    )
+
+    lines = [
+        f"Security findings — {total} total  ({count_str})",
+        f"Scanned: {scanned_at}  |  Showing: {len(shown)}/{total}",
+        "",
+    ]
+
+    # Group by OWASP category for readability
+    by_owasp: dict[str, list[dict]] = {}
+    for f in shown:
+        cat = f.get("owasp", "Other")
+        by_owasp.setdefault(cat, []).append(f)
+
+    for cat in sorted(by_owasp):
+        cat_findings = by_owasp[cat]
+        lines.append(f"── {cat} ──")
+        for f in cat_findings:
+            sev    = f.get("severity", "?").upper()
+            fpath  = f.get("file", "?")
+            lineno = f.get("line", "?")
+            desc   = f.get("description", "")
+            snip   = f.get("snippet", "")
+            pid    = f.get("id", "?")
+            lines.append(f"  [{sev}] {fpath}:{lineno}  ({pid})")
+            lines.append(f"    {desc}")
+            if snip:
+                lines.append(f"    » {snip}")
+        lines.append("")
+
+    if total > max_results:
+        lines.append(
+            f"… {total - max_results} more findings not shown. "
+            f"Use max_results={total} or apply filters to narrow down."
+        )
+
+    lines.append(
+        "\nRun pm_security_max to write a .SECURITYSNAPSHOT file that "
+        "tracks findings over time and identifies route-handler reachability."
+    )
+    return "\n".join(lines).rstrip()
+
+
+def handle_pm_security_max(args: dict[str, Any], ctx: MCPContext) -> str:
+    import json as _json
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+    from .security_patterns import (
+        read_security_store, is_route_handler_file, SECURITY_FILE,
+    )
+
+    severity_filter  = args.get("severity", "medium").lower()
+    project_root_arg = (args.get("project_root") or ctx.project_root or "").strip()
+    allowed_severities = _SEVERITY_THRESHOLD.get(severity_filter, {"critical", "high", "medium"})
+
+    store = read_security_store(ctx.db_root)
+    if not store.get("findings_by_file"):
+        return (
+            "No security findings stored. Run pm_scan first, then call pm_security_max."
+        )
+
+    # Flatten all findings and apply severity filter
+    raw_findings: list[dict] = []
+    for file_path, file_findings in store["findings_by_file"].items():
+        for f in file_findings:
+            if f.get("severity") in allowed_severities:
+                raw_findings.append(dict(f))
+
+    # Sort: critical first
+    raw_findings.sort(key=lambda f: (
+        _SEVERITY_RANK.get(f.get("severity", "low"), 9),
+        f.get("file", ""),
+        f.get("line", 0),
+    ))
+
+    # Load existing snapshot to preserve statuses
+    snapshot_path = _Path(project_root_arg) / ".SECURITYSNAPSHOT" if project_root_arg else None
+    old_findings_index: dict[tuple, dict] = {}   # (pattern_id, file) → old finding dict
+    old_snapshot: dict = {}
+    now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    if snapshot_path and snapshot_path.exists():
+        try:
+            old_snapshot = _json.loads(snapshot_path.read_text(encoding="utf-8"))
+            for old_f in old_snapshot.get("findings", []):
+                key = (old_f.get("pattern_id", old_f.get("id")), old_f.get("file"))
+                old_findings_index[key] = old_f
+        except Exception:
+            pass
+
+    # Build new findings list with taint heuristics and preserved statuses
+    findings_out: list[dict] = []
+    for i, f in enumerate(raw_findings, start=1):
+        pid    = f.get("id", "")
+        fpath  = f.get("file", "")
+        old_key = (pid, fpath)
+        old_f   = old_findings_index.get(old_key, {})
+
+        taint_reachable = is_route_handler_file(fpath)
+
+        finding_out: dict = {
+            "id":             f"SEC-{i:04d}",
+            "pattern_id":     pid,
+            "severity":       f.get("severity", "medium"),
+            "owasp":          f.get("owasp", ""),
+            "file":           fpath,
+            "line":           f.get("line", 0),
+            "language":       f.get("language", ""),
+            "description":    f.get("description", ""),
+            "snippet":        f.get("snippet", ""),
+            "taint_reachable": taint_reachable,
+            "status":         old_f.get("status", "open"),
+            "first_seen":     old_f.get("first_seen", now_iso),
+            "last_seen":      now_iso,
+        }
+        findings_out.append(finding_out)
+
+    # Detect findings that were in old snapshot but no longer present (fixed)
+    new_keys = {(f["pattern_id"], f["file"]) for f in findings_out}
+    fixed_findings: list[dict] = []
+    for old_key, old_f in old_findings_index.items():
+        if old_key not in new_keys and old_f.get("status") not in ("fixed", "false_positive"):
+            fixed_copy = dict(old_f)
+            fixed_copy["status"] = "fixed"
+            fixed_copy["last_seen"] = now_iso
+            fixed_findings.append(fixed_copy)
+
+    # Summary counts
+    counts: dict[str, int] = {}
+    for f in findings_out:
+        sev = f["severity"]
+        counts[sev] = counts.get(sev, 0) + 1
+
+    summary = {
+        "critical":              counts.get("critical", 0),
+        "high":                  counts.get("high", 0),
+        "medium":                counts.get("medium", 0),
+        "low":                   counts.get("low", 0),
+        "total":                 len(findings_out),
+        "taint_reachable":       sum(1 for f in findings_out if f["taint_reachable"]),
+        "fixed_since_last_scan": len(fixed_findings),
+        "new_since_last_scan":   sum(1 for f in findings_out if not old_findings_index.get((f["pattern_id"], f["file"]))),
+    }
+
+    # Get pm version from server module (best-effort)
+    try:
+        from .mcp_server import SERVER_VERSION as _sv
+        pm_version = _sv
+    except Exception:
+        pm_version = ""
+
+    snapshot: dict = {
+        "format_version": "1.0",
+        "pm_version":     pm_version,
+        "generated_at":   now_iso,
+        "project_root":   project_root_arg,
+        "severity_floor": severity_filter,
+        "findings":       findings_out + fixed_findings,
+        "summary":        summary,
+    }
+
+    # Write snapshot
+    snapshot_written = False
+    if snapshot_path:
+        try:
+            snapshot_path.write_text(
+                _json.dumps(snapshot, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            snapshot_written = True
+        except Exception as exc:
+            pass   # reported below
+
+    # Format output
+    total = summary["total"]
+    lines = [
+        "Security analysis complete",
+        f"  Severity floor: {severity_filter}+",
+        f"  Total findings:      {total}",
+        f"    Critical:          {summary['critical']}",
+        f"    High:              {summary['high']}",
+        f"    Medium:            {summary['medium']}",
+        f"    Low:               {summary['low']}",
+        f"  Taint-reachable:     {summary['taint_reachable']}  (in route-handler files)",
+        f"  Fixed since last:    {summary['fixed_since_last_scan']}",
+        f"  New since last:      {summary['new_since_last_scan']}",
+        "",
+    ]
+
+    if snapshot_written:
+        lines.append(f"Snapshot written: {snapshot_path}")
+        lines.append("  Re-run pm_security_max after fixing findings to track progress.")
+        lines.append("  Statuses: open | fixed | acknowledged | false_positive")
+        lines.append("  Manually edit the file to set 'acknowledged' or 'false_positive'.")
+    else:
+        lines.append(
+            "Snapshot NOT written — no project_root configured. "
+            "Pass project_root= or set it via pm_scan to enable snapshot persistence."
+        )
+
+    lines.append("")
+
+    # Show critical findings inline
+    critical = [f for f in findings_out if f["severity"] == "critical"]
+    if critical:
+        lines.append(f"── CRITICAL ({len(critical)}) ──")
+        for f in critical:
+            reach = " [ROUTE-REACHABLE]" if f["taint_reachable"] else ""
+            lines.append(f"  {f['id']}  {f['file']}:{f['line']}{reach}")
+            lines.append(f"    {f['description']}")
+            if f.get("snippet"):
+                lines.append(f"    » {f['snippet']}")
+        lines.append("")
+
+    # Show high findings inline
+    high_findings = [f for f in findings_out if f["severity"] == "high"]
+    if high_findings:
+        lines.append(f"── HIGH ({len(high_findings)}) ──")
+        for f in high_findings[:15]:
+            reach = " [ROUTE-REACHABLE]" if f["taint_reachable"] else ""
+            lines.append(f"  {f['id']}  {f['file']}:{f['line']}{reach}")
+            lines.append(f"    {f['description']}")
+        if len(high_findings) > 15:
+            lines.append(f"  … {len(high_findings) - 15} more — see snapshot file")
+        lines.append("")
+
+    if fixed_findings:
+        lines.append(f"── FIXED since last scan ({len(fixed_findings)}) ──")
+        for f in fixed_findings[:8]:
+            lines.append(f"  ✓ {f.get('pattern_id', '?')}  {f.get('file', '?')}:{f.get('line', '?')}")
+        lines.append("")
+
+    lines.append(
+        "Use pm_security for quick per-file findings without writing a snapshot."
+    )
+    return "\n".join(lines).rstrip()
+
+
+# ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
 
@@ -1204,7 +1593,9 @@ HANDLERS = {
     "pm_contribute": handle_pm_contribute,
     "pm_stats":      handle_pm_stats,
     "pm_delta":      handle_pm_delta,
-    "pm_scan":       handle_pm_scan,
-    "pm_find":       handle_pm_find,
-    "pm_orphans":    handle_pm_orphans,
+    "pm_scan":         handle_pm_scan,
+    "pm_find":         handle_pm_find,
+    "pm_orphans":      handle_pm_orphans,
+    "pm_security":     handle_pm_security,
+    "pm_security_max": handle_pm_security_max,
 }
