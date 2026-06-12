@@ -437,18 +437,20 @@ def _walk_scope(node, src: bytes,
             if body:
                 _walk_scope(body, src, classes, functions, top_level=False)
         elif nt == "type_definition":
-            # C-style typedef struct: typedef struct Foo { ... } Bar;
+            # C-style typedef: typedef struct Foo { ... } Bar;
+            # Also covers forward-reference form: typedef struct Foo Bar;
             # Common in C headers that the C++ analyzer handles (.h files).
-            # Collect the typedef alias (last type_identifier child) and parse
-            # the struct/enum body; use the alias as the canonical entity name.
+            # Collect the typedef alias (last type_identifier child) then parse
+            # the struct/enum; use the alias as the canonical entity name.
             alias = None
             for c in child.children:
                 if c.type == "type_identifier":
-                    alias = _t(c, src)   # last one wins = typedef alias name
+                    alias = _t(c, src)   # last one wins = typedef alias
             for c in child.children:
                 if c.type in ("struct_specifier", "class_specifier"):
                     cls = _parse_class_or_struct(c, src, kind="struct")
                     if cls:
+                        # typedef struct Foo { body } Bar — use alias as name
                         ename = alias or cls.name
                         if ename:
                             classes.append(ClassInfo(
@@ -458,6 +460,15 @@ def _walk_scope(node, src: bytes,
                                 line_start=cls.line_start, line_end=cls.line_end,
                                 docstring=cls.docstring,
                             ))
+                    elif alias:
+                        # typedef struct Foo Bar; (forward reference, no body)
+                        # Register alias so pm_find works even without body.
+                        classes.append(ClassInfo(
+                            name=alias, kind="struct",
+                            bases=[], methods=[], class_vars=[], calls=[],
+                            line_start=_line(child), line_end=_end_line(child),
+                            docstring="",
+                        ))
                 elif c.type == "enum_specifier":
                     cls = _parse_enum(c, src)
                     if cls:

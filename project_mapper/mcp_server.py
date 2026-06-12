@@ -80,7 +80,7 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.5.22"
+SERVER_VERSION   = "1.5.23"
 
 # Injected into the client agent's context at session start (MCP `instructions`
 # field of the initialize response). Keep this short — it costs context tokens
