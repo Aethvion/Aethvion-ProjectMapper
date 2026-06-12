@@ -426,6 +426,13 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
         for r in relations[:5]:
             lines.append(f"    -> {r.get('kind')} {r.get('target_name', r.get('target_id', '?'))}")
 
+    if "sections" in entity:
+        timeline = entity["sections"].get("timeline", [])
+        if timeline:
+            lines.append("    Timeline:")
+            for entry in timeline[-3:]:
+                lines.append(f"      [{entry.get('date', '')}] {entry.get('event', '')[:120]}")
+
     return "\n".join(lines)
 
 
@@ -770,6 +777,8 @@ def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:
             "Pass project_root or start the server with --project-root."
         )
 
+    project_root = str(Path(project_root).resolve())
+
     try:
         delta = compute_delta(project_root, ctx.file_manifest)
     except (FileNotFoundError, NotADirectoryError) as exc:
@@ -836,7 +845,8 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
             "project_root is required (or start the server with --project-root)"
         )
 
-    project_path = Path(project_root)
+    project_path = Path(project_root).resolve()
+    project_root = str(project_path)
     if not project_path.exists():
         raise ValueError(f"Project root does not exist: {project_root}")
     if not project_path.is_dir():
@@ -975,6 +985,18 @@ def _format_find_result(m: dict[str, Any]) -> str:
         lines.append(f"\nCalls/uses ({len(callees)}):")
         for c in callees:
             lines.append(f"  * {c['name']} [{c.get('type', '?')}]  ({c.get('via', '?')})")
+
+    custom = m.get("custom_properties", {})
+    if custom:
+        lines.append("\nContributed properties:")
+        for k, v in list(custom.items())[:6]:
+            lines.append(f"  {k}: {str(v)[:80]}")
+
+    timeline = m.get("timeline", [])
+    if timeline:
+        lines.append("\nTimeline:")
+        for entry in timeline:
+            lines.append(f"  [{entry.get('date', '')}] {entry.get('event', '')[:120]}")
 
     return "\n".join(lines)
 

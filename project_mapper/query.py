@@ -902,6 +902,11 @@ def find_query(
     _OUTBOUND = frozenset({"calls", "imports", "depends_on", "uses",
                            "extends", "implements"})
 
+    _STD_PROPS = frozenset({
+        "file_path", "line_start", "line_end", "signature",
+        "architectural_pattern", "language", "size", "last_scanned", "hash",
+    })
+
     matches: list[dict] = []
     for eid in ordered:
         entity    = entity_map[eid]
@@ -933,6 +938,9 @@ def find_query(
                         "via":  rel.get("kind", ""),
                     })
 
+        custom   = {k: v for k, v in props.items() if k not in _STD_PROPS and v}
+        timeline = entity.get("sections", {}).get("timeline", [])
+
         matches.append({
             "id":         eid,
             "name":       entity.get("name", ""),
@@ -947,6 +955,8 @@ def find_query(
             "tags":       core.get("tags", [])[:6],
             "callers":    callers,
             "callees":    callees,
+            "custom_properties": custom,
+            "timeline":   timeline[-3:],
         })
 
     return {

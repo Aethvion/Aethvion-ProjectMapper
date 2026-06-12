@@ -304,6 +304,7 @@ class _CallExtractor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.instantiated: set[str] = set()
         self.attr_calls:   set[str] = set()
+        self.fn_calls:     set[str] = set()
 
     def visit_Call(self, node: ast.Call) -> None:
         func = node.func
@@ -321,6 +322,10 @@ class _CallExtractor(ast.NodeVisitor):
                 candidate = _factory_to_class_name(name)
                 if candidate and candidate not in _CALL_IGNORE:
                     self.instantiated.add(candidate)
+                elif name and name[0].islower() and name not in _CALL_IGNORE:
+                    # Direct call to a lowercase function — may be intra-file.
+                    # The ingestor will only wire a relation if the name is indexed.
+                    self.fn_calls.add(name)
 
         elif isinstance(func, ast.Attribute):
             obj  = func.value
@@ -379,6 +384,7 @@ def _extract_function_calls(
     extractor.visit(fn_node)
 
     resolved: set[str] = set(extractor.instantiated)
+    resolved.update(extractor.fn_calls)
 
     # attr_calls from a top-level function are unresolvable (no self),
     # but keep uppercase ones as potential class names
@@ -440,6 +446,7 @@ def _extract_class_calls(
         extractor.visit(item)
 
         callees = set(extractor.instantiated)
+        callees.update(extractor.fn_calls)
 
         # Attribute-based calls → resolve via attr_to_class
         for attr in extractor.attr_calls:
