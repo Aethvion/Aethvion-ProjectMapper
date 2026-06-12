@@ -80,7 +80,7 @@ INTERNAL_ERROR   = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "1.5.17"
+SERVER_VERSION   = "1.5.18"
 
 # Injected into the client agent's context at session start (MCP `instructions`
 # field of the initialize response). Keep this short — it costs context tokens
@@ -185,7 +185,7 @@ class MCPServer:
 
     def _send(self, payload: dict[str, Any]) -> None:
         """Write one JSON-RPC message to stdout and flush immediately."""
-        line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        line = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
         self._out.write(line + "\n")
         self._out.flush()
 
@@ -292,9 +292,26 @@ class MCPServer:
     def run(self) -> None:
         """
         Read JSON-RPC messages from stdin line by line until EOF.
-        On Windows, re-wrap stdin/stdout in UTF-8 if the console uses a
-        narrow codepage (cp1252 etc.) to avoid UnicodeDecodeError.
+        On Windows, re-wrap stdin/stdout/stderr in UTF-8 before any I/O so
+        that the startup log and all subsequent output survive narrow codepages
+        (cp1252 etc.).  Must come before self._log() to avoid UnicodeEncodeError
+        killing the subprocess before the client receives its first byte.
         """
+        # UTF-8 stdin/stdout/stderr on Windows — must come first, before any
+        # self._log() call.  The startup message may contain em-dashes or other
+        # non-ASCII that crash cp1252 consoles, producing a silent client EOF.
+        if sys.platform == "win32":
+            import io
+            sys.stdin  = io.TextIOWrapper(
+                sys.stdin.buffer,  encoding="utf-8", errors="replace", newline="\n"
+            )
+            self._out = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace"
+            )
+
         self._log(
             f"[ProjectMapper MCP] Starting — db={self._db_name!r}  "
             f"db_root={self._db_root}  project={self._project_root or '(unset)'}"
@@ -320,22 +337,6 @@ class MCPServer:
                 )
                 scanner.start()
                 ctx.auto_scanner = scanner
-
-        # UTF-8 stdin/stdout/stderr on Windows
-        # stderr must also be re-wrapped: the startup log contains em-dashes and
-        # other non-ASCII characters that crash cp1252 consoles, killing the
-        # subprocess and producing a client-side EOF before any tool is called.
-        if sys.platform == "win32":
-            import io
-            sys.stdin  = io.TextIOWrapper(
-                sys.stdin.buffer,  encoding="utf-8", errors="replace", newline="\n"
-            )
-            self._out = io.TextIOWrapper(
-                sys.stdout.buffer, encoding="utf-8", errors="replace"
-            )
-            sys.stderr = io.TextIOWrapper(
-                sys.stderr.buffer, encoding="utf-8", errors="replace"
-            )
 
         for raw_line in sys.stdin:
             raw_line = raw_line.strip()

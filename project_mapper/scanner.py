@@ -197,29 +197,59 @@ async def run_scan(
         file_manifest=file_manifest,
     )
 
-    # --- Collect file list (skip hidden/cache dirs) ---
-    file_paths: list[Path] = []
-    for dirpath, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _EXCLUDED_DIRS]
-        for fn in sorted(files):
-            fp = Path(dirpath) / fn
-            if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
-                file_paths.append(fp)
-
-    total = len(file_paths)
+    # --- Collect + prefilter files synchronously ---
+    # Running the entire walk + stat + fast-path check in a single thread call
+    # avoids the asyncio.to_thread overhead that accumulates to ~4 ms per file
+    # on Windows for large codebases (e.g. 3 000-file Django = ~12 s otherwise).
+    # Only files that actually need processing reach the async task stage.
     stats: dict[str, Any] = {
-        "files_total":             total,
-        "files_scanned":           0,
-        "files_skipped_unchanged": 0,
+        "files_total":               0,
+        "files_scanned":             0,
+        "files_skipped_unchanged":   0,
         "files_skipped_unsupported": 0,
-        "entities_created":        0,
-        "entities_updated":        0,
-        "entities_pruned":         0,   # symbols removed from changed files
-        "relations_created":       0,
-        "files_deleted":           0,   # set during deletion cleanup pass
-        "entities_retired":        0,   # set during deletion cleanup pass
-        "errors":                  [],
+        "entities_created":          0,
+        "entities_updated":          0,
+        "entities_pruned":           0,
+        "relations_created":         0,
+        "files_deleted":             0,
+        "entities_retired":          0,
+        "errors":                    [],
     }
+
+    def _prefilter() -> tuple[list[tuple[Path, str, int, float]], int]:
+        """Walk root, apply stat fast-path, return (to_process, total_supported)."""
+        to_process: list[tuple[Path, str, int, float]] = []
+        total = 0
+        for dirpath, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs
+                       if not d.startswith(".") and d not in _EXCLUDED_DIRS]
+            for fn in sorted(files):
+                fp  = Path(dirpath) / fn
+                if fp.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                    continue
+                total += 1
+                rel = str(fp.relative_to(root)).replace("\\", "/")
+                if "node_modules" in fp.parts:
+                    stats["files_skipped_unsupported"] += 1
+                    continue
+                try:
+                    st = fp.stat()
+                except OSError as exc:
+                    stats["errors"].append({"path": rel, "error": f"stat: {exc}"})
+                    continue
+                file_size  = st.st_size
+                file_mtime = st.st_mtime
+                if file_size > 250_000:
+                    stats["files_skipped_unsupported"] += 1
+                    continue
+                if incremental and file_manifest.stat_unchanged(rel, file_size, file_mtime):
+                    stats["files_skipped_unchanged"] += 1
+                    continue
+                to_process.append((fp, rel, file_size, file_mtime))
+        return to_process, total
+
+    pending, total = await asyncio.to_thread(_prefilter)
+    stats["files_total"] = total
 
     _write_scaninfo(db_root, {
         "project_root":  project_root,
@@ -232,43 +262,18 @@ async def run_scan(
         "stats":         stats,
     })
 
-    logger.info(f"[Scanner] Starting scan of {project_root} ({total} files, concurrency={concurrency})")
+    logger.info(
+        f"[Scanner] Starting scan of {project_root} "
+        f"({total} files total, {len(pending)} to process, concurrency={concurrency})"
+    )
 
     # --- Process files in batches ---
     semaphore = asyncio.Semaphore(concurrency)
 
-    async def _process_one(fp: Path) -> None:
-        rel = str(fp.relative_to(root)).replace("\\", "/")
-
-        # Skip node_modules — always third-party packages, never project code.
-        # Check before reading to avoid the I/O cost entirely.
-        if "node_modules" in fp.parts:
-            stats["files_skipped_unsupported"] += 1
-            return
-
-        try:
-            st = await asyncio.to_thread(fp.stat)
-        except OSError as exc:
-            stats["errors"].append({"path": rel, "error": f"stat: {exc}"})
-            return
-        file_size  = st.st_size
-        file_mtime = st.st_mtime
-
-        # Oversized — same byte threshold as delta.py/cleanup.py, checked from
-        # stat so the file is never read. NOT recorded in manifest: delta's
-        # walk excludes >250KB files, so an entry would be flagged as
-        # perpetually "deleted" instead.
-        if file_size > 250_000:
-            stats["files_skipped_unsupported"] += 1
-            return
-
-        # Incremental fast path: size+mtime match the manifest → skip without
-        # reading or hashing. Entries lacking stat data (older manifests) fall
-        # through to the content-hash check below and self-heal via set_stat.
-        if incremental and file_manifest.stat_unchanged(rel, file_size, file_mtime):
-            stats["files_skipped_unchanged"] += 1
-            return
-
+    async def _process_one(fp: Path, rel: str, file_size: int, file_mtime: float) -> None:
+        # Stat check and fast-path already applied in _prefilter; go straight
+        # to reading. The hash-based check below handles touch-only changes and
+        # entries in older manifests that lack stat data.
         try:
             content = await asyncio.to_thread(fp.read_text, encoding="utf-8", errors="replace")
         except Exception as exc:
@@ -348,7 +353,8 @@ async def run_scan(
 
     # Process all files — gather with cancellation support
     try:
-        tasks = [asyncio.create_task(_process_one(fp)) for fp in file_paths]
+        tasks = [asyncio.create_task(_process_one(fp, rel, fs, fm))
+                 for fp, rel, fs, fm in pending]
         for i, task in enumerate(asyncio.as_completed(tasks)):
             try:
                 await task
