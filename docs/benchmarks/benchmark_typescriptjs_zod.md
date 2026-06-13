@@ -1,273 +1,157 @@
-# Benchmark: TypeScript/JS — Zod 4.x
+# Benchmark: TypeScript/JS — Zod
 
-**Date:** 2026-06-10 · **Project Mapper:** v1.5.0
-
-> Real numbers from the [Zod source repository](https://github.com/colinhacks/zod) (main branch, version `4.4.3`). No synthetic data.
+**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
-## The Subject
+## Project
 
-| | |
+| Metric | Value |
 |:---|:---|
 | Repository | `colinhacks/zod` |
-| Version | `4.4.3` |
-| Date tested | **2026-06-10** |
-| Project Mapper | **v1.5.0** |
-| TS/JS files analyzed | **405** |
-| Structure | Monorepo — `packages/zod/src/v3/`, `v4/classic/`, `v4/mini/`, `v4/core/` |
+| Language | TypeScript |
+| Files scanned | 405 |
+| Total lines | ~65,000 |
+| Entities indexed | 1,688 |
+| Scan time | 4.5 s |
+| Throughput | ~14,400 lines/sec |
+
+Geometric mean savings: **−90% token reduction (Full) · −93% token reduction (Slim)** · **~1,010× faster navigation**
 
 ---
 
-## Test Environment
-
-| | |
-|:---|:---|
-| OS | Windows 11 |
-| Python | 3.10.11 |
-| Hardware | Desktop PC · Intel i9-13900K (24C/32T) · RTX 4090 |
-| PM server | Standalone · `python -m uvicorn server:app --port 7474` |
-| Analysis | Static AST only (no LLM calls) |
-
-> **Windows note:** NTFS and Defender I/O overhead inflates scan time vs Linux/macOS (est. 3–5× faster on Linux).
-
----
-
-## Indexing
-
-### Full Scan (cold start)
-
-| | |
-|:---|:---|
-| TS/JS files analyzed | **405** |
-| Files skipped (unsupported) | 0 |
-| Entities indexed | **1,453** |
-| Stubs resolved | 6 · Relations rewired: 8 |
-| Relations mapped | **3,026** |
-| Errors | **0** |
-| Snapshot size | **1.22 MB** |
-| Entity files on disk | **0** (PMEntityStore) |
-| **Full scan time** | **~6 s** |
-
-### Incremental Scan (zero file changes)
-
-| | |
-|:---|:---|
-| Files skipped (hash unchanged) | **405** |
-| **Incremental scan time** | **0.5 s** |
-| **Speedup vs full scan** | **~12×** |
-
-> **TypeScript/JS has the richest relation graph in this benchmark suite.** Zod's 405 files produce 648 `extends` relations — far more than Java/Spring (59,356 total relations across all kinds but fewer extends per entity), Ruby/Jekyll (97), or PHP/WordPress (486). This density comes from TypeScript's explicit type hierarchy: every Zod schema type, every issue variant, and every internal `$Zod*` class is tracked individually, giving PM deep structural data to query.
-
----
-
-## Query Benchmarks
-
-The primary purpose of Project Mapper is **token reduction**. Each test below compares what an AI agent would consume without PM (Grep + Read source files) against a single PM API call.
-
-> **"Normal" baseline:** Zod is a monorepo with three parallel API surfaces (v3, v4 classic, v4 mini) living under `packages/zod/src/`. Finding a complete type catalog requires searching across all three trees. Token estimates assume the agent already knows the monorepo structure and greps first, then reads the relevant source files.
->
-> **Query latency (v1.5.0):** cold miss ~10 ms (1.22 MB snapshot load); warm hits < 2 ms (in-memory cache, mtime-validated).
-
----
-
-### Z1 — Complete Schema Type Catalog
+## Test 1 — Complete Schema Type Catalog
 
 **Question:** *"What schema types does Zod provide?"*
 
-**Normal approach:** `grep -r "extends ZodType" packages/` across v3, v4 classic, and v4 mini. Identifies multiple large TypeScript files (schemas.ts, types.ts) in each sub-package. Read 3–5 files × 1,000–3,000 lines each to build a complete list — easy to miss newer types like `ZodCodec`, `ZodInt32`, `ZodUInt32`, `ZodTemplateLiteral` that are defined in separate utility files. Estimate: ~15,000 tokens for a complete catalog.
+**Standard Workflow (Grep + Read):** `grep -r "extends ZodType"` across `packages/zod/src/v3/`, `v4/classic/`, and `v4/mini/`. Identifies multiple large TypeScript files (schemas.ts, types.ts) in each sub-package. 8–12 reads across the monorepo; v4-specific numeric formats (`ZodInt32`, `ZodFloat64`), `ZodCodec`, and `ZodTemplateLiteral` routinely missed. ~15,000 tokens.
 
-**PM approach:** `impact("ZodType", via_kinds=["extends"], exclude_tests=True)`
+**With Project Mapper:** `pm_impact "ZodType" depth=1 via_kinds=["extends"] exclude_tests=True`
 
-**62 schema types returned — the complete Zod type system:**
-```
-Primitives:   ZodString, ZodNumber, ZodBoolean, ZodBigInt, ZodSymbol,
-              ZodUndefined, ZodNull, ZodNaN, ZodDate, ZodAny, ZodUnknown,
-              ZodNever, ZodVoid
-Composites:   ZodArray, ZodObject, ZodUnion, ZodDiscriminatedUnion,
-              ZodIntersection, ZodTuple, ZodRecord, ZodMap, ZodSet
-Wrappers:     ZodOptional, ZodNullable, ZodDefault, ZodCatch, ZodReadonly,
-              ZodLazy, ZodPromise, ZodEffects, ZodBranded, ZodPipeline
-Special:      ZodEnum, ZodLiteral, ZodFunction, ZodNativeEnum
-v4 additions: ZodFile, ZodXor, ZodTemplateLiteral, ZodCustom, ZodCodec,
-              ZodInt, ZodFloat32, ZodFloat64, ZodInt32, ZodUInt32,
-              ZodNumberFormat, ZodBigIntFormat, ZodStringFormat
-              ZodTransform, ZodExactOptional, ZodPrefault, ZodNonOptional,
-              ZodSuccess, ZodPipe, ZodPreprocess
-Internal:     _ZodType, _ZodString, _ZodNumber, _ZodBoolean, _ZodBigInt, _ZodDate
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 8–12 | **1** | **1** |
-| Tokens consumed | ~15,000 | **~3,369** | **~1,688** |
-| Types found | Partial (~35–40; v4 additions + mini variants routinely missed) | **62 — complete, all versions** | **62 — complete** |
-| Savings vs Normal | — | **~4.5×** | **~8.9×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 8–12 | 1 | 1 |
+| Entities found | ~35–40, misses v4 additions + mini variants | 62 — complete, all versions | 62 — complete |
+| Token Cost | ~15,000 | ~1,676 | ~1,488 |
+| Token Reduction | — | **−89%** | **−90%** |
+| Execution Time | ~8s | 1ms | 1ms |
+| Speedup | — | **~8,000×** | **~8,000×** |
 
 ---
 
-### Z2 — Validation Error Type Catalog
+## Test 2 — Validation Error Type Catalog
 
 **Question:** *"What validation error (issue) types does Zod produce?"*
 
-**Normal approach:** Search for issue types across v3 and v4. Read the v4 issue definitions file + v3 issues file. Each is ~500–800 lines. 2–3 reads × ~800 tok + grep overhead = ~3,500 tokens. The v3 and v4 issue types have different shapes but overlap — easy to conflate or miss types defined inline.
+**Standard Workflow (Grep + Read):** Read the v4 issue definitions file and the v3 issues file. Each is ~500–800 lines. v3 and v4 issue types have different shapes but overlap — easy to conflate or miss types defined inline. 2–3 reads, ~3,500 tokens.
 
-**PM approach:** `impact("ZodIssueBase", via_kinds=["extends"], exclude_tests=True)`
+**With Project Mapper:** `pm_impact "ZodIssueBase" depth=1 via_kinds=["extends"] exclude_tests=True`
 
-**16 issue types returned — the complete validation error catalog:**
-```
-ZodInvalidTypeIssue           ZodInvalidLiteralIssue
-ZodUnrecognizedKeysIssue      ZodInvalidUnionIssue
-ZodInvalidUnionDiscriminatorIssue  ZodInvalidEnumValueIssue
-ZodInvalidArgumentsIssue      ZodInvalidReturnTypeIssue
-ZodInvalidDateIssue           ZodInvalidStringIssue
-ZodTooSmallIssue              ZodTooBigIssue
-ZodInvalidIntersectionTypesIssue   ZodNotMultipleOfIssue
-ZodNotFiniteIssue             ZodCustomIssue
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 3–4 | **1** | **1** |
-| Tokens consumed | ~3,500 | **~896** | **~460** |
-| Issue types found | Partial (v3 vs v4 shape differences cause confusion) | **16 — complete, canonical list** | **16 — complete** |
-| Savings vs Normal | — | **~3.9×** | **~7.6×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 2–3 | 1 | 1 |
+| Entities found | Partial, v3/v4 shape differences cause confusion | 16 — complete, canonical list | 16 — complete |
+| Token Cost | ~3,500 | ~399 | ~363 |
+| Token Reduction | — | **−89%** | **−90%** |
+| Execution Time | ~2s | 1ms | 1ms |
+| Speedup | — | **~2,000×** | **~2,000×** |
 
 ---
 
-### Z3 — Union & Discriminated Union Types
+## Test 3 — Union & Discriminated Union Types
 
 **Question:** *"What union-related schema types does Zod provide, and where are they defined?"*
 
-**Normal approach:** Read `ZodUnion` and `ZodDiscriminatedUnion` in v4 classic, then check v4 mini for its equivalents, then check v3 for the legacy implementation. 3–5 reads across the monorepo packages (~5,000 tokens). Internal `$ZodUnionDef`/`$ZodUnionInternals` types are rarely surfaced by a file read.
+**Standard Workflow (Grep + Read):** Read `ZodUnion` and `ZodDiscriminatedUnion` in v4 classic, then check v4 mini and v3 for equivalents. Internal `$ZodUnionDef`/`$ZodUnionInternals` types never surface from a file read. 3–5 reads, ~5,000 tokens.
 
-**PM approach:** `context("union discriminated intersection")`
+**With Project Mapper:** `pm_context "union discriminated intersection"`
 
-**21 entities returned — union internals + test coverage map:**
-```
-[class]  ZodDiscriminatedUnion      [class] ZodMiniDiscriminatedUnion
-[class]  ZodUnion                   [class] ZodMiniUnion
-[class]  $ZodDiscriminatedUnionDef  [class] $ZodDiscriminatedUnionInternals
-[class]  $ZodUnionDef               [class] $ZodUnionInternals
-[class]  core.$ZodDiscriminatedUnion [class] ZodType
-[module] packages/bench/discriminated-union.ts
-[module] packages/zod/src/v4/classic/tests/discriminated-unions.test.ts
-...
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 4–6 | **1** | **1** |
-| Tokens consumed | ~5,000 | **~1,107** | **~440** |
-| Union variants found | Partial (internal Def/Internals types always missed) | **21 — incl. internals + mini variants** | **21 — complete** |
-| Savings vs Normal | — | **~4.5×** | **~11.4×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 3–5 | 1 | 1 |
+| Entities found | Partial, internal Def/Internals types always missed | 30 ranked — incl. internals + mini variants | 30 ranked — complete |
+| Token Cost | ~5,000 | ~669 | ~374 |
+| Token Reduction | — | **−87%** | **−93%** |
+| Execution Time | ~4s | 11ms | 11ms |
+| Speedup | — | **~364×** | **~364×** |
 
 ---
 
-### Z4 — Coercion & Transform Types
+## Test 4 — Coercion & Transform Types
 
 **Question:** *"What coercion and transform types does Zod provide, and where do they live in the monorepo?"*
 
-**Normal approach:** Grep for "coerce" and "preprocess" across all packages. Finds `packages/zod/src/v4/classic/coerce.ts`, `v4/mini/coerce.ts`, `v3/` coerce files, and ZodEffects for transforms. 4–5 reads across packages × ~1,000 tok each = ~5,000 tokens.
+**Standard Workflow (Grep + Read):** `grep -r "coerce\|preprocess"` across all packages. Finds `v4/classic/coerce.ts`, `v4/mini/coerce.ts`, `v3/` coerce files, and ZodEffects for transforms. 4–5 reads across packages, ~5,000 tokens. `v4/mini/coerce.ts` easily overlooked.
 
-**PM approach:** `context("transform coerce preprocess")`
+**With Project Mapper:** `pm_context "transform coerce preprocess"`
 
-**19 entities returned — coercion types + source locations across all versions:**
-```
-[class]  ZodCoercedString   [class] ZodCoercedNumber
-[class]  ZodCoercedBoolean  [class] ZodCoercedBigInt
-[class]  ZodCoercedDate
-[module] packages/zod/src/v4/classic/coerce.ts
-[module] packages/zod/src/v4/mini/coerce.ts
-[module] packages/zod/src/v3/tests/coerce.test.ts
-[module] packages/zod/src/v4/classic/tests/transform.test.ts
-[module] packages/zod/src/v4/classic/tests/preprocess.test.ts
-...
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 4–6 | **1** | **1** |
-| Tokens consumed | ~5,000 | **~1,042** | **~436** |
-| Coerce locations found | Partial (v4/mini/coerce.ts easily overlooked) | **19 entities — all 3 API surfaces mapped** | **19 entities** |
-| Savings vs Normal | — | **~4.8×** | **~11.5×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 4–5 | 1 | 1 |
+| Entities found | Partial, v4/mini/coerce.ts easily overlooked | 30 ranked — all 3 API surfaces mapped | 30 ranked — complete |
+| Token Cost | ~5,000 | ~658 | ~398 |
+| Token Reduction | — | **−87%** | **−92%** |
+| Execution Time | ~4s | 11ms | 11ms |
+| Speedup | — | **~364×** | **~364×** |
 
 ---
 
-### Z5 — ZodEffects Inheritance Path
+## Test 5 — ZodEffects Inheritance Path
 
-**Question:** *"Is `ZodEffects` (transforms/refinements) a proper schema type — does it participate in the full ZodType pipeline?"*
+**Question:** *"Is ZodEffects (transforms/refinements) a proper schema type — does it participate in the full ZodType pipeline?"*
 
-**Normal approach:** Find where `ZodEffects` is defined in the monorepo. It lives inside a large schemas or types file. Read that file (~2,000+ lines) to locate the class declaration and confirm `extends ZodType`. Even targeted: ~2,000 tokens.
+**Standard Workflow (Grep + Read):** Find where `ZodEffects` is defined across the monorepo. It lives inside a large schemas or types file. Read that file (~2,000+ lines) to locate the class declaration and confirm `extends ZodType`. Even targeted: ~2,000 tokens.
 
-**PM approach:** `path("ZodEffects", "ZodType")`
+**With Project Mapper:** `pm_path from_entity="ZodEffects" to_entity="ZodType"`
 
-**Result (1-hop semantic path):**
-```
-ZodEffects
-  --[extends]--> ZodType
-```
-
-`ZodEffects` is a first-class `ZodType` — it participates in the full schema pipeline. This means transforms and refinements are composable with every other schema operation (`.optional()`, `.nullable()`, `.array()`, etc.) without wrapping.
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 2–3 | **1** | **1** |
-| Tokens consumed | ~2,000 | **~109** | **~57** |
-| Inheritance confirmed | Requires reading a large file | **Yes — 1 hop, immediate** | **Yes** |
-| Savings vs Normal | — | **~18.3×** | **~35.1×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 2–3 | 1 | 1 |
+| Entities found | Requires reading a large file | 1-hop confirmed | 1-hop confirmed |
+| Token Cost | ~2,000 | ~23 | ~23 |
+| Token Reduction | — | **−99%** | **−99%** |
+| Execution Time | ~2s | 4ms | 4ms |
+| Speedup | — | **~500×** | **~500×** |
 
 ---
 
-## Headline Numbers
+## Summary
 
-| Test | Question | Normal | PM (Full) | PM (Slim) | Savings (Full) | Savings (Slim) |
-|:---|:---|:---|:---|:---|:---|:---|
-| Z1 | Complete schema type catalog | ~15,000 tok | **~3,369 tok** | **~1,688 tok** | **4.5×** | **8.9×** |
-| Z2 | Validation error type catalog | ~3,500 tok | **~896 tok** | **~460 tok** | **3.9×** | **7.6×** |
-| Z3 | Union & discriminated union types | ~5,000 tok | **~1,107 tok** | **~440 tok** | **4.5×** | **11.4×** |
-| Z4 | Coercion & transform types | ~5,000 tok | **~1,042 tok** | **~436 tok** | **4.8×** | **11.5×** |
-| Z5 | ZodEffects inheritance | ~2,000 tok | **~109 tok** | **~57 tok** | **18.3×** | **35.1×** |
-
-**Geometric mean savings:** PM Full **~5.6×** · PM Slim **~12×** across all five tests.
-
-> Z5 (path query) delivers 18.3× savings and illustrates why TypeScript's explicit type hierarchy is PM's strongest signal: confirming one inheritance relationship in a large monorepo costs a file read without PM and two tokens of JSON with it. Z1's completeness is the other headline — without PM, a developer cataloguing all 62 Zod schema types across v3, v4 classic, and v4 mini would routinely stop at ~35–40 types, missing the v4-specific numeric formats, `ZodCodec`, and `ZodTemplateLiteral`. The 648 extends relations in this 405-file codebase mean every structural question returns a precise, cross-package answer rather than a partial file read.
+| Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
+|:---|:---|---:|---:|---:|---:|---:|---:|
+| Test 1 | Schema type catalog | ~15,000 tok | ~1,676 tok | ~1,488 tok | **−89%** | **−90%** | ~8,000× |
+| Test 2 | Validation error types | ~3,500 tok | ~399 tok | ~363 tok | **−89%** | **−90%** | ~2,000× |
+| Test 3 | Union & discriminated union | ~5,000 tok | ~669 tok | ~374 tok | **−87%** | **−93%** | ~364× |
+| Test 4 | Coercion & transform types | ~5,000 tok | ~658 tok | ~398 tok | **−87%** | **−92%** | ~364× |
+| Test 5 | ZodEffects inheritance | ~2,000 tok | ~23 tok | ~23 tok | **−99%** | **−99%** | ~500× |
 
 ---
+
+Geometric mean savings: **−90% token reduction (Full) · −93% token reduction (Slim)** · **~1,010× faster navigation**
+
+> Z1 completeness is the headline: without PM, cataloguing all 62 Zod schema types across v3, v4 classic, and v4 mini routinely stops at ~35–40 types — missing v4-specific numeric formats, `ZodCodec`, and `ZodTemplateLiteral`. Z5's −99% reduction confirms one inheritance relationship in 23 tokens vs reading a 2,000-line file. Zod's monorepo structure (three parallel API surfaces) is exactly the scenario where PM's cross-file entity graph pays off most.
 
 ## Reproducing
 
-```bash
-# 1. Clone Zod
-git clone https://github.com/colinhacks/zod
-
-# 2. Start PM server
-cd /path/to/aethvion-project-mapper
-python -m uvicorn server:app --port 7474
-
-# IMPORTANT: always use 127.0.0.1, not localhost
-
-# 3. Full scan
-curl -X POST http://127.0.0.1:7474/api/project-mapper/scan \
-  -H "Content-Type: application/json" \
-  -d '{"project_root":"/path/to/zod","db":"zod","incremental":false}'
-
-# 4. Z1 — complete type catalog
-curl -X POST http://127.0.0.1:7474/api/project-mapper/query/impact \
-  -H "Content-Type: application/json" \
-  -d '{"entity":"ZodType","db":"zod","via_kinds":["extends"],"exclude_tests":true}'
-
-# 5. Z2 — error type catalog
-curl -X POST http://127.0.0.1:7474/api/project-mapper/query/impact \
-  -H "Content-Type: application/json" \
-  -d '{"entity":"ZodIssueBase","db":"zod","via_kinds":["extends"],"exclude_tests":true}'
-
-# 6. Z5 — ZodEffects inheritance
-curl -X POST http://127.0.0.1:7474/api/project-mapper/query/path \
-  -H "Content-Type: application/json" \
-  -d '{"from_entity":"ZodEffects","to_entity":"ZodType","db":"zod"}'
 ```
+# 1. Clone the target repository
+git clone https://github.com/colinhacks/zod /path/to/zod
 
----
+# 2. Scan with Project Mapper
+pm_scan project_root="/path/to/zod" db="zod" incremental=false
 
-*Benchmark conducted 2026-06-10 · Aethvion Project Mapper v1.5.0 · Python 3.10.11 · Windows 11 · i9-13900K · RTX 4090*
+# Test 1
+pm_impact entity="ZodType" db="zod" depth=1 via_kinds=["extends"] exclude_tests=true
+
+# Test 2
+pm_impact entity="ZodIssueBase" db="zod" depth=1 via_kinds=["extends"] exclude_tests=true
+
+# Test 3
+pm_context query="union discriminated intersection" db="zod"
+
+# Test 4
+pm_context query="transform coerce preprocess" db="zod"
+
+# Test 5
+pm_path from_entity="ZodEffects" to_entity="ZodType" db="zod"
+```
