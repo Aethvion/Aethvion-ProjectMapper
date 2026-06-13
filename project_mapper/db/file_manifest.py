@@ -129,6 +129,7 @@ class FileManifest:
         *,
         size: int = 0,
         mtime: float = 0.0,
+        save: bool = True,
     ) -> None:
         """Record a file and its associated entity IDs in the manifest directly."""
         lang = detect_language(path)
@@ -142,7 +143,8 @@ class FileManifest:
                 "mtime":        mtime,
                 "last_scanned": _now_iso(),
             }
-            self._save()
+            if save:
+                self._save()
 
     def get(self, path: str) -> Optional[dict[str, Any]]:
         """Return the manifest entry for *path*, or None if not known."""
@@ -157,6 +159,7 @@ class FileManifest:
         file_hash: str = "",
         size: int = 0,
         language: str = "",
+        save: bool = True,
     ) -> dict[str, Any]:
         """
         Record that *entity_id* was derived from *path*.
@@ -192,7 +195,8 @@ class FileManifest:
             if entity_id not in entry["entity_ids"]:
                 entry["entity_ids"].append(entity_id)
 
-            self._save()
+            if save:
+                self._save()
         return entry
 
     def entity_ids_for(self, path: str) -> list[str]:
@@ -264,7 +268,7 @@ class FileManifest:
         with self._lock:
             self._save()
 
-    def remove_entity(self, entity_id: str) -> int:
+    def remove_entity(self, entity_id: str, *, save: bool = True) -> int:
         """
         Remove *entity_id* from all file entries.
         File entries with no remaining entity_ids are also pruned.
@@ -281,16 +285,17 @@ class FileManifest:
                         to_delete.append(path)
             for path in to_delete:
                 del self._data["files"][path]
-            if modified:
+            if modified and save:
                 self._save()
         return modified
 
-    def remove_file(self, path: str) -> bool:
+    def remove_file(self, path: str, *, save: bool = True) -> bool:
         """Remove a file entry from the manifest directly."""
         with self._lock:
             if path in self._data["files"]:
                 del self._data["files"][path]
-                self._save()
+                if save:
+                    self._save()
                 return True
         return False
 

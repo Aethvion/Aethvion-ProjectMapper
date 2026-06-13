@@ -588,18 +588,21 @@ def _collect_method_calls(method_node, src: bytes, method_name: str,
 def _scan_calls(node, src: bytes, ctx: str,
                 out: list[tuple[str, str]], seen: set[tuple[str, str]],
                 own_name: str) -> None:
-    if node.type in ("object_creation_expression", "implicit_object_creation_expression"):
-        type_node = _first(node, "identifier", "generic_name", "qualified_name")
-        if type_node:
-            cname = _type_text(type_node, src).split(".")[0]
-            if (cname and cname[0].isupper() and cname not in _CS_IGNORE
-                    and cname != own_name):
-                pair = (cname, ctx)
-                if pair not in seen:
-                    seen.add(pair)
-                    out.append(pair)
-    for child in node.children:
-        _scan_calls(child, src, ctx, out, seen, own_name)
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current.type in ("object_creation_expression", "implicit_object_creation_expression"):
+            type_node = _first(current, "identifier", "generic_name", "qualified_name")
+            if type_node:
+                cname = _type_text(type_node, src).split(".")[0]
+                if (cname and cname[0].isupper() and cname not in _CS_IGNORE
+                        and cname != own_name):
+                    pair = (cname, ctx)
+                    if pair not in seen:
+                        seen.add(pair)
+                        out.append(pair)
+        if current.child_count > 0:
+            stack.extend(reversed(current.children))
 
 
 # ---------------------------------------------------------------------------

@@ -578,18 +578,21 @@ def _scan_calls(
     node, src: bytes, context: str,
     out: list[tuple[str, str]], seen: set[tuple[str, str]], own_name: str,
 ) -> None:
-    if node.type == "object_creation_expression":
-        # new ClassName(...)
-        type_node = _first(node, "type_identifier", "generic_type")
-        if type_node:
-            cname = _text(type_node, src).split("<")[0]
-            if cname and cname[0].isupper() and cname not in _JAVA_IGNORE and cname != own_name:
-                pair = (cname, context)
-                if pair not in seen:
-                    seen.add(pair)
-                    out.append(pair)
-    for child in node.children:
-        _scan_calls(child, src, context, out, seen, own_name)
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current.type == "object_creation_expression":
+            # new ClassName(...)
+            type_node = _first(current, "type_identifier", "generic_type")
+            if type_node:
+                cname = _text(type_node, src).split("<")[0]
+                if cname and cname[0].isupper() and cname not in _JAVA_IGNORE and cname != own_name:
+                    pair = (cname, context)
+                    if pair not in seen:
+                        seen.add(pair)
+                        out.append(pair)
+        if current.child_count > 0:
+            stack.extend(reversed(current.children))
 
 
 # ---------------------------------------------------------------------------

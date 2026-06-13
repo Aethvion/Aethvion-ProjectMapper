@@ -240,28 +240,50 @@ async def run_scan(
     except Exception:
         pass
 
-    def _prefilter() -> tuple[list[tuple[Path, str, int, float]], int]:
-        """Walk root, apply stat fast-path, return (to_process, total_supported)."""
+    def _prefilter() -> tuple[list[tuple[Path, str, int, float]], int, set[str]]:
+        """Walk root with os.scandir so DirEntry.stat() uses cached dir-listing
+        data (WIN32_FIND_DATA on Windows) — no extra syscall per file.
+        Replaces os.walk + Path.stat() which issues one stat() per file (~4 ms
+        each on NTFS) and was the sole bottleneck for large warm scans.
+
+        Also returns existing_paths — the set of all supported relative paths
+        found on disk — so run_deletion_cleanup can skip its own redundant walk.
+        """
         to_process: list[tuple[Path, str, int, float]] = []
+        existing_paths: set[str] = set()
         total = 0
-        for dirpath, dirs, files in os.walk(root):
-            dirs[:] = [d for d in dirs
-                       if not d.startswith(".") and d not in _EXCLUDED_DIRS]
-            for fn in sorted(files):
+        stack: list[Path] = [root]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as it:
+                    entries = list(it)
+            except OSError:
+                continue
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    name = entry.name
+                    if not name.startswith(".") and name not in _EXCLUDED_DIRS:
+                        stack.append(Path(entry.path))
+                    continue
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                fn = entry.name
                 if fn in _EXCLUDED_FILENAMES:
                     continue
-                fp  = Path(dirpath) / fn
-                if fp.suffix.lower() in _EXCLUDED_CREDENTIAL_SUFFIXES:
+                suffix = os.path.splitext(fn)[1].lower()
+                if suffix in _EXCLUDED_CREDENTIAL_SUFFIXES:
                     continue
-                if fp.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                if suffix not in SUPPORTED_EXTENSIONS:
                     continue
                 total += 1
+                fp  = Path(entry.path)
                 rel = str(fp.relative_to(root)).replace("\\", "/")
                 if "node_modules" in fp.parts:
                     stats["files_skipped_unsupported"] += 1
                     continue
                 try:
-                    st = fp.stat()
+                    st = entry.stat()  # uses cached WIN32_FIND_DATA — no syscall
                 except OSError as exc:
                     stats["errors"].append({"path": rel, "error": f"stat: {exc}"})
                     continue
@@ -270,13 +292,14 @@ async def run_scan(
                 if file_size > 250_000:
                     stats["files_skipped_unsupported"] += 1
                     continue
+                existing_paths.add(rel)
                 if incremental and file_manifest.stat_unchanged(rel, file_size, file_mtime):
                     stats["files_skipped_unchanged"] += 1
                     continue
                 to_process.append((fp, rel, file_size, file_mtime))
-        return to_process, total
+        return to_process, total, existing_paths
 
-    pending, total = await asyncio.to_thread(_prefilter)
+    pending, total, existing_paths = await asyncio.to_thread(_prefilter)
     stats["files_total"] = total
 
     _write_scaninfo(db_root, {
@@ -312,7 +335,7 @@ async def run_scan(
         # Record in manifest (no entities) so pm_delta doesn't re-flag as new.
         if len(content) > 100 and content.count("\x00") / len(content) > 0.1:
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime)
+            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime, save=False)
             return
 
         # Minification heuristic: substantial content with almost no line breaks.
@@ -320,7 +343,7 @@ async def run_scan(
         # filter), so without a record they'd show as "new" on every delta.
         if len(content) > 10_000 and content.count("\n") < 5:
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime)
+            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime, save=False)
             return
 
         file_hash = _content_hash(content)
@@ -329,14 +352,14 @@ async def run_scan(
         # pm_delta doesn't re-flag it as new on every run.
         if not content.strip():
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, file_hash, [], size=file_size, mtime=file_mtime)
+            file_manifest.record(rel, file_hash, [], size=file_size, mtime=file_mtime, save=False)
             return
 
         # Incremental: skip unchanged files (hash check — catches stat-only
         # changes like `touch`; store fresh stat so the next scan fast-paths)
         if incremental and not file_manifest.needs_rescan(rel, file_hash):
             stats["files_skipped_unchanged"] += 1
-            file_manifest.set_stat(rel, file_size, file_mtime)
+            file_manifest.set_stat(rel, file_size, file_mtime, save=False)
             return
 
         from .code_analyzer import detect_language_for_path  # inline to avoid circular
@@ -350,8 +373,6 @@ async def run_scan(
             _sec_findings[rel] = [f.to_dict() for f in sec]
         except Exception:
             pass
-
-        _update_scaninfo(db_root, current_file=rel)
 
         async with semaphore:
             ingest_result = await asyncio.to_thread(
@@ -385,7 +406,7 @@ async def run_scan(
 
         # Store stat data so the next incremental scan can skip this file
         # without reading it (stat_unchanged fast path).
-        file_manifest.set_stat(rel, file_size, file_mtime)
+        file_manifest.set_stat(rel, file_size, file_mtime, save=False)
 
     # Process all files — gather with cancellation support
     try:
@@ -395,15 +416,17 @@ async def run_scan(
             try:
                 await task
             except asyncio.CancelledError:
+                # Save manifest on cancellation
+                try:
+                    file_manifest.save()
+                except Exception:
+                    pass
                 # Propagate cancellation
                 for t in tasks:
                     t.cancel()
                 raise
             except Exception as exc:
                 stats["errors"].append({"path": "unknown", "error": str(exc)[:200]})
-            # Persist progress every 10 files
-            if i % 10 == 0:
-                _update_scaninfo(db_root, stats=dict(stats))
 
     except asyncio.CancelledError:
         _write_scaninfo(db_root, {
@@ -416,6 +439,12 @@ async def run_scan(
         logger.info(f"[Scanner] Scan cancelled ({stats['files_scanned']}/{total} processed)")
         return
 
+    # Save manifest once after all processing is completed
+    try:
+        await asyncio.to_thread(file_manifest.save)
+    except Exception as exc:
+        logger.warning(f"[Scanner] Manifest save failed: {exc}")
+
     # --- Deletion cleanup pass (all scans) ---
     # Retire entities whose source files have been removed from the project.
     # Runs on full scans too: after a root switch, the manifest still holds the
@@ -424,7 +453,7 @@ async def run_scan(
         from .cleanup import run_deletion_cleanup
         _update_scaninfo(db_root, status="cleanup", current_file="[deletion cleanup]")
         cleanup = await asyncio.to_thread(
-            run_deletion_cleanup, root, file_manifest, writer, index
+            run_deletion_cleanup, root, file_manifest, writer, index, existing_paths
         )
         stats["files_deleted"]   = cleanup.deleted_file_count
         stats["entities_retired"] = cleanup.retired_count
@@ -432,6 +461,28 @@ async def run_scan(
             stats["errors"].extend([{"path": "cleanup", "error": e} for e in cleanup.errors])
     except Exception as exc:
         logger.warning(f"[Scanner] Deletion cleanup failed (non-critical): {exc}")
+
+    # --- No-op fast path for unchanged incremental scans ---
+    # When nothing was re-processed and nothing was deleted, the snapshot,
+    # name index, and security store are all still valid.  Skip stub
+    # resolution, orphan pruning, flush, and security write.
+    if (incremental
+            and stats["files_scanned"] == 0
+            and stats["files_deleted"] == 0):
+        _write_scaninfo(db_root, {
+            **_read_scaninfo(db_root),
+            "status":       "completed",
+            "completed_at": _now_iso(),
+            "last_updated": _now_iso(),
+            "current_file": "",
+            "stats":        stats,
+        })
+        _active_scans.pop(key, None)
+        logger.info(
+            f"[Scanner] Warm scan (no-op): {stats['files_skipped_unchanged']} unchanged,"
+            f" {stats.get('files_skipped_unsupported', 0)} unsupported — skipped flush"
+        )
+        return
 
     # --- Stub resolution pass (always, every full scan) ---
     # Re-wire relations from stubs to real entities where the target was

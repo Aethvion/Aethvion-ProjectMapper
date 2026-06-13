@@ -129,12 +129,12 @@ def retire_file_entities(
 
         # Remove from manifest regardless of whether the entity file existed
         try:
-            file_manifest.remove_entity(eid)
+            file_manifest.remove_entity(eid, save=False)
         except Exception as exc:
             result.errors.append(f"manifest remove {eid}: {exc}")
 
     try:
-        file_manifest.remove_file(path)
+        file_manifest.remove_file(path, save=False)
     except Exception as exc:
         result.errors.append(f"manifest remove file {path}: {exc}")
 
@@ -258,6 +258,7 @@ def run_deletion_cleanup(
     file_manifest: "FileManifest",
     writer:        "EntityWriter",
     index:         "NameIndex",       # reserved for future use (symbol index update)
+    existing_paths: Optional[set[str]] = None,
 ) -> CleanupResult:
     """
     Walk the manifest and retire entities for every file that no longer exists
@@ -275,18 +276,20 @@ def run_deletion_cleanup(
     file_manifest : FileManifest for the target database.
     writer        : EntityWriter for the target database.
     index         : NameIndex (currently unused; included for future symbol cleanup).
+    existing_paths: Optional set of all supported relative paths currently on disk.
     """
     root   = Path(project_root)
     result = CleanupResult()
 
-    # Build the set of files currently on disk in one pass
-    existing_paths: set[str] = set()
-    if root.exists():
-        for dirpath, dirs, files in os.walk(root):
-            dirs[:] = [
-                d for d in dirs
-                if not d.startswith(".") and d not in _EXCLUDED_DIRS
-            ]
+    # Build the set of files currently on disk in one pass if not provided
+    if existing_paths is None:
+        existing_paths = set()
+        if root.exists():
+            for dirpath, dirs, files in os.walk(root):
+                dirs[:] = [
+                    d for d in dirs
+                    if not d.startswith(".") and d not in _EXCLUDED_DIRS
+                ]
             for fn in files:
                 fp  = Path(dirpath) / fn
                 if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
@@ -317,6 +320,10 @@ def run_deletion_cleanup(
         result.errors.extend(retire_result.errors)
 
     if result.deleted_file_count:
+        try:
+            file_manifest.save()
+        except Exception as exc:
+            result.errors.append(f"manifest save: {exc}")
         logger.info(
             f"[Cleanup] Deletion cleanup: {result.deleted_file_count} missing file(s), "
             f"{result.retired_count} entit{'y' if result.retired_count == 1 else 'ies'} retired"

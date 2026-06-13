@@ -438,6 +438,7 @@ class ProjectIngestor:
                 file_hash=file_hash,
                 size=file_size,
                 language=analysis.language,
+                save=False,
             )
         except Exception as exc:
             result.errors.append(f"Provenance error: {exc}")
