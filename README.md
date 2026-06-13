@@ -1,7 +1,7 @@
 # Aethvion Project Mapper
 
 > **Give your AI coding agent a living map of your codebase.**  
-> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **6–13× fewer tokens** than reading raw files.
+> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **8–13× fewer tokens** than reading raw files.
 
 ---
 
@@ -48,14 +48,14 @@ Project Mapper scans your codebase once, builds a structured knowledge graph of 
 
 ## Benchmark numbers
 
-Measured across [10 real-world codebases](docs/benchmarks/README.md) — Python, Java/Kotlin, C#, PHP, C, Ruby, TypeScript/JS, Rust, C++, Swift — ranging from 57 to 11,083 files.
+Measured across [11 real-world codebases](docs/benchmarks/README.md) — Python, Java/Kotlin, C#, PHP, C, Go, Ruby, TypeScript/JS, Rust, C++, Swift — ranging from 57 to 11,083 files.
 
-### Token reduction (geometric mean across 10 benchmarks)
+### Token reduction (geometric mean across 11 benchmarks)
 
 | | Normal (Grep + Read) | PM Full | PM Slim |
 |---|---|---|---|
-| Tokens per query | baseline | **~6× less** | **~13× less** |
-| At 100,000 input tokens | 100,000 | **~17,000** | **~7,700** |
+| Tokens per query | baseline | **~8× less** | **~13× less** |
+| At 100,000 input tokens | 100,000 | **~13,000** | **~8,000** |
 
 PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. See the [benchmark suite](docs/benchmarks/README.md) for per-codebase numbers.
 
@@ -63,8 +63,8 @@ PM Slim returns name + file path + line number only — enough for navigation an
 
 | Query | Latency |
 |---|---|
-| Context query | 10–100 ms (warm cache) |
-| Impact query | 10–60 ms |
+| Context query | 1–100 ms (warm cache) |
+| Impact query | < 1–10 ms |
 
 ### Session startup — entity map load (measured)
 
@@ -78,7 +78,7 @@ The entity map is stored as a single snapshot file built at the end of each scan
 
 ### Financial impact at scale (modelled)
 
-> Modelled from the measured ~6× Full / ~13× Slim token reduction (geomean, 10 codebases). Assumes
+> Modelled from the measured ~8× Full / ~13× Slim token reduction (geomean, 11 codebases). Assumes
 > 10 tasks/dev/day, 8 turns/task, Claude Sonnet pricing. See the
 > [cost calculator](https://aethvion.com/projectmapper.html) for your own numbers.
 
