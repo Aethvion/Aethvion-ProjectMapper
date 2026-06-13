@@ -1337,8 +1337,18 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
 
     now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    # Load existing snapshot to preserve statuses
-    snapshot_path = project_root / ".SECURITYSNAPSHOT"
+    # Snapshot lives in the PM data directory, not the project root.
+    # Storing it in the project root risks accidental commits exposing all
+    # security findings publicly.  Path is keyed by a hash of the absolute
+    # project root so different projects never share a file.
+    import hashlib as _hashlib
+    from .config import DATA_DIR as _DATA_DIR
+    _abs_root   = str(project_root.resolve())
+    _root_hash  = _hashlib.sha256(_abs_root.encode()).hexdigest()[:10]
+    _sec_dir    = _DATA_DIR / "security"
+    _sec_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_path = _sec_dir / f"{project_root.resolve().name}_{_root_hash}.securitysnapshot"
+
     old_findings_index: dict[tuple, dict] = {}
 
     if snapshot_path.exists():
@@ -1461,10 +1471,10 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     ]
 
     if snapshot_written:
-        lines.append(f"Snapshot written: {snapshot_path}")
+        lines.append(f"Snapshot: {snapshot_path}")
         lines.append("  Re-run pm_security after fixing findings to track progress.")
         lines.append("  Statuses: open | fixed | acknowledged | false_positive")
-        lines.append("  Manually edit .SECURITYSNAPSHOT to set 'acknowledged' or 'false_positive'.")
+        lines.append("  Edit the snapshot file to set 'acknowledged' or 'false_positive'.")
         lines.append("")
 
     if not display_findings:
