@@ -267,7 +267,7 @@ _PATTERNS: list[_Pattern] = [
     _pat("js_innerhtml_dynamic", "high", "A03:2021 Injection",
          "innerHTML set to variable or expression — XSS risk if data is user-controlled",
          {"javascript", "typescript"},
-         r'\.innerHTML\s*(?:\+=|=)\s*(?![\'"\`])',
+         r'\.innerHTML\s*(?:\+=|=)(?!\s*[\'"`])',
          noise=("escHtml", "_escHtml", "escapeHtml", "escapeHTML",
                 "DOMPurify", "sanitize", "htmlEncode", "encode(")),
 
@@ -908,7 +908,7 @@ _PATTERNS: list[_Pattern] = [
     _pat("js_outerhtml_dynamic", "high", "A03:2021 Injection",
          "outerHTML assigned dynamic content — XSS risk",
          {"javascript", "typescript"},
-         r'\.outerHTML\s*(?:\+=|=)\s*(?![\'"\`])',
+         r'\.outerHTML\s*(?:\+=|=)(?!\s*[\'"`])',
          noise=("escHtml", "_escHtml", "escapeHtml", "escapeHTML",
                 "DOMPurify", "sanitize", "htmlEncode")),
 
