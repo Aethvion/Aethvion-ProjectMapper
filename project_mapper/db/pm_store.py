@@ -135,7 +135,7 @@ class PMEntityStore:
         if existing:
             for entity in existing:
                 store._store[entity["id"]] = entity
-            logger.info(
+            logger.debug(
                 f"[PMEntityStore] Loaded {len(store._store)} entities from snapshot"
                 " (incremental base)"
             )
@@ -184,7 +184,7 @@ class PMEntityStore:
                         existing["status"] = resolved_status
                         if sections_override:
                             self._apply_sections(existing, sections_override)
-                        logger.info(
+                        logger.debug(
                             f"[PMEntityStore] Reactivated '{name}' ({entity_id})"
                         )
                         return existing, True
@@ -213,7 +213,7 @@ class PMEntityStore:
                 self._index.register_aliases(entity_id, aliases)
 
             self._store[entity_id] = entity
-            logger.info(f"[PMEntityStore] Created entity: {name!r} ({entity_id})")
+            logger.debug(f"[PMEntityStore] Created entity: {name!r} ({entity_id})")
             return entity, True
 
     def update(

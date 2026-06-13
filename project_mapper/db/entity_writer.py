@@ -131,7 +131,7 @@ class EntityWriter:
                             else:
                                 existing["sections"][sk] = sv
                     self._write(existing)
-                    logger.info(f"[EntityWriter] Reactivated '{name}' ({entity_id})")
+                    logger.debug(f"[EntityWriter] Reactivated '{name}' ({entity_id})")
                     return existing, True   # was_created=True so caller refreshes children
                 logger.debug(f"[EntityWriter] '{name}' already exists as {entity_id}")
                 return existing, False  # type: ignore[return-value]
@@ -165,7 +165,7 @@ class EntityWriter:
             logger.warning(f"[EntityWriter] Schema warnings for '{name}': {errors}")
 
         self._write(entity)
-        logger.info(f"[EntityWriter] Created entity: {name!r} ({entity_id})")
+        logger.debug(f"[EntityWriter] Created entity: {name!r} ({entity_id})")
         return entity, True
 
     def update(
@@ -255,10 +255,10 @@ class EntityWriter:
             entity["status"] = "deleted"    # type: ignore[index]
             entity["updated"] = _now_iso()  # type: ignore[index]
             self._write(entity)             # type: ignore[arg-type]
-            logger.info(f"[EntityWriter] Soft-deleted {entity_id}")
+            logger.debug(f"[EntityWriter] Soft-deleted {entity_id}")
         else:
             self._path_for(entity_id).unlink(missing_ok=True)
-            logger.info(f"[EntityWriter] Hard-deleted {entity_id}")
+            logger.debug(f"[EntityWriter] Hard-deleted {entity_id}")
         return True
 
     # Bulk operations
