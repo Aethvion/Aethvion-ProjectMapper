@@ -17,7 +17,8 @@ Tools
 7. pm_scan       — synchronous full or incremental project scan
 8. pm_find       — exact/partial symbol lookup with location, callers, callees
 9. pm_orphans    — dead-code detection: entities with no inbound dependencies
-10. pm_security  — standalone on-demand security scanner (OWASP Top 10, .SECURITYSNAPSHOT)
+10. pm_security        — standalone on-demand security scanner (OWASP Top 10, stable finding IDs)
+11. pm_security_triage — update finding lifecycle status (false_positive / verified_vulnerability / resolved)
 """
 
 from __future__ import annotations
@@ -363,9 +364,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "C#, and C/C++. Covers SQL/command/NoSQL injection, XSS, open redirect, path "
             "traversal, insecure deserialization, SSRF, weak crypto, and hardcoded secrets. "
             "Completely decoupled from pm_scan — run on-demand whenever you want a security "
-            "review. Writes a .SECURITYSNAPSHOT file to the project root to track findings "
-            "over time (statuses: open/fixed/acknowledged/false_positive). Re-run after "
-            "fixing issues to see progress."
+            "review. Persists findings to a snapshot with stable IDs and triage statuses "
+            "(unreviewed / verified_vulnerability / false_positive / resolved). "
+            "false_positive findings are hidden by default to save tokens. "
+            "Use pm_security_triage to update statuses after investigating."
         ),
         "inputSchema": {
             "type": "object",
@@ -401,8 +403,52 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "description": "Maximum findings to show in output (default 50). Full list goes to snapshot.",
                     "default": 50,
                 },
+                "include_false_positives": {
+                    "type": "boolean",
+                    "description": "Include findings marked false_positive (hidden by default). Default: false.",
+                    "default": False,
+                },
             },
             "required": [],
+        },
+    },
+    {
+        "name": "pm_security_triage",
+        "description": (
+            "Update the review status of one or more security findings in the snapshot. "
+            "Statuses: 'unreviewed' (default, needs investigation), "
+            "'false_positive' (confirmed safe — hidden from future pm_security output to save tokens), "
+            "'verified_vulnerability' (confirmed real bug — kept visible as a reminder until fixed), "
+            "'resolved' (auto-set when a triaged finding disappears from the codebase). "
+            "Use pm_security first to get finding IDs, then call this after investigating each finding. "
+            "Bulk-update all findings in a file with the 'file' argument."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["false_positive", "verified_vulnerability", "resolved", "unreviewed"],
+                    "description": "New lifecycle status to assign to the matching finding(s).",
+                },
+                "id": {
+                    "type": "string",
+                    "description": "Stable 8-char hex finding ID from pm_security output. Identifies one specific finding.",
+                },
+                "file": {
+                    "type": "string",
+                    "description": "File path substring — updates ALL findings whose file path contains this string.",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Investigation notes explaining the decision (stored in snapshot, shown in output).",
+                },
+                "project_root": {
+                    "type": "string",
+                    "description": "Project root (defaults to configured project root).",
+                },
+            },
+            "required": ["status"],
         },
     },
 ]
@@ -1245,6 +1291,30 @@ def handle_pm_orphans(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 # ---------------------------------------------------------------------------
+# pm_security helpers
+# ---------------------------------------------------------------------------
+
+def _security_finding_id(rel_path: str, pattern_id: str, snippet: str) -> str:
+    """Stable 8-char hex ID for a security finding.
+
+    Keyed on file path + pattern ID + first 120 chars of the matched snippet.
+    Stable across line-number shifts caused by unrelated code changes above the
+    finding — the ID only changes when the vulnerable code itself changes, which
+    is the correct signal for re-review.
+    """
+    import hashlib as _hl
+    key = f"{rel_path}:{pattern_id}:{snippet.strip()[:120]}"
+    return _hl.sha256(key.encode()).hexdigest()[:8]
+
+
+# Old snapshot status names → new lifecycle names (backward compat on load)
+_STATUS_NORM: dict[str, str] = {
+    "open":         "unreviewed",
+    "fixed":        "resolved",
+    "acknowledged": "verified_vulnerability",
+}
+
+# ---------------------------------------------------------------------------
 # pm_security / pm_security_max handlers
 # ---------------------------------------------------------------------------
 
@@ -1280,6 +1350,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     owasp_filter       = (args.get("owasp") or "").lower().strip()
     file_filter        = (args.get("file") or "").lower().strip()
     max_results        = min(int(args.get("max_results", 50)), 500)
+    include_fp         = bool(args.get("include_false_positives", False))
     allowed_severities = _SEVERITY_THRESHOLD.get(severity_filter, {"critical", "high", "medium"})
 
     _EXT_LANG: dict[str, str] = {
@@ -1351,14 +1422,27 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     _sec_dir.mkdir(parents=True, exist_ok=True)
     snapshot_path = _sec_dir / f"{project_root.resolve().name}_{_root_hash}.securitysnapshot"
 
-    old_findings_index: dict[tuple, dict] = {}
+    # Load existing snapshot; index by stable content-hash ID so statuses survive
+    # rescans even when line numbers shift.  Old SEC-XXXX IDs are re-hashed from
+    # content on the fly for backward compatibility.
+    old_by_id: dict[str, dict] = {}
 
     if snapshot_path.exists():
         try:
             old_snap = _json.loads(snapshot_path.read_text(encoding="utf-8"))
             for old_f in old_snap.get("findings", []):
-                key = (old_f.get("pattern_id", old_f.get("id")), old_f.get("file"))
-                old_findings_index[key] = old_f
+                fid = old_f.get("id", "")
+                is_stable = len(fid) == 8 and all(c in "0123456789abcdef" for c in fid)
+                if not is_stable:
+                    fid = _security_finding_id(
+                        old_f.get("file", ""),
+                        old_f.get("pattern_id", ""),
+                        old_f.get("snippet", ""),
+                    )
+                # Normalise old status names to the current lifecycle vocabulary
+                old_status = old_f.get("status", "unreviewed")
+                old_f["status"] = _STATUS_NORM.get(old_status, old_status)
+                old_by_id[fid] = old_f
         except Exception:
             pass
 
@@ -1369,14 +1453,21 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
         f.get("line", 0),
     ))
 
-    # Build output findings with preserved statuses and taint heuristics
+    # Build output findings: assign stable content-hash IDs and carry forward
+    # any triage status (false_positive / verified_vulnerability) from the snapshot.
     findings_out: list[dict] = []
-    for i, f in enumerate(raw_findings, start=1):
+    for f in raw_findings:
         pid   = f.get("id", "")
         fpath = f.get("file", "")
-        old_f = old_findings_index.get((pid, fpath), {})
+        snip  = f.get("snippet", "")
+        sid   = _security_finding_id(fpath, pid, snip)
+        old_f = old_by_id.get(sid, {})
+        old_status = old_f.get("status", "unreviewed")
+        # A previously-resolved finding that reappears needs fresh review
+        if old_status == "resolved":
+            old_status = "unreviewed"
         findings_out.append({
-            "id":              f"SEC-{i:04d}",
+            "id":              sid,
             "pattern_id":      pid,
             "severity":        f.get("severity", "medium"),
             "owasp":           f.get("owasp", ""),
@@ -1386,41 +1477,43 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
             "line":            f.get("line", 0),
             "language":        f.get("language", ""),
             "description":     f.get("description", ""),
-            "snippet":         f.get("snippet", ""),
+            "snippet":         snip,
             "taint_reachable": is_route_handler_file(fpath),
-            "status":          old_f.get("status", "open"),
+            "status":          old_status,
+            "notes":           old_f.get("notes"),
             "first_seen":      old_f.get("first_seen", now_iso),
             "last_seen":       now_iso,
         })
 
-    # Mark findings from the old snapshot that no longer appear as fixed
-    new_keys = {(f["pattern_id"], f["file"]) for f in findings_out}
-    fixed_findings: list[dict] = []
-    for old_key, old_f in old_findings_index.items():
-        if old_key not in new_keys and old_f.get("status") not in ("fixed", "false_positive"):
-            fixed_copy = dict(old_f)
-            fixed_copy["status"]   = "fixed"
-            fixed_copy["last_seen"] = now_iso
-            fixed_findings.append(fixed_copy)
+    # Auto-resolve findings that have been triaged (verified or false_positive)
+    # and no longer appear in the current scan — they were either fixed or
+    # the matched code was removed.
+    new_ids = {f["id"] for f in findings_out}
+    resolved_findings: list[dict] = []
+    for sid, old_f in old_by_id.items():
+        if sid not in new_ids and old_f.get("status") in ("verified_vulnerability", "false_positive"):
+            resolved_copy = dict(old_f)
+            resolved_copy["status"]    = "resolved"
+            resolved_copy["last_seen"] = now_iso
+            resolved_findings.append(resolved_copy)
 
     counts: dict[str, int] = {}
     for f in findings_out:
         sev = f["severity"]
         counts[sev] = counts.get(sev, 0) + 1
 
+    fp_hidden  = sum(1 for f in findings_out if f["status"] == "false_positive")
     summary = {
-        "critical":              counts.get("critical", 0),
-        "high":                  counts.get("high", 0),
-        "medium":                counts.get("medium", 0),
-        "low":                   counts.get("low", 0),
-        "total":                 len(findings_out),
-        "files_scanned":         files_scanned,
-        "taint_reachable":       sum(1 for f in findings_out if f["taint_reachable"]),
-        "fixed_since_last_scan": len(fixed_findings),
-        "new_since_last_scan":   sum(
-            1 for f in findings_out
-            if not old_findings_index.get((f["pattern_id"], f["file"]))
-        ),
+        "critical":                   counts.get("critical", 0),
+        "high":                       counts.get("high", 0),
+        "medium":                     counts.get("medium", 0),
+        "low":                        counts.get("low", 0),
+        "total":                      len(findings_out),
+        "files_scanned":              files_scanned,
+        "taint_reachable":            sum(1 for f in findings_out if f["taint_reachable"]),
+        "false_positive_suppressed":  fp_hidden,
+        "resolved_since_last_scan":   len(resolved_findings),
+        "new_since_last_scan":        sum(1 for f in findings_out if f["id"] not in old_by_id),
     }
 
     try:
@@ -1435,7 +1528,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
         "generated_at":   now_iso,
         "project_root":   project_root_arg,
         "severity_floor": severity_filter,
-        "findings":       findings_out + fixed_findings,
+        "findings":       findings_out + resolved_findings,
         "summary":        summary,
     }
 
@@ -1449,10 +1542,12 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     except Exception:
         pass
 
-    # Apply display filters
+    # Apply display filters.  false_positive findings are hidden by default to
+    # avoid burning agent tokens re-investigating already-triaged findings.
     display_findings = [
         f for f in findings_out
         if f["severity"] in allowed_severities
+        and (include_fp or f["status"] != "false_positive")
         and (not lang_filter  or f["language"] == lang_filter)
         and (not owasp_filter or owasp_filter in f["owasp"].lower())
         and (not file_filter  or file_filter  in f["file"].lower())
@@ -1507,7 +1602,14 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
         f"  Files   : {files_scanned} scanned",
         f"  Risk    : {risk_level}  ({count_str})",
         f"  Taint   : {summary['taint_reachable']} finding(s) reachable from route handlers",
-        f"  Delta   : +{summary['new_since_last_scan']} new  ✓{summary['fixed_since_last_scan']} fixed since last scan",
+        f"  Delta   : +{summary['new_since_last_scan']} new  ✓{summary['resolved_since_last_scan']} resolved since last scan",
+    ]
+    if summary["false_positive_suppressed"]:
+        lines.append(
+            f"  Hidden  : {summary['false_positive_suppressed']} false_positive"
+            " (pass include_false_positives=true to show)"
+        )
+    lines += [
         f"╚════════════════════════════════════════════════════════════════════╝",
         "",
     ]
@@ -1535,9 +1637,8 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
 
     if snapshot_written:
         lines.append(f"Snapshot: {snapshot_path}")
-        lines.append("  Re-run pm_security after fixing findings to track progress.")
-        lines.append("  Statuses: open | fixed | acknowledged | false_positive")
-        lines.append("  Edit the snapshot file to set 'acknowledged' or 'false_positive'.")
+        lines.append("  Use pm_security_triage to mark findings: false_positive | verified_vulnerability")
+        lines.append("  Re-run pm_security after code changes to auto-resolve fixed findings.")
         lines.append("")
 
     if not display_findings:
@@ -1567,7 +1668,11 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
         for f in by_owasp[cat]:
             sev    = f["severity"].upper()
             reach  = " ⚡ROUTE-REACHABLE" if f["taint_reachable"] else ""
-            status = f" [{f['status'].upper()}]" if f["status"] != "open" else ""
+            status = {
+                "verified_vulnerability": " [CONFIRMED]",
+                "false_positive":         " [FALSE-POS]",
+                "resolved":               " [RESOLVED]",
+            }.get(f["status"], "")
             cwe    = f"  {f['cwe']}" if f.get("cwe") else ""
             lines.append(
                 f"  [{sev}] {f['file']}:{f['line']}{reach}{status}"
@@ -1576,6 +1681,8 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
             lines.append(f"    {f['description']}")
             if f.get("fix"):
                 lines.append(f"    Fix: {f['fix']}")
+            if f.get("notes"):
+                lines.append(f"    Note: {f['notes']}")
             if f.get("snippet"):
                 lines.append(f"    »  {f['snippet']}")
         lines.append("")
@@ -1587,6 +1694,96 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
         )
 
     return "\n".join(lines).rstrip()
+
+
+# ---------------------------------------------------------------------------
+# pm_security_triage handler
+# ---------------------------------------------------------------------------
+
+def handle_pm_security_triage(args: dict[str, Any], ctx: MCPContext) -> str:
+    """Update the review status of one or more findings in the security snapshot."""
+    import json as _json
+    import hashlib as _hl
+    from pathlib import Path as _Path
+    from .config import DATA_DIR as _DATA_DIR
+
+    new_status  = (args.get("status") or "").strip()
+    finding_id  = (args.get("id") or "").strip()
+    file_pat    = (args.get("file") or "").strip().lower()
+    notes       = (args.get("notes") or "").strip()
+    project_root_arg = (args.get("project_root") or ctx.project_root or "").strip()
+
+    _VALID = {"false_positive", "verified_vulnerability", "resolved", "unreviewed"}
+    if new_status not in _VALID:
+        raise ValueError(f"status must be one of: {', '.join(sorted(_VALID))}")
+
+    if not finding_id and not file_pat:
+        raise ValueError("Provide id (stable finding ID) or file (substring to bulk-update)")
+
+    if not project_root_arg:
+        return "No project root configured. Pass project_root= or run pm_security first."
+
+    project_root = _Path(project_root_arg)
+    _root_hash   = _hl.sha256(str(project_root.resolve()).encode()).hexdigest()[:10]
+    snapshot_path = _DATA_DIR / "security" / f"{project_root.resolve().name}_{_root_hash}.securitysnapshot"
+
+    if not snapshot_path.exists():
+        return "No security snapshot found for this project. Run pm_security first to create one."
+
+    try:
+        snap = _json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return f"Failed to read snapshot: {exc}"
+
+    findings = snap.get("findings", [])
+    updated: list[dict] = []
+
+    for f in findings:
+        match = False
+        if finding_id and f.get("id") == finding_id:
+            match = True
+        elif file_pat and file_pat in f.get("file", "").lower():
+            match = True
+
+        if match:
+            f["status"] = new_status
+            if notes:
+                f["notes"] = notes
+            updated.append(f)
+
+    if not updated:
+        if finding_id:
+            return (
+                f"No finding with id={finding_id!r} in snapshot.\n"
+                "Run pm_security to see current finding IDs."
+            )
+        return f"No findings matching file={file_pat!r} in snapshot."
+
+    snap["findings"] = findings
+    try:
+        snapshot_path.write_text(
+            _json.dumps(snap, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        return f"Snapshot updated in memory but failed to save: {exc}"
+
+    if len(updated) == 1:
+        f = updated[0]
+        out = [
+            f"Triaged finding {f['id']}  →  {new_status}",
+            f"  File    : {f['file']}:{f.get('line', '?')}",
+            f"  Pattern : {f.get('pattern_id', '')}",
+        ]
+        if notes:
+            out.append(f"  Notes   : {notes}")
+        return "\n".join(out)
+
+    return (
+        f"Triaged {len(updated)} finding(s) → {new_status}"
+        + (f"  (file filter: {file_pat!r})" if file_pat else "")
+        + (f"\n  Notes: {notes}" if notes else "")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1602,6 +1799,7 @@ HANDLERS = {
     "pm_delta":      handle_pm_delta,
     "pm_scan":         handle_pm_scan,
     "pm_find":         handle_pm_find,
-    "pm_orphans":      handle_pm_orphans,
-    "pm_security":     handle_pm_security,
+    "pm_orphans":           handle_pm_orphans,
+    "pm_security":          handle_pm_security,
+    "pm_security_triage":   handle_pm_security_triage,
 }

@@ -1071,6 +1071,46 @@ _PATTERNS: list[_Pattern] = [
          r'\([^)]*(?:password|passwd|secret|token|apiKey|api_key|creditCard|ssn|cvv)',
          noise=(),
          flags=re.IGNORECASE),
+
+    # ── A05 Security Misconfiguration — Reverse tabnapping ────────────────────
+    # Links with target="_blank" allow the opened page to navigate window.opener.
+    # rel="noopener noreferrer" severs the opener reference.
+
+    _pat("js_open_tabnapping", "low", "A05:2021 Security Misconfiguration",
+         "target='_blank' without rel='noopener noreferrer' — reverse tabnapping risk",
+         {"javascript", "typescript"},
+         r'"_blank"',
+         noise=("noopener", "noreferrer")),
+
+    # ── A05 Security Misconfiguration — Missing httpOnly cookie flag ───────────
+    # res.cookie() with no httpOnly option defaults to false, making the cookie
+    # readable from JavaScript. Complements js_httponly_false (explicit false).
+
+    _pat("js_res_cookie_missing_httponly", "medium", "A05:2021 Security Misconfiguration",
+         "res.cookie() without explicit httpOnly flag — cookie may be readable by JavaScript",
+         {"javascript", "typescript"},
+         r'res\.cookie\s*\(',
+         noise=("httpOnly", "httponly", "HttpOnly")),
+
+    # ── A01 Broken Access Control — Zip slip / archive traversal ──────────────
+    # Extracting archive entries to paths that include user-supplied filenames
+    # can escape the target directory (zip slip / path traversal).
+
+    _pat("js_zip_traversal", "high", "A01:2021 Broken Access Control",
+         "Archive entry extracted with user-controlled path — zip-slip / path traversal risk",
+         {"javascript", "typescript"},
+         r'(?:extractAllTo|extractEntryTo|extract)\s*\([^)]*(?:req\.|entry\.entryName|\.name\b|\.filename\b)',
+         noise=("path.basename", "normalize", "sanitize", "resolve")),
+
+    # ── A05 Security Misconfiguration — Active debug mode ─────────────────────
+    # DEBUG=True in Django/Flask exposes stack traces and the interactive
+    # debugger, and disables several security features (CSRF, HTTPS-only, etc.).
+
+    _pat("py_debug_mode", "medium", "A05:2021 Security Misconfiguration",
+         "DEBUG mode enabled — exposes stack traces and disables security features in production",
+         {"python"},
+         r'(?:^|\bDEBUG\s*=\s*True|app\.run\s*\([^)]*\bdebug\s*=\s*True)',
+         noise=("os.environ", "os.getenv", "env.get", "# noqa", "test", "dev")),
 ]
 
 # ─── CWE IDs and remediation hints ───────────────────────────────────────────
@@ -1250,6 +1290,14 @@ _CWE_FIX: dict[str, tuple[str, str]] = {
     "js_localstorage_auth":      ("CWE-922", "Store auth tokens in HttpOnly cookies, not localStorage; any JS on the page can read localStorage"),
     # ── LocalFile Injection (CWE-73) ─────────────────────────────────────────
     "php_header_injection":      ("CWE-113", "Strip or reject \\r and \\n in header values before calling header()"),
+    # ── Reverse Tabnapping (CWE-1022) ─────────────────────────────────────────
+    "js_open_tabnapping":            ("CWE-1022", "Add rel='noopener noreferrer' to all links with target='_blank'"),
+    # ── Missing HttpOnly Cookie Flag (CWE-1004) ───────────────────────────────
+    "js_res_cookie_missing_httponly": ("CWE-1004", "Add { httpOnly: true, secure: true } to res.cookie() options to prevent XSS token theft"),
+    # ── Zip Slip / Archive Traversal (CWE-22) ────────────────────────────────
+    "js_zip_traversal":              ("CWE-22",  "Validate extracted paths: strip '..' segments and verify each entry stays within the target directory"),
+    # ── Active Debug Code (CWE-489) ──────────────────────────────────────────
+    "py_debug_mode":                 ("CWE-489", "Set DEBUG=False in production settings; use environment-specific config files or env vars"),
 }
 
 # Per-language index for fast lookup
