@@ -1378,6 +1378,8 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
             "pattern_id":      pid,
             "severity":        f.get("severity", "medium"),
             "owasp":           f.get("owasp", ""),
+            "cwe":             f.get("cwe", ""),
+            "fix":             f.get("fix", ""),
             "file":            fpath,
             "line":            f.get("line", 0),
             "language":        f.get("language", ""),
@@ -1456,19 +1458,78 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     total_displayed = len(display_findings)
     shown = display_findings[:max_results]
 
+    # ── Risk scoring ─────────────────────────────────────────────────────────
+    # Per-finding score: severity points × taint multiplier.
+    # Project risk level driven by highest-severity finding count.
+    _SEV_PTS = {"critical": 10, "high": 6, "medium": 2, "low": 1}
+    for f in findings_out:
+        pts = _SEV_PTS.get(f["severity"], 1)
+        if f["taint_reachable"]:
+            pts = min(10, round(pts * 1.5))
+        f["risk_score"] = pts
+
+    if counts.get("critical", 0):
+        risk_level = "CRITICAL"
+    elif counts.get("high", 0):
+        risk_level = "HIGH"
+    elif counts.get("medium", 0):
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+
+    # Top-5 riskiest files (aggregate risk score per file)
+    file_risk: dict[str, int] = {}
+    file_sev:  dict[str, list[str]] = {}
+    for f in findings_out:
+        fp = f["file"]
+        file_risk[fp] = file_risk.get(fp, 0) + f["risk_score"]
+        file_sev.setdefault(fp, []).append(f["severity"])
+    top_files = sorted(file_risk, key=lambda k: -file_risk[k])[:5]
+
+    # OWASP category summary (all findings, not just displayed)
+    owasp_counts: dict[str, int] = {}
+    for f in findings_out:
+        cat = f.get("owasp", "Other").split(":")[0]  # "A03:2021 Injection" → "A03"
+        owasp_counts[cat] = owasp_counts.get(cat, 0) + 1
+
     count_str = "  ".join(
         f"{sev}: {n}"
         for sev, n in sorted(counts.items(), key=lambda kv: _SEVERITY_RANK.get(kv[0], 9))
     ) or "0"
 
+    proj_name = project_root.resolve().name
+
     lines = [
-        f"Security scan complete — {files_scanned} files scanned",
-        f"  Total findings:   {summary['total']}  ({count_str})",
-        f"  Taint-reachable:  {summary['taint_reachable']}  (in route-handler files)",
-        f"  Fixed since last: {summary['fixed_since_last_scan']}",
-        f"  New since last:   {summary['new_since_last_scan']}",
+        f"╔══ ProjectMapper Security Report ══════════════════════════════════╗",
+        f"  Project : {proj_name}",
+        f"  Files   : {files_scanned} scanned",
+        f"  Risk    : {risk_level}  ({count_str})",
+        f"  Taint   : {summary['taint_reachable']} finding(s) reachable from route handlers",
+        f"  Delta   : +{summary['new_since_last_scan']} new  ✓{summary['fixed_since_last_scan']} fixed since last scan",
+        f"╚════════════════════════════════════════════════════════════════════╝",
         "",
     ]
+
+    if top_files:
+        lines.append("Top files by risk score:")
+        for i, fp in enumerate(top_files, 1):
+            sevs   = file_sev[fp]
+            c_cnt  = sevs.count("critical")
+            h_cnt  = sevs.count("high")
+            detail = "  ".join(filter(None, [
+                f"{c_cnt} critical" if c_cnt else "",
+                f"{h_cnt} high"     if h_cnt else "",
+            ])) or f"{len(sevs)} finding(s)"
+            lines.append(f"  {i}. {fp:<55}  score:{file_risk[fp]:>3}  [{detail}]")
+        lines.append("")
+
+    if owasp_counts:
+        lines.append("OWASP Top 10 coverage:")
+        for cat in sorted(owasp_counts):
+            n    = owasp_counts[cat]
+            bar  = "█" * min(n, 20)
+            lines.append(f"  {cat}  {bar}  {n}")
+        lines.append("")
 
     if snapshot_written:
         lines.append(f"Snapshot: {snapshot_path}")
@@ -1503,12 +1564,18 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
         lines.append(f"── {cat} ──")
         for f in by_owasp[cat]:
             sev    = f["severity"].upper()
-            reach  = " [ROUTE-REACHABLE]" if f["taint_reachable"] else ""
-            status = f" [{f['status']}]" if f["status"] != "open" else ""
-            lines.append(f"  [{sev}] {f['file']}:{f['line']}{reach}{status}  ({f['pattern_id']})")
+            reach  = " ⚡ROUTE-REACHABLE" if f["taint_reachable"] else ""
+            status = f" [{f['status'].upper()}]" if f["status"] != "open" else ""
+            cwe    = f"  {f['cwe']}" if f.get("cwe") else ""
+            lines.append(
+                f"  [{sev}] {f['file']}:{f['line']}{reach}{status}"
+                f"  ({f['pattern_id']}){cwe}"
+            )
             lines.append(f"    {f['description']}")
+            if f.get("fix"):
+                lines.append(f"    Fix: {f['fix']}")
             if f.get("snippet"):
-                lines.append(f"    » {f['snippet']}")
+                lines.append(f"    »  {f['snippet']}")
         lines.append("")
 
     if total_displayed > max_results:

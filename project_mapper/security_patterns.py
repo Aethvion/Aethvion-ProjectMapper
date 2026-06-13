@@ -6,9 +6,12 @@ Regex-pattern-based static analysis — patterns are applied to source text,
 no AST or extra parsing required.  Run on-demand via the pm_security MCP tool
 (never during normal pm_scan so it adds zero overhead there).
 
-Coverage: OWASP Top 10 (2021), ~112 patterns across Python, JS/TS, PHP, Ruby,
-Go, Java, C#, and C/C++.  Findings are written to .SECURITYSNAPSHOT in the
-project root for persistent tracking (open / fixed / acknowledged / false_positive).
+Coverage: OWASP Top 10 (2021), 132+ patterns across Python, JS/TS, PHP, Ruby,
+Go, Java, C#, and C/C++.  Every finding carries a CWE ID, OWASP category,
+severity, taint-reachability flag, and a one-line remediation hint.
+
+Snapshots are stored in the PM data directory (~/.aethvion_pm/data/security/)
+and never in the project root (avoids accidental git commits of the findings).
 """
 from __future__ import annotations
 
@@ -34,6 +37,8 @@ class SecurityFinding:
     description: str
     snippet: str        # ≤ 120 chars of source context
     owasp: str
+    cwe: str = ""       # e.g. "CWE-89"
+    fix: str = ""       # one-line remediation hint
 
     def to_dict(self) -> dict:
         return {
@@ -45,6 +50,8 @@ class SecurityFinding:
             "description": self.description,
             "snippet": self.snippet,
             "owasp": self.owasp,
+            "cwe": self.cwe,
+            "fix": self.fix,
         }
 
 
@@ -158,7 +165,7 @@ _PATTERNS: list[_Pattern] = [
     _pat("py_eval_exec", "high", "A03:2021 Injection",
          "eval() or exec() with non-literal — code execution risk",
          {"python"},
-         r'\b(?:eval|exec)\s*\(\s*(?![\s\n]*["\'])',
+         r'(?<![.\w])(?:eval|exec)\s*\(\s*(?![\s\n]*["\'])',
          noise=()),
 
     _pat("py_subprocess_shell_true", "high", "A03:2021 Injection",
@@ -1051,6 +1058,184 @@ _PATTERNS: list[_Pattern] = [
          flags=re.IGNORECASE),
 ]
 
+# ─── CWE IDs and remediation hints ───────────────────────────────────────────
+# Keyed by pattern id.  Lookup happens at scan time so findings carry both
+# fields without requiring changes to the 130+ _pat() call sites.
+
+_CWE_FIX: dict[str, tuple[str, str]] = {
+    # ── SQL Injection (CWE-89) ──────────────────────────────────────────────
+    "js_sql_tpl_literal":        ("CWE-89",  "Use parameterized queries; never interpolate user data into SQL strings"),
+    "js_sql_concat":             ("CWE-89",  "Use parameterized queries; never interpolate user data into SQL strings"),
+    "py_sql_fstring":            ("CWE-89",  "Use parameterized queries: cursor.execute(sql, (param,)) instead of f-strings"),
+    "py_sql_format":             ("CWE-89",  "Use parameterized queries: cursor.execute(sql, (param,)) instead of .format()"),
+    "py_sql_concat":             ("CWE-89",  "Use parameterized queries: cursor.execute(sql, (param,)) instead of concatenation"),
+    "php_sql_input":             ("CWE-89",  "Use PDO prepared statements or mysqli_prepare(); never concat user input into SQL"),
+    "java_sql_concat":           ("CWE-89",  "Use PreparedStatement with ? placeholders; never build queries with string concatenation"),
+    "go_sql_sprintf":            ("CWE-89",  "Use db.Query(sql, arg) with ? placeholders; never fmt.Sprintf SQL strings"),
+    "rb_sql_interp":             ("CWE-89",  "Use ActiveRecord query methods with placeholders: where('col = ?', value)"),
+    "cs_sql_concat":             ("CWE-89",  "Use SqlParameter or LINQ; never build SQL strings with user input"),
+    "cs_sql_interpolation":      ("CWE-89",  "Use SqlParameter or LINQ; never use string interpolation in SQL queries"),
+    "cs_ef_raw_sql":             ("CWE-89",  "Pass parameters as SqlParameter objects; never interpolate into FromSqlRaw/ExecuteSqlRaw"),
+    # ── OS Command Injection (CWE-78) ───────────────────────────────────────
+    "js_child_proc_dynamic":     ("CWE-78",  "Pass args as an array to execFile/spawn; never set shell:true with user input"),
+    "py_subprocess_shell_true":  ("CWE-78",  "Pass command as a list to subprocess.run/Popen with shell=False"),
+    "py_os_system":              ("CWE-78",  "Replace os.system() with subprocess.run([...], shell=False)"),
+    "php_shell_exec_dynamic":    ("CWE-78",  "Avoid shell execution with user input; if unavoidable, escapeshellarg() every argument"),
+    "rb_system_interp":          ("CWE-78",  "Pass args as separate array elements to system(); never use string interpolation"),
+    "go_exec_dynamic":           ("CWE-78",  "Pass arguments as separate strings to exec.Command; validate each arg against an allowlist"),
+    "java_runtime_exec":         ("CWE-78",  "Pass command as a String[] to Runtime.exec(); validate each element against an allowlist"),
+    "c_system_dynamic":          ("CWE-78",  "Replace system() with execv/execve; validate or sanitize all arguments"),
+    "cs_process_start_dynamic":  ("CWE-78",  "Pass arguments as a separate ProcessStartInfo.Arguments string; validate against an allowlist"),
+    # ── XSS — Improper Neutralization of Input (CWE-79) ─────────────────────
+    "js_innerhtml_dynamic":      ("CWE-79",  "Use textContent instead of innerHTML, or sanitize with DOMPurify before assigning"),
+    "js_bypass_trust_html":      ("CWE-79",  "Use DomSanitizer.sanitize(SecurityContext.HTML, value) instead of bypassSecurityTrustHtml"),
+    "php_echo_unsanitized":      ("CWE-79",  "Escape output with htmlspecialchars($val, ENT_QUOTES, 'UTF-8') before echoing"),
+    "js_document_write_dyn":     ("CWE-79",  "Replace document.write() with DOM manipulation (createElement/textContent) or sanitized innerHTML"),
+    "js_dangerously_set_html":   ("CWE-79",  "Sanitize with DOMPurify({ ALLOWED_TAGS: [...] }) before passing to dangerouslySetInnerHTML"),
+    "js_outerhtml_dynamic":      ("CWE-79",  "Use replaceWith(document.createTextNode(val)) or sanitize with DOMPurify before setting outerHTML"),
+    "js_insert_adjacent_html":   ("CWE-79",  "Use insertAdjacentText or sanitize with DOMPurify before calling insertAdjacentHTML"),
+    "py_jinja2_no_autoescape":   ("CWE-79",  "Set autoescape=True on the Jinja2 Environment when rendering HTML output"),
+    "go_template_html_cast":     ("CWE-79",  "Remove template.HTML/CSS/JS casts; let the html/template engine escape output automatically"),
+    "cs_response_write_raw":     ("CWE-79",  "HTML-encode user content before writing to response with Server.HtmlEncode()"),
+    "cs_html_raw":               ("CWE-79",  "Only use Html.Raw for server-generated content; HTML-encode all user-supplied values"),
+    # ── LDAP Injection (CWE-90) ─────────────────────────────────────────────
+    "cs_ldap_injection":         ("CWE-90",  "Escape user input with LDAP filter encoding before building search filter strings"),
+    "java_ldap_injection":       ("CWE-90",  "Use parameterized LDAP searches; encode user values with FilterEncoder.encodeForLDAP()"),
+    # ── Code Injection / SSTI (CWE-94) ──────────────────────────────────────
+    "py_ssti_render_string":     ("CWE-94",  "Never render user-supplied strings as templates; use template files with safe data-binding"),
+    "js_template_engine_user_input": ("CWE-94", "Never pass user-controlled strings to a template engine's compile/render; use static template files"),
+    "rb_render_inline_params":   ("CWE-94",  "Never pass request params as inline ERB source; use a static partial or view template instead"),
+    # ── Eval Injection (CWE-95) ─────────────────────────────────────────────
+    "js_eval_dynamic":           ("CWE-95",  "Remove eval(); use JSON.parse for data, a handler Map for dispatch, or purpose-built parsers"),
+    "js_vm_runin":               ("CWE-95",  "vm.runInContext provides no real sandbox; use isolated-vm or a separate subprocess"),
+    "js_function_constructor":   ("CWE-95",  "new Function() is equivalent to eval(); replace with explicit function definitions"),
+    "py_eval_exec":              ("CWE-95",  "Remove eval()/exec(); use ast.literal_eval for safe literals or explicit parsing logic"),
+    "php_eval_dynamic":          ("CWE-95",  "Remove eval(); use class autoloading, strategy pattern, or explicit conditionals instead"),
+    "rb_eval_dynamic":           ("CWE-95",  "Remove eval(); use explicit method dispatch or a registry pattern instead"),
+    "php_preg_replace_e":        ("CWE-95",  "Remove the /e modifier; use preg_replace_callback() with an explicit callback function"),
+    # ── PHP Remote File Inclusion (CWE-98) ───────────────────────────────────
+    "php_file_inclusion":        ("CWE-98",  "Whitelist allowed include paths; never include/require a path derived from user input"),
+    # ── HTTP Header Injection (CWE-113) ──────────────────────────────────────
+    "php_header_injection":      ("CWE-113", "Strip or reject \\r and \\n in header values; validate against an allowlist before calling header()"),
+    "js_response_header_user_input": ("CWE-113", "Validate header values; strip \\r/\\n characters from user-controlled strings before setting headers"),
+    # ── Log Injection (CWE-117) / Sensitive Data in Logs (CWE-532) ───────────
+    "java_log_user_input":       ("CWE-117", "Sanitize user input before logging; strip newlines and JNDI-injectable patterns"),
+    "py_logging_sensitive":      ("CWE-532", "Log event types and IDs, not credential values; redact password/token fields before logging"),
+    "js_logging_sensitive":      ("CWE-532", "Log event types and IDs, not credential values; redact password/token fields before logging"),
+    # ── Buffer Overflow (CWE-120) ────────────────────────────────────────────
+    "c_dangerous_str_funcs":     ("CWE-120", "Replace strcpy/strcat/gets/sprintf with bounds-checked variants: strncpy, strncat, fgets, snprintf"),
+    # ── Format String (CWE-134) ──────────────────────────────────────────────
+    "c_printf_fmt_vuln":         ("CWE-134", "Always use a literal format string: printf(\"%s\", userInput) — never printf(userInput)"),
+    "py_format_star_kwargs":     ("CWE-134", "Never unpack request data into .format() placeholders; use explicit key access or string concatenation"),
+    # ── Active Debug Code (CWE-489) ──────────────────────────────────────────
+    "py_flask_debug_true":       ("CWE-489", "Set debug via environment variable; ensure DEBUG=False in production config"),
+    "py_django_debug_true":      ("CWE-489", "Set DEBUG=False in production; use environment-specific settings files or django-environ"),
+    "cs_developer_exception_page": ("CWE-489", "Remove UseDeveloperExceptionPage() from non-Development environments"),
+    # ── Deserialization of Untrusted Data (CWE-502) ───────────────────────────
+    "py_pickle_load":            ("CWE-502", "Never unpickle untrusted data; use JSON or a signed/encrypted serialization format instead"),
+    "py_yaml_unsafe_load":       ("CWE-502", "Replace yaml.load() with yaml.safe_load() or yaml.load(data, Loader=yaml.SafeLoader)"),
+    "php_unserialize_input":     ("CWE-502", "Never unserialize user-supplied data; use JSON (json_decode) instead"),
+    "java_object_stream":        ("CWE-502", "Use a serialization filter (ObjectInputFilter) or replace with JSON/protobuf; never deserialize untrusted streams"),
+    "rb_yaml_load_unsafe":       ("CWE-502", "Replace YAML.load with YAML.safe_load for untrusted input"),
+    "cs_binary_formatter":       ("CWE-502", "BinaryFormatter is deprecated and insecure; replace with System.Text.Json or a signed format"),
+    "cs_json_type_handling":     ("CWE-502", "Set TypeNameHandling=None; use a custom ISerializationBinder to allowlist types if polymorphism is required"),
+    "cs_object_state_formatter": ("CWE-502", "ObjectStateFormatter deserializes arbitrary types; replace with System.Text.Json or a signed format"),
+    "js_unserialize_call":       ("CWE-502", "Never call unserialize() on untrusted input; use JSON.parse with schema validation instead"),
+    # ── Sensitive Cookie Without Secure Flag (CWE-614) ───────────────────────
+    "js_secure_false":           ("CWE-614", "Set Secure: true on session cookies to prevent transmission over plain HTTP"),
+    # ── Insufficient Session Expiration (CWE-613) ────────────────────────────
+    "js_jwt_no_expiry":          ("CWE-613", "Always set expiresIn on JWT tokens; short-lived tokens limit the blast radius of key compromise"),
+    # ── Open Redirect (CWE-601) ─────────────────────────────────────────────
+    "js_open_redirect":          ("CWE-601", "Validate redirect targets against an allowlist of known-safe paths before redirecting"),
+    "py_open_redirect":          ("CWE-601", "Validate redirect targets against an allowlist of known-safe paths before redirecting"),
+    "cs_open_redirect":          ("CWE-601", "Validate redirect targets; use Url.IsLocalUrl() to block off-site redirects"),
+    "java_open_redirect":        ("CWE-601", "Validate the redirect URL; use a server-side allowlist of permitted destinations"),
+    "js_window_location_dynamic": ("CWE-601", "Validate redirect targets against an allowlist; reject absolute URLs or javascript: schemes"),
+    # ── SSRF (CWE-918) ───────────────────────────────────────────────────────
+    "js_ssrf_fetch":             ("CWE-918", "Validate URLs against an allowlist; block private IP ranges before making outbound requests"),
+    "js_ssrf_axios":             ("CWE-918", "Validate URLs against an allowlist; block private IP ranges before making outbound requests"),
+    "py_ssrf_requests":          ("CWE-918", "Validate URLs against an allowlist; block private IP ranges before making outbound requests"),
+    "java_ssrf_urlopen":         ("CWE-918", "Validate URLs against an allowlist; block internal/private hostnames before opening connections"),
+    "go_ssrf_http_get":          ("CWE-918", "Validate URLs against an allowlist; block private IP ranges before calling http.Get"),
+    "cs_ssrf_httpclient":        ("CWE-918", "Validate URLs against an allowlist; block private IP ranges before issuing HttpClient requests"),
+    # ── Overly Permissive CORS (CWE-942) ─────────────────────────────────────
+    "js_cors_wildcard":          ("CWE-942", "Set Access-Control-Allow-Origin to a specific trusted origin, not * with credentials:true"),
+    "go_cors_wildcard":          ("CWE-942", "Set Access-Control-Allow-Origin to a specific trusted origin, not *"),
+    "cs_cors_allow_any":         ("CWE-942", "Allow only specific origins in CORS policy; avoid AllowAnyOrigin with AllowCredentials"),
+    # ── NoSQL Injection (CWE-943) ─────────────────────────────────────────────
+    "js_nosql_where_tpl":        ("CWE-943", "Never pass user input to MongoDB $where; use standard query operators with explicit field access"),
+    "js_nosql_input":            ("CWE-943", "Sanitize query input; ensure request values are typed (string/number), not objects with $ operators"),
+    "js_nosql_full_req_query":   ("CWE-943", "Never pass the full request object as a MongoDB filter; explicitly specify fields and cast to safe types"),
+    "js_nosql_regex_input":      ("CWE-943", "Validate and escape regex input; use a fixed safe regex or reject complex patterns from user input"),
+    # ── CSRF (CWE-352) ────────────────────────────────────────────────────────
+    "java_spring_csrf_disabled": ("CWE-352", "Re-enable CSRF protection; use synchronizer tokens for all state-changing endpoints"),
+    "py_django_csrf_exempt":     ("CWE-352", "Re-enable CSRF for state-changing views; only exempt truly stateless/token-authenticated endpoints"),
+    "cs_ignore_antiforgery":     ("CWE-352", "Re-enable antiforgery validation; use [ValidateAntiForgeryToken] on all POST/PUT/DELETE actions"),
+    # ── ReDoS (CWE-400) ───────────────────────────────────────────────────────
+    "js_regex_user_input":       ("CWE-400", "Never compile user input as a regex; validate against a fixed allowlist pattern or sanitize with re-escape"),
+    # ── Path Traversal (CWE-22) ───────────────────────────────────────────────
+    "js_path_traversal":         ("CWE-22",  "Resolve full path with path.resolve() and verify it starts within the expected base directory"),
+    "py_path_traversal":         ("CWE-22",  "Resolve full path with os.path.realpath() and assert it starts within the allowed base directory"),
+    "java_path_traversal":       ("CWE-22",  "Resolve and canonicalize the path, then verify it starts within the permitted base directory"),
+    "cs_path_traversal":         ("CWE-22",  "Use Path.GetFullPath() and verify the result starts within the allowed directory"),
+    "js_res_sendfile_user_path": ("CWE-22",  "Resolve the full path and verify it starts within a known-safe directory before calling sendFile"),
+    # ── Use of Broken Crypto (CWE-327) / Weak PRNG (CWE-338) ─────────────────
+    "js_weak_hash":              ("CWE-327", "Use SHA-256 or SHA-3 for hashing; use bcrypt/argon2 for passwords"),
+    "py_weak_hash":              ("CWE-327", "Use hashlib.sha256 or SHA-3 for hashing; use bcrypt/argon2 for passwords"),
+    "cs_weak_hash":              ("CWE-327", "Use SHA-256 or stronger; use BCrypt.Net or Rfc2898DeriveBytes for passwords"),
+    "java_weak_hash":            ("CWE-327", "Use SHA-256 or stronger; use BCrypt or PBKDF2 for password hashing"),
+    "go_weak_hash":              ("CWE-327", "Use crypto/sha256 or SHA-3; use bcrypt (golang.org/x/crypto/bcrypt) for passwords"),
+    "java_ecb_mode":             ("CWE-327", "Use AES/GCM or AES/CBC with a random IV instead of ECB mode"),
+    "cs_ecb_mode":               ("CWE-327", "Use AesCcm, AesGcm, or CBC mode with a random IV instead of ECB"),
+    "js_crypto_create_cipher":   ("CWE-327", "Replace createCipher() with createCipheriv() and supply an explicit random IV"),
+    "js_math_random_token":      ("CWE-338", "Use crypto.randomBytes() or crypto.getRandomValues() for security tokens, never Math.random()"),
+    # ── Improper JWT Verification (CWE-347) ──────────────────────────────────
+    "js_jwt_alg_none":           ("CWE-347", "Reject tokens with alg:none; pass algorithms:['HS256'] (or your alg) to jwt.verify()"),
+    "rb_jwt_alg_none":           ("CWE-347", "Reject tokens with alg:none; specify allowed algorithms explicitly in JWT decode options"),
+    "py_jwt_no_verify":          ("CWE-347", "Always verify JWT signatures; remove options={verify_signature:false}"),
+    "cs_jwt_validation_disabled": ("CWE-347", "Re-enable JWT signature validation; remove ValidateIssuerSigningKey=false"),
+    "js_jwt_verify_no_alg":      ("CWE-347", "Add algorithms:['HS256'] (or your algorithm) to jwt.verify() options to prevent algorithm confusion"),
+    # ── Hardcoded Credentials (CWE-798) ──────────────────────────────────────
+    "any_hardcoded_secret":      ("CWE-798", "Move credentials to environment variables or a secrets manager; rotate any secrets already in source control"),
+    "js_jwt_hardcoded_secret":   ("CWE-798", "Load JWT secret from process.env or a secrets manager; never hard-code the key in source"),
+    # ── Mass Assignment (CWE-915) ─────────────────────────────────────────────
+    "js_mass_assignment":        ("CWE-915", "Explicitly allowlist permitted fields before passing to ORM; never use req.body directly"),
+    "rb_mass_assignment":        ("CWE-915", "Use strong parameters: params.require(:model).permit(:field1, :field2) before mass-assigning"),
+    # ── Prototype Pollution (CWE-1321) ───────────────────────────────────────
+    "js_proto_pollution_lodash": ("CWE-1321", "Sanitize keys against __proto__/constructor/prototype; use Object.create(null) as merge target"),
+    "js_proto_pollution_assign": ("CWE-1321", "Deep-clone or strip __proto__ from user-supplied objects before assigning to app state"),
+    # ── TLS Certificate Validation (CWE-295) ──────────────────────────────────
+    "go_tls_insecure_skip":      ("CWE-295", "Remove InsecureSkipVerify:true; add self-signed certs to a custom TLS CA pool instead"),
+    "java_ssl_trust_all":        ("CWE-295", "Remove trust-all TrustManager; use a proper keystore with trusted certificates"),
+    "cs_ssl_validation_disabled": ("CWE-295", "Remove ServerCertificateValidationCallback override; use a custom CA cert if needed"),
+    "py_requests_verify_false":  ("CWE-295", "Remove verify=False; if using a self-signed cert, pass verify='/path/to/ca.pem' instead"),
+    # ── XXE (CWE-611) ─────────────────────────────────────────────────────────
+    "java_xxe_enabled":          ("CWE-611", "Disable external entities: factory.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true)"),
+    "cs_xml_dtd_parse":          ("CWE-611", "Set DtdProcessing=DtdProcessing.Prohibit on XmlReaderSettings"),
+    "cs_xml_url_resolver":       ("CWE-611", "Set XmlResolver=null on XmlDocument/XmlReader to disable external entity loading"),
+    "php_xxe_libxml":            ("CWE-611", "Call libxml_disable_entity_loader(true) before parsing XML from untrusted sources"),
+    "js_xxe_noent":              ("CWE-611", "Disable LIBXML_NOENT; parse XML without options that expand external entities"),
+    # ── Sensitive Cookie Without HttpOnly (CWE-1004) ──────────────────────────
+    "js_httponly_false":         ("CWE-1004", "Set HttpOnly:true on session cookies to prevent JavaScript access and XSS token theft"),
+    # ── PHP Variable Extraction (CWE-621) ─────────────────────────────────────
+    "php_extract_superglobal":   ("CWE-621", "Remove extract($_REQUEST/$_POST); access superglobal values explicitly by key"),
+    # ── Ruby Dynamic Dispatch (CWE-749) ──────────────────────────────────────
+    "rb_dynamic_send":           ("CWE-749", "Validate method names against an explicit allowlist before calling send()"),
+    # ── Missing Authentication (CWE-306) ──────────────────────────────────────
+    "cs_allow_anonymous":        ("CWE-306", "Remove [AllowAnonymous] from sensitive controllers; ensure authentication is enforced"),
+    # ── Sensitive Data Exposure (CWE-209) ─────────────────────────────────────
+    "js_error_stack_exposed":    ("CWE-209", "Log stack traces server-side; return generic error messages to clients"),
+    # ── Assert Used for Security (CWE-617) ────────────────────────────────────
+    "py_assert_auth":            ("CWE-617", "Replace assert with explicit if/raise guards; Python -O strips all assert statements"),
+    # ── XPath Injection (CWE-643) ─────────────────────────────────────────────
+    "java_xpath_injection":      ("CWE-643", "Use XPathVariableResolver to inject values into parameterized XPath expressions"),
+    "cs_xpath_injection":        ("CWE-643", "Use XPathVariableResolver to inject values; never concatenate user input into XPath strings"),
+    # ── Auth Token in Insecure Storage (CWE-922) ──────────────────────────────
+    "js_localstorage_auth":      ("CWE-922", "Store auth tokens in HttpOnly cookies, not localStorage; any JS on the page can read localStorage"),
+    # ── LocalFile Injection (CWE-73) ─────────────────────────────────────────
+    "php_header_injection":      ("CWE-113", "Strip or reject \\r and \\n in header values before calling header()"),
+}
+
 # Per-language index for fast lookup
 _BY_LANGUAGE: dict[str, list[_Pattern]] = {}
 for _p in _PATTERNS:
@@ -1127,6 +1312,7 @@ def _scan_impl(rel_path: str, content: str, language: str) -> list[SecurityFindi
                     continue
 
             seen.add(key)
+            cwe, fix = _CWE_FIX.get(pat.id, ("", ""))
             findings.append(SecurityFinding(
                 pattern_id=pat.id,
                 severity=severity,
@@ -1136,6 +1322,8 @@ def _scan_impl(rel_path: str, content: str, language: str) -> list[SecurityFindi
                 description=pat.description,
                 snippet=snippet,
                 owasp=pat.owasp,
+                cwe=cwe,
+                fix=fix,
             ))
 
     findings.sort(key=lambda f: _SEVERITY_ORDER.get(f.severity, 9))
