@@ -1,6 +1,6 @@
 # Project Mapper Benchmarks
 
-Real-world benchmarks on open-source projects across 11 languages (v1.6.0).
+Real-world benchmarks on open-source projects across 11 languages (v1.7.1).
 
 **Date:** 2026-06-12
 
@@ -27,9 +27,9 @@ Geomean across 5 representative queries per project.
 
 | Project | Language | Files | Entities | Full scan | Warm scan | Normal (tok) | PM Full | PM Slim | Savings |
 |:---|:---|---:|---:|---:|---:|---:|---:|---:|:---|
-| [django](python-django.md) | Python | 3,024 | 10,809 | 77 s | 12.8 s ² | ~12,000 | **~950** | **~400** | **~13× / ~30×** |
-| [spring-framework](javaandkotlin-spring-framework.md) | Java/Kotlin | 9,621 | 25,410 | 802 s ¹ | 1.3 s | ~12,000 | **~1,300** | **~800** | **~9× / ~14×** |
-| [aspnetcore](csharp-aspnetcore.md) | C# | 11,084 | 27,812 | 1,040 s ¹ | 2.1 s | ~8,200 | **~1,260** | **~640** | **~6.5× / ~13×** |
+| [django](python-django.md) | Python | 3,024 | 10,809 | 77 s | 0.69 s | ~12,000 | **~950** | **~400** | **~13× / ~30×** |
+| [spring-framework](javaandkotlin-spring-framework.md) | Java/Kotlin | 9,621 | 28,526 | 31.6 s | 0.88 s | ~12,000 | **~1,300** | **~800** | **~9× / ~14×** |
+| [aspnetcore](csharp-aspnetcore.md) | C# | 11,077 | 29,963 | 43.3 s | 0.84 s | ~8,200 | **~1,260** | **~640** | **~6.5× / ~13×** |
 | [wordpress](php-wordpress.md) | PHP | 2,286 | 7,757 | 56 s | 0.45 s | ~8,200 | **~1,250** | **~730** | **~6.5× / ~11×** |
 | [redis](c-redis.md) | C | 839 | 11,093 | 14 s | 0.20 s | ~2,800 | **~710** | **~245** | **~4× / ~11.5×** |
 | [hugo](go-hugo.md) | Go | 927 | 5,082 | 15 s | 0.22 s | ~5,000 | **~900** | **~420** | **~5.5× / ~12×** |
@@ -42,8 +42,7 @@ Geomean across 5 representative queries per project.
 > Geometric-mean saving across all 11 benchmarks: **~6× Full** and **~13× Slim**.
 > At 100,000 input tokens, PM Full costs ~17,000 tokens and PM Slim costs ~7,700 — cutting context by **83–92%**.
 
-¹ First-time scan of large C#/Java projects on Windows. Windows Defender performs additional I/O on newly written database files, inflating scan time 2–3× vs subsequent runs and vs Linux/macOS.
-² Django warm scan bottleneck: ~3,000 sequential `stat()` syscalls at ~4 ms each on NTFS. Target for v1.7.x.
+All v1.7.1 timings measured on Windows. Full scans were previously bottlenecked by per-file manifest writes (one JSON flush per entity ingested). v1.7.1 batches all manifest updates into a single flush and removes per-file SCANINFO writes, cutting full scan time ~25×. Warm scans hit the no-op fast path when nothing changed, completing in under 1 s regardless of project size.
 
 ---
 
