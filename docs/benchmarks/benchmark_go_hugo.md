@@ -16,7 +16,7 @@
 | Scan time | 3.2 s |
 | Throughput | ~62,500 lines/sec |
 
-Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (Slim)** · **~63× faster navigation**
+Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (Slim)** · **~163× faster navigation**
 
 ---
 
