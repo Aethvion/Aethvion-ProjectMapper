@@ -325,7 +325,7 @@ _PATTERNS: list[_Pattern] = [
     _pat("any_hardcoded_secret", "medium", "A02:2021 Cryptographic Failures",
          "Possible hardcoded credential or API key",
          {"python", "javascript", "typescript", "php", "ruby", "go", "java"},
-         r'(?:password|passwd|secret|api_key|apikey|access_token|auth_token|'
+         r'(?:password|passwd|secret|token|api_key|apikey|access_token|auth_token|'
          r'private_key|client_secret)\s*[=:]\s*["\'][A-Za-z0-9+/!@#$%^&*_\-]{8,}["\']',
          noise=("your_", "example", "placeholder", "TODO", "FIXME",
                 "process.env", "os.environ", "getenv", "config.", "settings.",
@@ -1111,6 +1111,36 @@ _PATTERNS: list[_Pattern] = [
          {"python"},
          r'(?:^|\bDEBUG\s*=\s*True|app\.run\s*\([^)]*\bdebug\s*=\s*True)',
          noise=("os.environ", "os.getenv", "env.get", "# noqa", "test", "dev")),
+
+    # ── A02 Cryptographic Failures — PEM private key in source ────────────────
+    # A PEM block in source is always a critical finding regardless of language —
+    # the key is in version control and potentially exposed to anyone with repo access.
+
+    _pat("any_pem_private_key", "critical", "A02:2021 Cryptographic Failures",
+         "PEM private key in source file — key must not be committed to version control",
+         {"javascript", "typescript", "python", "php", "ruby", "go", "java", "csharp"},
+         r'-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----',
+         noise=()),
+
+    # ── A02 Cryptographic Failures — Node.js TLS bypass ──────────────────────
+    # https.request / tls.connect options with rejectUnauthorized: false disables
+    # all certificate validation, making HTTPS equivalent to plain HTTP for MITM.
+
+    _pat("js_tls_reject_unauthorized", "high", "A02:2021 Cryptographic Failures",
+         "rejectUnauthorized: false — TLS certificate validation disabled, MITM risk",
+         {"javascript", "typescript"},
+         r'rejectUnauthorized\s*:\s*false',
+         noise=()),
+
+    # ── A02 Cryptographic Failures — Python ssl.CERT_NONE ────────────────────
+    # ssl.CERT_NONE skips certificate validation entirely. Not caught by
+    # py_requests_verify_false, which only covers the requests library.
+
+    _pat("py_ssl_cert_none", "high", "A02:2021 Cryptographic Failures",
+         "ssl.CERT_NONE — TLS certificate validation disabled, MITM risk",
+         {"python"},
+         r'\bssl\.CERT_NONE\b',
+         noise=()),
 ]
 
 # ─── CWE IDs and remediation hints ───────────────────────────────────────────
@@ -1260,11 +1290,15 @@ _CWE_FIX: dict[str, tuple[str, str]] = {
     # ── Prototype Pollution (CWE-1321) ───────────────────────────────────────
     "js_proto_pollution_lodash": ("CWE-1321", "Sanitize keys against __proto__/constructor/prototype; use Object.create(null) as merge target"),
     "js_proto_pollution_assign": ("CWE-1321", "Deep-clone or strip __proto__ from user-supplied objects before assigning to app state"),
+    # ── Hardcoded Cryptographic Key (CWE-321) ────────────────────────────────
+    "any_pem_private_key":       ("CWE-321", "Remove the private key from source control; store in a secrets manager or load from an environment variable at runtime"),
     # ── TLS Certificate Validation (CWE-295) ──────────────────────────────────
     "go_tls_insecure_skip":      ("CWE-295", "Remove InsecureSkipVerify:true; add self-signed certs to a custom TLS CA pool instead"),
     "java_ssl_trust_all":        ("CWE-295", "Remove trust-all TrustManager; use a proper keystore with trusted certificates"),
     "cs_ssl_validation_disabled": ("CWE-295", "Remove ServerCertificateValidationCallback override; use a custom CA cert if needed"),
     "py_requests_verify_false":  ("CWE-295", "Remove verify=False; if using a self-signed cert, pass verify='/path/to/ca.pem' instead"),
+    "js_tls_reject_unauthorized": ("CWE-295", "Remove rejectUnauthorized:false; add the CA certificate to a custom tls.Agent instead"),
+    "py_ssl_cert_none":          ("CWE-295", "Replace ssl.CERT_NONE with ssl.CERT_REQUIRED; pass a CA bundle via ssl_context if needed"),
     # ── XXE (CWE-611) ─────────────────────────────────────────────────────────
     "java_xxe_enabled":          ("CWE-611", "Disable external entities: factory.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true)"),
     "cs_xml_dtd_parse":          ("CWE-611", "Set DtdProcessing=DtdProcessing.Prohibit on XmlReaderSettings"),
