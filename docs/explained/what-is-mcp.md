@@ -4,7 +4,7 @@
 
 MCP (Model Context Protocol) is an open standard that lets AI assistants call external tools in a controlled, predictable way. Think of it like a plugin system: you install a tool, the AI gets access to a specific set of actions it can call, and nothing more.
 
-Project Mapper provides 7 of these actions. The AI can call them — it cannot do anything else with your computer through Project Mapper.
+Project Mapper provides 10 of these actions. The AI can call them — it cannot do anything else with your computer through Project Mapper.
 
 ---
 
@@ -36,7 +36,7 @@ The whole exchange is local. The MCP server for Project Mapper is just a Python 
 
 ## What Project Mapper's MCP tools can do
 
-Project Mapper exposes exactly 7 tools:
+Project Mapper exposes 10 tools:
 
 | Tool | What the AI can do |
 |---|---|
@@ -44,11 +44,14 @@ Project Mapper exposes exactly 7 tools:
 | `pm_context` | Ask "what's relevant to this task?" and get a list of entities |
 | `pm_impact` | Ask "what breaks if I change X?" and get affected entities |
 | `pm_path` | Find the connection between two parts of the codebase |
+| `pm_find` | Look up a specific symbol by name |
+| `pm_orphans` | Find dead code — entities with no inbound references |
+| `pm_security` | Run a security scan (132+ OWASP patterns) across the full codebase |
 | `pm_contribute` | Write a note about something the AI discovered (e.g. "I added rate limiting here") |
 | `pm_stats` | Get a summary of what is currently indexed |
 | `pm_delta` | See what files changed since the last scan |
 
-That is the complete list. The AI cannot use Project Mapper to read arbitrary files, run commands, access the internet, or do anything outside these 7 actions.
+That is the complete list. The AI cannot use Project Mapper to read arbitrary files, run commands, access the internet, or do anything outside these 10 actions. For a full description of each tool, see the [PM Tools Reference](pm-tools-reference.md).
 
 ---
 
