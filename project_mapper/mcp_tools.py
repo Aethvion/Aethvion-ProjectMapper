@@ -361,7 +361,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "Findings are detected statically via OWASP Top 10 patterns covering "
             "SQL/command/NoSQL injection, XSS, open redirect, path traversal, "
             "insecure deserialization, SSRF, weak crypto, and hardcoded secrets — "
-            "across Python, JavaScript/TypeScript, PHP, Ruby, Go, Java, and C/C++. "
+            "across Python, JavaScript/TypeScript, PHP, Ruby, Go, Java, C#, and C/C++. "
             "Run pm_scan first to populate findings; they are updated on every scan. "
             "Use pm_security_max for deeper taint-propagation analysis and a "
             "persistent .SECURITYSNAPSHOT tracking file."

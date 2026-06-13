@@ -441,6 +441,220 @@ _PATTERNS: list[_Pattern] = [
          {"python"},
          r'\bassert\b[^\n]*(?:auth|login|admin|permission|role|is_staff|is_superuser|token)',
          noise=("test", "pytest", "unittest")),
+
+    # ── C# (ASP.NET / .NET) ───────────────────────────────────────────────────
+    # A03 Injection — SQL
+
+    _pat("cs_sql_concat", "critical", "A03:2021 Injection",
+         "SqlCommand built with string concatenation — SQL injection risk",
+         {"csharp"},
+         r'new\s+Sql(?:Command|DataAdapter)\s*\(\s*(?:"[^"]*"\s*\+|'
+         r'\$"[^"]*\{|string\.Format\s*\()',
+         noise=()),
+
+    _pat("cs_sql_interpolation", "critical", "A03:2021 Injection",
+         "SqlCommand with interpolated string — SQL injection risk",
+         {"csharp"},
+         r'(?:CommandText|\.Query)\s*[+]?=\s*\$"[^"]*\{',
+         noise=()),
+
+    _pat("cs_ef_raw_sql", "critical", "A03:2021 Injection",
+         "Entity Framework raw SQL with string interpolation — injection risk",
+         {"csharp"},
+         r'\.(?:FromSqlRaw|ExecuteSqlRaw|ExecuteSqlCommand)\s*\(\s*(?:\$"|'
+         r'[A-Za-z_]\w*\s*\+|string\.Format)',
+         noise=()),
+
+    # A03 Injection — Command / Code
+
+    _pat("cs_process_start_dynamic", "high", "A03:2021 Injection",
+         "Process.Start with dynamic argument — command injection risk",
+         {"csharp"},
+         r'Process\.Start\s*\(\s*(?![\s\n]*@?")',
+         noise=()),
+
+    _pat("cs_response_write_raw", "high", "A03:2021 Injection",
+         "Response.Write with unencoded value — XSS risk",
+         {"csharp"},
+         r'Response\.Write\s*\(\s*(?![\s\n]*@?")',
+         noise=("HtmlEncode", "Encode", "Sanitize")),
+
+    _pat("cs_html_raw", "high", "A03:2021 Injection",
+         "@Html.Raw() bypasses Razor HTML encoding — XSS risk",
+         {"csharp"},
+         r'Html\.Raw\s*\(\s*(?![\s\n]*@?")',
+         noise=()),
+
+    _pat("cs_ldap_injection", "high", "A03:2021 Injection",
+         "DirectorySearcher filter built with concatenation — LDAP injection risk",
+         {"csharp"},
+         r'new\s+DirectorySearcher\s*\(\s*(?:[^)]*\+|'
+         r'\$"[^"]*\{)',
+         noise=()),
+
+    # A02 Cryptographic Failures
+
+    _pat("cs_weak_hash", "medium", "A02:2021 Cryptographic Failures",
+         "Weak hash algorithm (MD5/SHA1/DES/RC2/TripleDES) — insecure for passwords/signatures",
+         {"csharp"},
+         r'\b(?:MD5|SHA1|DESCrypto|RC2Crypto|TripleDES|RijndaelManaged)'
+         r'(?:CryptoServiceProvider|Managed|\.Create)\s*[\(\.]',
+         noise=()),
+
+    _pat("cs_ssl_validation_disabled", "high", "A02:2021 Cryptographic Failures",
+         "TLS/SSL certificate validation disabled — MITM attack risk",
+         {"csharp"},
+         r'(?:ServerCertificateValidationCallback\s*=(?:[^;]{0,80}true|'
+         r'[^;]{0,80}DangerousAcceptAny)|'
+         r'ServicePointManager\.(?:ServerCertificateValidationCallback|SecurityProtocol))',
+         noise=()),
+
+    _pat("cs_jwt_validation_disabled", "high", "A02:2021 Cryptographic Failures",
+         "JWT validation flag disabled — token verification bypassed",
+         {"csharp"},
+         r'(?:ValidateSignature|RequireSignedTokens|ValidateIssuer|'
+         r'ValidateAudience|ValidateLifetime)\s*=\s*false',
+         noise=()),
+
+    # A08 Software and Data Integrity Failures
+
+    _pat("cs_binary_formatter", "critical", "A08:2021 Software and Data Integrity Failures",
+         "BinaryFormatter.Deserialize — arbitrary code execution (banned in .NET 5+)",
+         {"csharp"},
+         r'\bBinaryFormatter\b',
+         noise=()),
+
+    _pat("cs_json_type_handling", "high", "A08:2021 Software and Data Integrity Failures",
+         "Newtonsoft.Json TypeNameHandling.All — unsafe deserialization risk",
+         {"csharp"},
+         r'TypeNameHandling\s*=\s*TypeNameHandling\.(?:All|Objects|Arrays|Auto)',
+         noise=()),
+
+    _pat("cs_object_state_formatter", "high", "A08:2021 Software and Data Integrity Failures",
+         "ObjectStateFormatter/NetDataContractSerializer — unsafe deserialization",
+         {"csharp"},
+         r'\b(?:ObjectStateFormatter|NetDataContractSerializer|'
+         r'SoapFormatter|LosFormatter)\s*[\(\.]',
+         noise=()),
+
+    # A01 Broken Access Control
+
+    _pat("cs_path_traversal", "medium", "A01:2021 Broken Access Control",
+         "File I/O with user-controlled path — path traversal risk",
+         {"csharp"},
+         r'(?:File\.(?:ReadAllText|ReadAllBytes|OpenRead|WriteAllText|WriteAllBytes|'
+         r'AppendAllText)|Path\.Combine|new\s+FileStream)\s*\([^)]*'
+         r'(?:Request\.|HttpContext\.|query\[|route\[|param)',
+         noise=()),
+
+    _pat("cs_open_redirect", "high", "A01:2021 Broken Access Control",
+         "Response.Redirect with request-derived URL — open redirect risk",
+         {"csharp"},
+         r'(?:Response\.Redirect|Redirect(?:Permanent)?)\s*\([^)]*'
+         r'(?:Request\.|HttpContext\.Request|query\[|route\[|\burl\b)',
+         noise=("IsLocalUrl", "Url.IsLocal", "localRedirect", "LocalRedirect")),
+
+    # A05 Security Misconfiguration
+
+    _pat("cs_cors_allow_any", "medium", "A05:2021 Security Misconfiguration",
+         "CORS AllowAnyOrigin() — unrestricted cross-origin access",
+         {"csharp"},
+         r'\.AllowAnyOrigin\s*\(\s*\)',
+         noise=()),
+
+    _pat("cs_developer_exception_page", "low", "A05:2021 Security Misconfiguration",
+         "UseDeveloperExceptionPage() — may expose stack traces in production",
+         {"csharp"},
+         r'app\.UseDeveloperExceptionPage\s*\(\s*\)',
+         noise=("env.IsDevelopment", "IsDevelopment", "isDevelopment")),
+
+    # A07 Authentication Failures
+
+    _pat("cs_allow_anonymous", "medium",
+         "A07:2021 Identification and Authentication Failures",
+         "[AllowAnonymous] on method/controller — auth intentionally bypassed",
+         {"csharp"},
+         r'\[AllowAnonymous\]',
+         noise=()),
+
+    _pat("cs_ignore_antiforgery", "medium",
+         "A07:2021 Identification and Authentication Failures",
+         "[IgnoreAntiForgeryToken] disables CSRF protection",
+         {"csharp"},
+         r'\[IgnoreAntiforgeryToken\]',
+         noise=()),
+
+    # A10 Server-Side Request Forgery
+
+    _pat("cs_ssrf_httpclient", "high", "A10:2021 Server-Side Request Forgery",
+         "HttpClient request with user-controlled URL — SSRF risk",
+         {"csharp"},
+         r'(?:_?httpClient|HttpClient\b)[^;]{0,60}'
+         r'\.(?:GetAsync|PostAsync|SendAsync|GetStringAsync)\s*\([^)]*'
+         r'(?:Request\.|query\[|route\[|\burl\b|\buri\b)',
+         noise=()),
+
+    # ── Java additions ────────────────────────────────────────────────────────
+
+    _pat("java_weak_hash", "medium", "A02:2021 Cryptographic Failures",
+         "Weak hash algorithm (MD5/SHA-1) — insecure for passwords/signatures",
+         {"java"},
+         r'MessageDigest\.getInstance\s*\(\s*"(?:MD5|SHA-1|SHA1)"',
+         noise=()),
+
+    _pat("java_ssl_trust_all", "high", "A02:2021 Cryptographic Failures",
+         "X509TrustManager with empty or trivially trusting body — MITM attack risk",
+         {"java"},
+         r'(?:checkClientTrusted|checkServerTrusted|getAcceptedIssuers)'
+         r'[^}]{0,80}\{\s*(?:return\s*null\s*;?\s*)?\}',
+         noise=()),
+
+    _pat("java_xxe_enabled", "high", "A05:2021 Security Misconfiguration",
+         "XML parser with external entity processing enabled — XXE risk",
+         {"java"},
+         r'setFeature\s*\(\s*"[^"]*(?:FEATURE_EXTERNAL|external.general.entities)',
+         noise=("false",)),
+
+    _pat("java_ssrf_urlopen", "high", "A10:2021 Server-Side Request Forgery",
+         "URL.openConnection() with request-derived value — SSRF risk",
+         {"java"},
+         r'new\s+URL\s*\([^)]*(?:request\.getParameter|getQueryString|'
+         r'getHeader|pathVariable)\s*\(',
+         noise=()),
+
+    _pat("java_open_redirect", "high", "A01:2021 Broken Access Control",
+         "response.sendRedirect() with request parameter — open redirect risk",
+         {"java"},
+         r'(?:response|resp)\.sendRedirect\s*\([^)]*'
+         r'request\.getParameter\s*\(',
+         noise=("isLocalUrl", "validateRedirect")),
+
+    _pat("java_path_traversal", "medium", "A01:2021 Broken Access Control",
+         "new File() with user-controlled path — path traversal risk",
+         {"java"},
+         r'new\s+File\s*\([^)]*request\.getParameter\s*\(',
+         noise=()),
+
+    # ── Go additions ──────────────────────────────────────────────────────────
+
+    _pat("go_weak_hash", "medium", "A02:2021 Cryptographic Failures",
+         "Weak hash algorithm (MD5/SHA1) — insecure for passwords/signatures",
+         {"go"},
+         r'\b(?:md5|sha1)\.New\s*\(',
+         noise=()),
+
+    _pat("go_ssrf_http_get", "high", "A10:2021 Server-Side Request Forgery",
+         "http.Get/Post with request-derived URL — SSRF risk",
+         {"go"},
+         r'http\.(?:Get|Post|Do)\s*\([^)]*r\.(?:URL|Form|PostForm|'
+         r'URL\.Query|FormValue)',
+         noise=()),
+
+    _pat("go_cors_wildcard", "medium", "A05:2021 Security Misconfiguration",
+         "CORS AllowOrigins with wildcard — unrestricted cross-origin access",
+         {"go"},
+         r'AllowOrigins\s*:\s*\[\s*]string\s*\{[^}]*"\*"',
+         noise=()),
 ]
 
 # Per-language index for fast lookup
