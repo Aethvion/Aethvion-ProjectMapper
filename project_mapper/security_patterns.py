@@ -956,6 +956,99 @@ _PATTERNS: list[_Pattern] = [
          {"ruby"},
          r'render\s+inline\s*:\s*(?:params|request)\[',
          noise=()),
+
+    # ── A02 Cryptographic Failures — TLS validation disabled ─────────────────
+    # requests.get(url, verify=False) disables certificate validation entirely —
+    # any MITM can intercept the traffic regardless of whether HTTPS is used.
+
+    _pat("py_requests_verify_false", "high", "A02:2021 Cryptographic Failures",
+         "requests call with verify=False — TLS certificate validation disabled, MITM risk",
+         {"python"},
+         r'\brequests?\.\w+\s*\([^)]*\bverify\s*=\s*False',
+         noise=()),
+
+    # ── A05 Security Misconfiguration — CSRF bypasses ────────────────────────
+    # Spring Security csrf().disable() removes all CSRF token checks for every
+    # state-changing endpoint, not just the ones that need it.
+
+    _pat("java_spring_csrf_disabled", "high", "A05:2021 Security Misconfiguration",
+         "Spring Security .csrf().disable() — CSRF protection removed application-wide",
+         {"java"},
+         r'\.csrf\s*\(\s*\)\s*\.disable\s*\(\s*\)',
+         noise=()),
+
+    # @csrf_exempt marks a single Django view as exempt. Any view that handles
+    # state changes (POST/DELETE) without a token check is a CSRF surface.
+
+    _pat("py_django_csrf_exempt", "medium", "A05:2021 Security Misconfiguration",
+         "@csrf_exempt — Django CSRF protection disabled for this view",
+         {"python"},
+         r'@csrf_exempt',
+         noise=()),
+
+    # ── A03 Injection — ReDoS via user-controlled regexp ─────────────────────
+    # new RegExp(userInput) compiles an attacker-supplied pattern. A crafted
+    # pattern with catastrophic backtracking can cause 100 % CPU denial-of-service.
+
+    _pat("js_regex_user_input", "medium", "A03:2021 Injection",
+         "new RegExp() with non-literal argument — attacker-controlled pattern, ReDoS risk",
+         {"javascript", "typescript"},
+         r'\bnew\s+RegExp\s*\(\s*(?![\s\n]*[\'"])',
+         noise=("escape", "sanitize")),
+
+    # ── A03 Injection — LDAP filter injection (Java) ──────────────────────────
+    # Sibling to cs_ldap_injection: building an LDAP search filter string with
+    # string concatenation or format from request parameters bypasses attribute
+    # quoting and lets an attacker inject arbitrary LDAP filter clauses.
+
+    _pat("java_ldap_injection", "high", "A03:2021 Injection",
+         "LDAP search filter built with request parameter — LDAP injection risk",
+         {"java"},
+         r'(?:ctx|context|dirCtx|ldapCtx|DirContext|InitialDirContext)\s*\.\s*search\s*\([^)]*'
+         r'(?:\+\s*(?:request|param|req|user|input)|request\.getParameter\s*\()',
+         noise=()),
+
+    # ── A03 Injection — HTTP header injection (PHP) ───────────────────────────
+    # PHP header() with a value containing user input allows CRLF injection —
+    # an attacker can split the response, inject arbitrary headers, or set cookies.
+
+    _pat("php_header_injection", "high", "A03:2021 Injection",
+         "PHP header() with user input — CRLF injection / response splitting risk",
+         {"php"},
+         r'\bheader\s*\([^)]*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\s*\[',
+         noise=()),
+
+    # ── A03 Injection — HTTP header injection (Node.js) ───────────────────────
+    # res.setHeader / res.header with a value derived from request parameters
+    # allows the same CRLF injection class in Node/Express applications.
+
+    _pat("js_response_header_user_input", "high", "A03:2021 Injection",
+         "res.setHeader/header with user-controlled value — HTTP header injection / CRLF risk",
+         {"javascript", "typescript"},
+         r'res\.(?:setHeader|header)\s*\([^)]*(?:req\.|request\.)(?:body|params|query|headers)',
+         noise=()),
+
+    # ── A09 Security Logging and Monitoring — Sensitive data in logs ──────────
+    # Logging raw password, token, or secret values means credentials end up in
+    # log files, monitoring systems, and backups where they are rarely purged.
+
+    _pat("py_logging_sensitive", "medium",
+         "A09:2021 Security Logging and Monitoring Failures",
+         "Logging call that may include password/token/secret — credential leak into log files",
+         {"python"},
+         r'\b(?:logger|logging|log)\s*\.\s*(?:debug|info|warning|error|critical|exception)\s*'
+         r'\([^)]*(?:password|passwd|secret|token|api_key|apikey|credit_card|ssn|cvv)',
+         noise=(),
+         flags=re.IGNORECASE),
+
+    _pat("js_logging_sensitive", "medium",
+         "A09:2021 Security Logging and Monitoring Failures",
+         "Logging call that may include password/token/secret — credential leak into log files",
+         {"javascript", "typescript"},
+         r'(?:console\.(?:log|warn|error|info|debug)|logger\.(?:log|warn|error|info|debug))\s*'
+         r'\([^)]*(?:password|passwd|secret|token|apiKey|api_key|creditCard|ssn|cvv)',
+         noise=(),
+         flags=re.IGNORECASE),
 ]
 
 # Per-language index for fast lookup
