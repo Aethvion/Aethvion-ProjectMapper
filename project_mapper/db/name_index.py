@@ -107,7 +107,6 @@ class NameIndex:
         with self._lock:
             self._data[key] = entity_id
             self._save()
-        logger.debug(f"[NameIndex] registered {name!r} → {entity_id}")
 
     def register_aliases(self, entity_id: str, aliases: list[str]) -> None:
         """Register multiple alias names for the same entity ID."""

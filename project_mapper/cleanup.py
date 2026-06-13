@@ -72,10 +72,9 @@ def retire_entity(
     }
     try:
         writer.update(entity_id, {"sections": {"timeline": [event]}})
-    except Exception as exc:
-        logger.debug(f"[Cleanup] Could not append timeline event for {entity_id}: {exc}")
+    except Exception:
+        pass
 
-    logger.debug(f"[Cleanup] Retired {entity_id}: {reason}")
     return True
 
 
@@ -236,8 +235,6 @@ def prune_removed_symbols(
                 f"[Cleanup] Could not rewrite relations for {module_entity_id}: {exc}"
             )
 
-    if retired:
-        logger.debug(f"[Cleanup] Pruned {retired} removed symbols from {module_file}")
     return retired
 
 
@@ -328,9 +325,6 @@ def run_deletion_cleanup(
             f"[Cleanup] Deletion cleanup: {result.deleted_file_count} missing file(s), "
             f"{result.retired_count} entit{'y' if result.retired_count == 1 else 'ies'} retired"
         )
-    else:
-        logger.debug("[Cleanup] Deletion cleanup: no missing files")
-
     return result
 
 
@@ -387,7 +381,6 @@ def resolve_stubs(
     result.stubs_checked = len(stubs)
 
     if not stubs:
-        logger.debug("[StubResolver] No stubs to resolve")
         return result
 
     # --- Build stub_id → real_id resolution map ---
@@ -432,7 +425,6 @@ def resolve_stubs(
             to_resolve[stub_id] = real_id
 
     if not to_resolve:
-        logger.debug(f"[StubResolver] {len(stubs)} stubs checked, none resolvable")
         return result
 
     # --- Re-wire incoming relations across all entities ---
@@ -527,8 +519,8 @@ def prune_orphan_stubs(writer: "EntityWriter") -> int:
             try:
                 writer.update(entity["id"], {"status": "deleted"})
                 pruned += 1
-            except Exception as exc:
-                logger.debug(f"[StubPrune] Could not prune {entity['id']}: {exc}")
+            except Exception:
+                pass
 
     if pruned:
         logger.info(f"[StubPrune] Pruned {pruned} unreferenced stubs")

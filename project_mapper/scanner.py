@@ -228,18 +228,6 @@ async def run_scan(
         "errors":                    [],
     }
 
-    # Security findings: keyed by relative file path.
-    # On incremental scans, pre-populated from the existing SECURITY file so
-    # findings for unchanged files are preserved without re-scanning.
-    _sec_findings: dict[str, list] = {}
-    try:
-        from .security_patterns import read_security_store
-        _sec_findings = read_security_store(db_root).get("findings_by_file", {})
-        if not incremental:
-            _sec_findings = {}   # full scan: start fresh
-    except Exception:
-        pass
-
     def _prefilter() -> tuple[list[tuple[Path, str, int, float]], int, set[str]]:
         """Walk root with os.scandir so DirEntry.stat() uses cached dir-listing
         data (WIN32_FIND_DATA on Windows) — no extra syscall per file.
@@ -365,14 +353,6 @@ async def run_scan(
         from .code_analyzer import detect_language_for_path  # inline to avoid circular
         language = detect_language_for_path(str(fp))
         analysis = await asyncio.to_thread(analyze_file, rel, content, language)
-
-        # Security scan: run on the already-read content, no extra I/O
-        try:
-            from .security_patterns import scan_file_security
-            sec = await asyncio.to_thread(scan_file_security, rel, content, language)
-            _sec_findings[rel] = [f.to_dict() for f in sec]
-        except Exception:
-            pass
 
         async with semaphore:
             ingest_result = await asyncio.to_thread(
@@ -548,15 +528,6 @@ async def run_scan(
     except Exception as exc:
         logger.warning(f"[Scanner] Snapshot build failed (non-critical): {exc}")
 
-    # Write security findings — done after snapshot so it doesn't delay the scan
-    try:
-        from .security_patterns import write_security_store
-        await asyncio.to_thread(write_security_store, db_root, _sec_findings)
-        total_findings = sum(len(v) for v in _sec_findings.values())
-        if total_findings:
-            logger.info(f"[Scanner] Security findings: {total_findings} across {len(_sec_findings)} files")
-    except Exception as exc:
-        logger.warning(f"[Scanner] Could not write security findings: {exc}")
 
 
 def start_scan(

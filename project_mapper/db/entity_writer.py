@@ -131,9 +131,7 @@ class EntityWriter:
                             else:
                                 existing["sections"][sk] = sv
                     self._write(existing)
-                    logger.debug(f"[EntityWriter] Reactivated '{name}' ({entity_id})")
                     return existing, True   # was_created=True so caller refreshes children
-                logger.debug(f"[EntityWriter] '{name}' already exists as {entity_id}")
                 return existing, False  # type: ignore[return-value]
             logger.warning(
                 f"[EntityWriter] Index entry for '{name}' → {entity_id} exists "
@@ -165,7 +163,6 @@ class EntityWriter:
             logger.warning(f"[EntityWriter] Schema warnings for '{name}': {errors}")
 
         self._write(entity)
-        logger.debug(f"[EntityWriter] Created entity: {name!r} ({entity_id})")
         return entity, True
 
     def update(
@@ -239,7 +236,6 @@ class EntityWriter:
         if aliases:
             self._index.register_aliases(entity_id, aliases)
 
-        logger.debug(f"[EntityWriter] Updated {entity_id} → v{entity['version']}")
         return entity
 
     def delete(self, entity_id: str, *, soft: bool = True) -> bool:
@@ -255,10 +251,8 @@ class EntityWriter:
             entity["status"] = "deleted"    # type: ignore[index]
             entity["updated"] = _now_iso()  # type: ignore[index]
             self._write(entity)             # type: ignore[arg-type]
-            logger.debug(f"[EntityWriter] Soft-deleted {entity_id}")
         else:
             self._path_for(entity_id).unlink(missing_ok=True)
-            logger.debug(f"[EntityWriter] Hard-deleted {entity_id}")
         return True
 
     # Bulk operations
@@ -311,8 +305,8 @@ class EntityWriter:
                 # just loaded so the next call is fast.
                 try:
                     _snapshot.build(db_root, all_entities)
-                except Exception as exc:
-                    logger.debug(f"[EntityWriter] Snapshot rebuild failed: {exc}")
+                except Exception:
+                    pass
 
         if not include_deleted:
             return [e for e in all_entities if e.get("status") != "deleted"]

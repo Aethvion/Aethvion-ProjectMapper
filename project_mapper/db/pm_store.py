@@ -87,9 +87,6 @@ class PMNameIndex(NameIndex):
         self._ensure_loaded()
         with self._lock:
             atomic_json_write(self._path, self._data, sort_keys=True)
-        logger.debug(
-            f"[PMNameIndex] Flushed {len(self._data)} entries → {self._path.name}"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -135,10 +132,6 @@ class PMEntityStore:
         if existing:
             for entity in existing:
                 store._store[entity["id"]] = entity
-            logger.debug(
-                f"[PMEntityStore] Loaded {len(store._store)} entities from snapshot"
-                " (incremental base)"
-            )
         return store
 
     # ── EntityWriter-compatible API ─────────────────────────────────────────
@@ -184,13 +177,7 @@ class PMEntityStore:
                         existing["status"] = resolved_status
                         if sections_override:
                             self._apply_sections(existing, sections_override)
-                        logger.debug(
-                            f"[PMEntityStore] Reactivated '{name}' ({entity_id})"
-                        )
                         return existing, True
-                    logger.debug(
-                        f"[PMEntityStore] '{name}' already exists ({entity_id})"
-                    )
                     return existing, False
                 # Index entry exists but store entry missing — recreate below.
                 logger.warning(
@@ -213,7 +200,6 @@ class PMEntityStore:
                 self._index.register_aliases(entity_id, aliases)
 
             self._store[entity_id] = entity
-            logger.debug(f"[PMEntityStore] Created entity: {name!r} ({entity_id})")
             return entity, True
 
     def update(
@@ -268,9 +254,6 @@ class PMEntityStore:
             if aliases:
                 self._index.register_aliases(entity_id, aliases)
 
-            logger.debug(
-                f"[PMEntityStore] Updated {entity_id} → v{entity['version']}"
-            )
             return entity
 
     def delete(self, entity_id: str, *, soft: bool = True) -> bool:

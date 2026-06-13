@@ -18,9 +18,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-SECURITY_STORE_VERSION = "1.0"
-SECURITY_FILE = "ProjectMapper.SECURITY"
-
 _TEST_PATH_FRAGMENTS = frozenset({
     "test", "tests", "spec", "specs", "__tests__", "mock", "mocks",
     "fixture", "fixtures", "e2e", "integration",
@@ -748,7 +745,7 @@ def _scan_impl(rel_path: str, content: str, language: str) -> list[SecurityFindi
     return findings
 
 
-# ─── Route-handler heuristic (used by pm_security_max) ───────────────────────
+# ─── Route-handler heuristic (used by pm_security taint analysis) ───────────
 
 _ROUTE_HANDLER_DIRS = frozenset({
     "routes", "route", "controllers", "controller", "api", "apis",
@@ -775,33 +772,3 @@ def is_route_handler_file(rel_path: str) -> bool:
     )
 
 
-# ─── SECURITY file storage ────────────────────────────────────────────────────
-
-def read_security_store(db_root: Path) -> dict:
-    """Read the SECURITY findings file. Returns empty store on missing/corrupt."""
-    p = db_root / SECURITY_FILE
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {"version": SECURITY_STORE_VERSION, "findings_by_file": {}}
-
-
-def write_security_store(
-    db_root: Path,
-    findings_by_file: dict[str, list],
-    pm_version: str = "",
-) -> None:
-    """Write the SECURITY findings file atomically."""
-    data: dict = {
-        "version":          SECURITY_STORE_VERSION,
-        "scanned_at":       datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "findings_by_file": findings_by_file,
-    }
-    if pm_version:
-        data["pm_version"] = pm_version
-    (db_root / SECURITY_FILE).write_text(
-        json.dumps(data, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
