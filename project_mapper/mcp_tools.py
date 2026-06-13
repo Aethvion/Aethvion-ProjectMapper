@@ -1658,6 +1658,23 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     )
     lines.append("")
 
+    # Rule reference — description/fix printed once per pattern, not per finding
+    seen_patterns: dict[str, dict] = {}
+    for f in shown:
+        pid = f["pattern_id"]
+        if pid not in seen_patterns:
+            seen_patterns[pid] = f
+
+    lines.append("Rule Reference:")
+    for pid in sorted(seen_patterns):
+        rf      = seen_patterns[pid]
+        cwe_str = f"  {rf['cwe']}" if rf.get("cwe") else ""
+        owasp_s = f"  {rf.get('owasp', '')}" if rf.get("owasp") else ""
+        desc    = rf.get("description", "")
+        fix     = f"  Fix: {rf['fix']}" if rf.get("fix") else ""
+        lines.append(f"  [{pid}]{cwe_str}{owasp_s}  {desc}{fix}")
+    lines.append("")
+
     by_owasp: dict[str, list[dict]] = {}
     for f in shown:
         cat = f.get("owasp", "Other")
@@ -1666,25 +1683,21 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     for cat in sorted(by_owasp):
         lines.append(f"── {cat} ──")
         for f in by_owasp[cat]:
+            fid    = f.get("id", "")[:8]
             sev    = f["severity"].upper()
-            reach  = " ⚡ROUTE-REACHABLE" if f["taint_reachable"] else ""
+            reach  = "  ⚡" if f["taint_reachable"] else ""
             status = {
-                "verified_vulnerability": " [CONFIRMED]",
-                "false_positive":         " [FALSE-POS]",
-                "resolved":               " [RESOLVED]",
+                "verified_vulnerability": "  [CONFIRMED]",
+                "false_positive":         "  [FALSE-POS]",
+                "resolved":               "  [RESOLVED]",
             }.get(f["status"], "")
-            cwe    = f"  {f['cwe']}" if f.get("cwe") else ""
             lines.append(
-                f"  [{sev}] {f['file']}:{f['line']}{reach}{status}"
-                f"  ({f['pattern_id']}){cwe}"
+                f"  {fid}  {sev:<8}  {f['pattern_id']:<28}  {f['file']}:{f['line']}{reach}{status}"
             )
-            lines.append(f"    {f['description']}")
-            if f.get("fix"):
-                lines.append(f"    Fix: {f['fix']}")
-            if f.get("notes"):
-                lines.append(f"    Note: {f['notes']}")
             if f.get("snippet"):
                 lines.append(f"    »  {f['snippet']}")
+            if f.get("notes"):
+                lines.append(f"    Note: {f['notes']}")
         lines.append("")
 
     if total_displayed > max_results:
