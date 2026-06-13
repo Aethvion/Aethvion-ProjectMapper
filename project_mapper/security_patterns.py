@@ -2,20 +2,18 @@
 project_mapper/security_patterns.py
 SAST-style security scanner for Project Mapper.
 
-Regex-pattern-based security analysis run on every file during scan.
-No additional parsing overhead — patterns are applied to the already-read
-source text and line numbers are extracted from match positions.
+Regex-pattern-based static analysis — patterns are applied to source text,
+no AST or extra parsing required.  Run on-demand via the pm_security MCP tool
+(never during normal pm_scan so it adds zero overhead there).
 
-Coverage: OWASP Top 10 (2021) across Python, JS/TS, PHP, Ruby, Go, Java, C/C++.
-Results are stored in ProjectMapper.SECURITY alongside the entity database
-and surfaced via the pm_security and pm_security_max MCP tools.
+Coverage: OWASP Top 10 (2021), ~112 patterns across Python, JS/TS, PHP, Ruby,
+Go, Java, C#, and C/C++.  Findings are written to .SECURITYSNAPSHOT in the
+project root for persistent tracking (open / fixed / acknowledged / false_positive).
 """
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 
 _TEST_PATH_FRAGMENTS = frozenset({
@@ -652,6 +650,205 @@ _PATTERNS: list[_Pattern] = [
          {"go"},
          r'AllowOrigins\s*:\s*\[\s*]string\s*\{[^}]*"\*"',
          noise=()),
+
+    # ── A02 Cryptographic Failures — Insecure random / cipher ─────────────────
+
+    _pat("js_math_random_token", "high", "A02:2021 Cryptographic Failures",
+         "Math.random() for security token/secret — not cryptographically secure",
+         {"javascript", "typescript"},
+         r'(?:const|let|var)\s+\w*(?:token|secret|password|nonce|csrf|otp|salt)\w*\s*=\s*[^;\n]*Math\.random\s*\(',
+         noise=()),
+
+    _pat("js_crypto_create_cipher", "medium", "A02:2021 Cryptographic Failures",
+         "crypto.createCipher() is deprecated (no IV) — use createCipheriv() with an explicit IV",
+         {"javascript", "typescript"},
+         r'\bcrypto\.createCipher\s*\(',
+         noise=("createCipheriv",)),
+
+    _pat("go_tls_insecure_skip", "high", "A02:2021 Cryptographic Failures",
+         "InsecureSkipVerify: true — TLS certificate validation disabled, MITM attack risk",
+         {"go"},
+         r'InsecureSkipVerify\s*:\s*true',
+         noise=()),
+
+    _pat("java_ecb_mode", "high", "A02:2021 Cryptographic Failures",
+         "AES/ECB cipher mode — deterministic, leaks data patterns",
+         {"java"},
+         r'Cipher\.getInstance\s*\(\s*"[^"]*ECB',
+         noise=()),
+
+    _pat("cs_ecb_mode", "high", "A02:2021 Cryptographic Failures",
+         "ECB cipher mode — deterministic, leaks identical plaintext blocks",
+         {"csharp"},
+         r'\.Mode\s*=\s*CipherMode\.ECB',
+         noise=()),
+
+    # ── A03 Injection — Function constructor / document.write / React ─────────
+
+    _pat("js_function_constructor", "high", "A03:2021 Injection",
+         "new Function() with arguments — equivalent to eval(), arbitrary code execution risk",
+         {"javascript", "typescript"},
+         r'\bnew\s+Function\s*\(\s*(?![\s\n]*\))',
+         noise=()),
+
+    _pat("js_document_write_dyn", "high", "A03:2021 Injection",
+         "document.write() with dynamic content — XSS risk",
+         {"javascript", "typescript"},
+         r'document\.write\s*\(\s*(?![\s\n]*[\'"])',
+         noise=()),
+
+    _pat("js_dangerously_set_html", "high", "A03:2021 Injection",
+         "dangerouslySetInnerHTML — bypasses React XSS protection",
+         {"javascript", "typescript"},
+         r'dangerouslySetInnerHTML\s*=',
+         noise=()),
+
+    # ── A03 Injection — Prototype pollution ───────────────────────────────────
+
+    _pat("js_proto_pollution_lodash", "high", "A03:2021 Injection",
+         "Lodash merge/extend/defaultsDeep with request body — prototype pollution risk",
+         {"javascript", "typescript"},
+         r'_\s*\.\s*(?:merge|extend|defaultsDeep)\s*\([^)]*(?:req\.|request\.|\.body|\.query|\.params)',
+         noise=()),
+
+    _pat("js_proto_pollution_assign", "high", "A03:2021 Injection",
+         "Object.assign() with request body as source — prototype pollution risk",
+         {"javascript", "typescript"},
+         r'Object\.assign\s*\(\s*[^,)]+,\s*(?:req|request)\.',
+         noise=()),
+
+    # ── A03 Injection — NoSQL ReDoS ───────────────────────────────────────────
+
+    _pat("js_nosql_regex_input", "medium", "A03:2021 Injection",
+         "MongoDB $regex from request parameter — ReDoS and injection risk",
+         {"javascript", "typescript"},
+         r'\$regex\s*:\s*(?:req\.|request\.|new\s+RegExp\s*\(\s*(?:req|request))',
+         noise=()),
+
+    # ── A03 Injection — Python format string / Jinja2 ─────────────────────────
+
+    _pat("py_format_star_kwargs", "high", "A03:2021 Injection",
+         "str.format() with unpacked request data — format string injection risk",
+         {"python"},
+         r'\.format\s*\(\s*\*\*\s*(?:request|req)\.',
+         noise=()),
+
+    _pat("py_jinja2_no_autoescape", "high", "A03:2021 Injection",
+         "Jinja2 Environment with autoescape=False — XSS risk for HTML output",
+         {"python"},
+         r'(?:Environment|jinja2\.Environment)\s*\([^)]*autoescape\s*=\s*False',
+         noise=()),
+
+    # ── A03 Injection — Go template bypass ────────────────────────────────────
+
+    _pat("go_template_html_cast", "high", "A03:2021 Injection",
+         "template.HTML/JS/CSS/URL cast — marks user content as safe, bypasses escaping",
+         {"go"},
+         r'\btemplate\.(?:HTML|CSS|JS|URL|Attr)\s*\(',
+         noise=()),
+
+    # ── A03 Injection — Java/C# XPath injection ───────────────────────────────
+
+    _pat("java_xpath_injection", "high", "A03:2021 Injection",
+         "XPath expression built with request parameter — XPath injection risk",
+         {"java"},
+         r'(?:compile|evaluate|selectNodes?)\s*\([^)]*request\.getParameter\s*\(',
+         noise=()),
+
+    _pat("cs_xpath_injection", "high", "A03:2021 Injection",
+         "XPath expression with user-controlled input — XPath injection risk",
+         {"csharp"},
+         r'(?:SelectNodes?|SelectSingleNode|XPathExpression\.Compile)\s*\([^)]*'
+         r'(?:Request\.|query\[|route\[)',
+         noise=()),
+
+    # ── A03 Injection — Log4Shell attack surface ──────────────────────────────
+
+    _pat("java_log_user_input", "high", "A03:2021 Injection",
+         "Logging request data directly — Log4Shell (CVE-2021-44228) JNDI attack surface",
+         {"java"},
+         r'(?:log|LOG|logger|LOGGER)\.(?:info|warn|error|debug|trace|fatal)\s*\([^)]*'
+         r'request\.get(?:Parameter|Header|QueryString)\s*\(',
+         noise=()),
+
+    # ── A05 Security Misconfiguration — Debug mode ────────────────────────────
+
+    _pat("py_flask_debug_true", "medium", "A05:2021 Security Misconfiguration",
+         "Flask debug mode enabled — exposes interactive debugger and code in production",
+         {"python"},
+         r'app\.(?:run\s*\([^)]*debug\s*=\s*True|debug\s*=\s*True)',
+         noise=()),
+
+    _pat("py_django_debug_true", "low", "A05:2021 Security Misconfiguration",
+         "Django DEBUG = True — exposes full tracebacks and settings to end users",
+         {"python"},
+         r'^\s*DEBUG\s*=\s*True',
+         noise=("local", "test", "dev", "development", "#"),
+         flags=re.IGNORECASE | re.MULTILINE),
+
+    # ── A05 Security Misconfiguration — Info leakage / cookie flags ───────────
+
+    _pat("js_error_stack_exposed", "medium", "A05:2021 Security Misconfiguration",
+         "Error stack trace sent in HTTP response — exposes internal paths and dependencies",
+         {"javascript", "typescript"},
+         r'res\.(?:send|json)\s*\([^)]*(?:err|error)\.stack',
+         noise=()),
+
+    _pat("js_httponly_false", "medium", "A05:2021 Security Misconfiguration",
+         "Cookie httpOnly: false — readable by JavaScript, stolen by XSS",
+         {"javascript", "typescript"},
+         r'httpOnly\s*:\s*false',
+         noise=()),
+
+    _pat("js_secure_false", "low", "A05:2021 Security Misconfiguration",
+         "Cookie secure: false — session cookie transmitted over plain HTTP",
+         {"javascript", "typescript"},
+         r'(?:res\.cookie|cookie\s*\(|cookies\.set)\s*\([^)]*\bsecure\s*:\s*false',
+         noise=()),
+
+    # ── A05 Security Misconfiguration — XML / PHP ─────────────────────────────
+
+    _pat("cs_xml_dtd_parse", "high", "A05:2021 Security Misconfiguration",
+         "XmlDocument DtdProcessing.Parse — external entity loading enabled, XXE risk",
+         {"csharp"},
+         r'DtdProcessing\s*=\s*DtdProcessing\.Parse',
+         noise=()),
+
+    _pat("cs_xml_url_resolver", "high", "A05:2021 Security Misconfiguration",
+         "XmlUrlResolver set on XML reader — enables external entity resolution, XXE risk",
+         {"csharp"},
+         r'XmlResolver\s*=\s*new\s+XmlUrlResolver',
+         noise=()),
+
+    _pat("php_xxe_libxml", "high", "A05:2021 Security Misconfiguration",
+         "libxml_disable_entity_loader(false) — XML external entity loading enabled",
+         {"php"},
+         r'libxml_disable_entity_loader\s*\(\s*false\s*\)',
+         noise=()),
+
+    # ── A07 Identification and Authentication Failures ─────────────────────────
+
+    _pat("js_jwt_no_expiry", "medium",
+         "A07:2021 Identification and Authentication Failures",
+         "jwt.sign() — verify expiresIn is set to prevent non-expiring tokens",
+         {"javascript", "typescript"},
+         r'\bjwt\.sign\s*\(',
+         noise=("expiresIn", "exp:")),
+
+    _pat("js_localstorage_auth", "medium",
+         "A07:2021 Identification and Authentication Failures",
+         "Auth token stored in localStorage — accessible to any JS on the page, XSS risk",
+         {"javascript", "typescript"},
+         r'localStorage\.setItem\s*\([^)]*(?:token|auth|jwt|Bearer|session)',
+         noise=()),
+
+    # ── A01 Broken Access Control — Rails mass assignment ─────────────────────
+
+    _pat("rb_mass_assignment", "medium", "A01:2021 Broken Access Control",
+         "Mass assignment without strong parameters — unintended attributes may be set",
+         {"ruby"},
+         r'(?:create|update|update_attributes|build|new)\s*\(\s*params(?:\s*\)|\s*\[)',
+         noise=(".permit(", ".require(", "ActionController")),
 ]
 
 # Per-language index for fast lookup
