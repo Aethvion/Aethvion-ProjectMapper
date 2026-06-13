@@ -849,6 +849,113 @@ _PATTERNS: list[_Pattern] = [
          {"ruby"},
          r'(?:create|update|update_attributes|build|new)\s*\(\s*params(?:\s*\)|\s*\[)',
          noise=(".permit(", ".require(", "ActionController")),
+
+    # ── A03 Injection — NoSQL operator injection via full request object ───────
+    # Passing the entire req.body/query as a MongoDB filter lets attackers inject
+    # operators like {"$gt": ""} to bypass auth or dump data — not just $where.
+
+    _pat("js_nosql_full_req_query", "high", "A03:2021 Injection",
+         "MongoDB query with full request object — attacker can inject query operators ($gt, $ne, $regex...)",
+         {"javascript", "typescript"},
+         r'\.(?:find|findOne|findById|updateOne?|deleteOne?|replaceOne|count(?:Documents)?)\s*\(\s*(?:req|request)\.(?:body|query|params)\s*[,)]',
+         noise=()),
+
+    # ── A01 Broken Access Control — JS/Node mass assignment ───────────────────
+    # Any ORM (Sequelize, Mongoose, TypeORM, Prisma) that accepts a plain object
+    # from req.body will set every field the attacker passes, including role/isAdmin.
+
+    _pat("js_mass_assignment", "high", "A01:2021 Broken Access Control",
+         "ORM create/build with full request body — unintended fields (role, isAdmin) may be set",
+         {"javascript", "typescript"},
+         r'\.(?:create|build|upsert|findOrCreate|insert|save)\s*\(\s*req\.body\b',
+         noise=()),
+
+    # ── A03 Injection — Template engine SSTI ──────────────────────────────────
+    # Any template engine that compiles or renders a *string* coming from user
+    # input is an SSTI surface, regardless of which engine is used.
+
+    _pat("js_template_engine_user_input", "critical", "A03:2021 Injection",
+         "Template engine render/compile with user-controlled string — SSTI / RCE risk",
+         {"javascript", "typescript"},
+         r'(?:pug|jade|ejs|nunjucks|Handlebars|handlebars|swig|mustache|dot|eta)'
+         r'\.(?:render|compile|renderString|renderFile|render_string)\s*\([^)]*'
+         r'(?:req\.|request\.|\.body|\.query|\.params)',
+         noise=()),
+
+    # ── A03 Injection — outerHTML / insertAdjacentHTML XSS ────────────────────
+    # Additional DOM sinks beyond innerHTML that are frequently missed in reviews.
+
+    _pat("js_outerhtml_dynamic", "high", "A03:2021 Injection",
+         "outerHTML assigned dynamic content — XSS risk",
+         {"javascript", "typescript"},
+         r'\.outerHTML\s*(?:\+=|=)\s*(?![\s\n]*[\'"])',
+         noise=()),
+
+    _pat("js_insert_adjacent_html", "high", "A03:2021 Injection",
+         "insertAdjacentHTML with dynamic second argument — XSS risk",
+         {"javascript", "typescript"},
+         r'\.insertAdjacentHTML\s*\(\s*["\'][^"\']+["\']\s*,\s*(?![\s\n]*[\'"])',
+         noise=()),
+
+    # ── A02 Cryptographic Failures — JWT algorithm confusion ──────────────────
+    # jwt.verify() without an explicit 'algorithms' list accepts tokens signed
+    # with any algorithm — enables RS256→HS256 downgrade and 'none' attacks.
+
+    _pat("js_jwt_verify_no_alg", "high", "A02:2021 Cryptographic Failures",
+         "jwt.verify() without explicit algorithms list — algorithm confusion / downgrade attack risk",
+         {"javascript", "typescript"},
+         r'\bjwt\.verify\s*\(',
+         noise=("algorithms",)),
+
+    # ── A02 Cryptographic Failures — Hardcoded JWT secret ─────────────────────
+    # Second argument of jwt.sign/verify is the secret. A string literal here
+    # means the secret is in source control and identical across all deployments.
+
+    _pat("js_jwt_hardcoded_secret", "high", "A02:2021 Cryptographic Failures",
+         "jwt.sign/verify with hardcoded string secret — secret exposed in source code",
+         {"javascript", "typescript"},
+         r'jwt\.(?:sign|verify)\s*\(\s*[^,]+,\s*["\'][A-Za-z0-9+/!@#$%^&*_\-]{8,}["\']',
+         noise=()),
+
+    # ── A01 Broken Access Control — Client-side unvalidated redirect ───────────
+    # window.location set to any non-literal is an open redirect and potential XSS
+    # (javascript: URIs). Covers both full location replacement and href.
+
+    _pat("js_window_location_dynamic", "medium", "A01:2021 Broken Access Control",
+         "window.location set to dynamic value — open redirect or javascript: XSS risk",
+         {"javascript", "typescript"},
+         r'window\.location(?:\.href)?\s*=\s*(?![\s\n]*[\'"])',
+         noise=("encodeURI", "isLocalUrl", "validateRedirect", "sanitize")),
+
+    # ── A01 Broken Access Control — File serving with user-controlled path ─────
+    # res.sendFile / res.download with any path derived from request parameters
+    # allows path traversal to read arbitrary server files.
+
+    _pat("js_res_sendfile_user_path", "high", "A01:2021 Broken Access Control",
+         "res.sendFile/download with user-controlled path — path traversal risk",
+         {"javascript", "typescript"},
+         r'res\.(?:sendFile|download)\s*\([^)]*(?:req\.|request\.|params|query|body)',
+         noise=("path.basename", "normalize", "sanitize", "resolve")),
+
+    # ── A08 Software and Data Integrity — JS deserialization RCE ─────────────
+    # Any call to unserialize() (node-serialize and similar) may execute embedded
+    # IIFEs in the payload — critical if the input comes from an untrusted source.
+
+    _pat("js_unserialize_call", "critical", "A08:2021 Software and Data Integrity Failures",
+         "unserialize() — executes embedded IIFEs in payload, arbitrary code execution risk",
+         {"javascript", "typescript"},
+         r'\bunserialize\s*\(',
+         noise=()),
+
+    # ── A03 Injection — Rails inline template injection ───────────────────────
+    # render inline: renders an ERB string at request time. If the string comes
+    # from params, it is a direct SSTI / RCE surface.
+
+    _pat("rb_render_inline_params", "critical", "A03:2021 Injection",
+         "Rails render inline: with request params — SSTI / RCE risk",
+         {"ruby"},
+         r'render\s+inline\s*:\s*(?:params|request)\[',
+         noise=()),
 ]
 
 # Per-language index for fast lookup
