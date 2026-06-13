@@ -1313,6 +1313,8 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
             if d not in _SKIP_DIRS and not d.startswith(".")
         ]
         for filename in filenames:
+            if ".min." in filename.lower():
+                continue
             ext = os.path.splitext(filename)[1].lower()
             language = _EXT_LANG.get(ext)
             if not language:

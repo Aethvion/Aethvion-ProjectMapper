@@ -258,12 +258,25 @@ _PATTERNS: list[_Pattern] = [
          noise=()),
 
     # ── A03 Injection — XSS ───────────────────────────────────────────────────
+    # Split into two patterns to reduce noise on template-literal-heavy UIs:
+    #   HIGH  — direct variable/expression assignment (strongest signal)
+    #   MEDIUM — template literal that contains ${interpolation} (weaker signal;
+    #            static template literals with no ${} are excluded entirely)
+    # Sanitizer noise terms suppress findings already escaped with a known helper.
 
     _pat("js_innerhtml_dynamic", "high", "A03:2021 Injection",
-         "innerHTML assignment with dynamic content — XSS risk",
+         "innerHTML set to variable or expression — XSS risk if data is user-controlled",
          {"javascript", "typescript"},
-         r'\.innerHTML\s*(?:\+=|=)\s*(?![\s\n]*[\'";])',
-         noise=("\"\"", "''")),
+         r'\.innerHTML\s*(?:\+=|=)\s*(?![\'"\`])',
+         noise=("escHtml", "_escHtml", "escapeHtml", "escapeHTML",
+                "DOMPurify", "sanitize", "htmlEncode", "encode(")),
+
+    _pat("js_innerhtml_template", "medium", "A03:2021 Injection",
+         "innerHTML assigned template literal with interpolation — XSS risk if interpolated value is user-controlled",
+         {"javascript", "typescript"},
+         r'\.innerHTML\s*(?:\+=|=)\s*`[^`\n]*\$\{',
+         noise=("escHtml", "_escHtml", "escapeHtml", "escapeHTML",
+                "DOMPurify", "sanitize", "htmlEncode", "encode(")),
 
     _pat("js_bypass_trust_html", "high", "A03:2021 Injection",
          "bypassSecurityTrustHtml() bypasses Angular XSS protection",
@@ -895,14 +908,16 @@ _PATTERNS: list[_Pattern] = [
     _pat("js_outerhtml_dynamic", "high", "A03:2021 Injection",
          "outerHTML assigned dynamic content — XSS risk",
          {"javascript", "typescript"},
-         r'\.outerHTML\s*(?:\+=|=)\s*(?![\s\n]*[\'"])',
-         noise=()),
+         r'\.outerHTML\s*(?:\+=|=)\s*(?![\'"\`])',
+         noise=("escHtml", "_escHtml", "escapeHtml", "escapeHTML",
+                "DOMPurify", "sanitize", "htmlEncode")),
 
     _pat("js_insert_adjacent_html", "high", "A03:2021 Injection",
          "insertAdjacentHTML with dynamic second argument — XSS risk",
          {"javascript", "typescript"},
-         r'\.insertAdjacentHTML\s*\(\s*["\'][^"\']+["\']\s*,\s*(?![\s\n]*[\'"])',
-         noise=()),
+         r'\.insertAdjacentHTML\s*\(\s*["\'][^"\']+["\']\s*,\s*(?![\s\n]*[\'"\`])',
+         noise=("escHtml", "_escHtml", "escapeHtml", "escapeHTML",
+                "DOMPurify", "sanitize", "htmlEncode")),
 
     # ── A02 Cryptographic Failures — JWT algorithm confusion ──────────────────
     # jwt.verify() without an explicit 'algorithms' list accepts tokens signed
@@ -1088,6 +1103,7 @@ _CWE_FIX: dict[str, tuple[str, str]] = {
     "cs_process_start_dynamic":  ("CWE-78",  "Pass arguments as a separate ProcessStartInfo.Arguments string; validate against an allowlist"),
     # ── XSS — Improper Neutralization of Input (CWE-79) ─────────────────────
     "js_innerhtml_dynamic":      ("CWE-79",  "Use textContent instead of innerHTML, or sanitize with DOMPurify before assigning"),
+    "js_innerhtml_template":     ("CWE-79",  "Use textContent or escapeHTML() for interpolated values; never pass user data directly into an innerHTML template literal"),
     "js_bypass_trust_html":      ("CWE-79",  "Use DomSanitizer.sanitize(SecurityContext.HTML, value) instead of bypassSecurityTrustHtml"),
     "php_echo_unsanitized":      ("CWE-79",  "Escape output with htmlspecialchars($val, ENT_QUOTES, 'UTF-8') before echoing"),
     "js_document_write_dyn":     ("CWE-79",  "Replace document.write() with DOM manipulation (createElement/textContent) or sanitized innerHTML"),
