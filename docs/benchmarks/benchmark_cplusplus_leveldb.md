@@ -1,289 +1,157 @@
-# Benchmark: C++ — LevelDB 1.23
+# Benchmark: C++ — LevelDB
 
-**Date:** 2026-06-10 · **Project Mapper:** v1.5.0
-
-> Real numbers from the [LevelDB source repository](https://github.com/google/leveldb) (main branch, version `1.23.0`). No synthetic data.
+**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
-## The Subject
+## Project
 
-| | |
+| Metric | Value |
 |:---|:---|
 | Repository | `google/leveldb` |
-| Version | `1.23.0` |
-| Date tested | **2026-06-10** |
-| Project Mapper | **v1.5.0** |
-| C++ files analyzed | **133** (.cc + .h combined) |
-| Structure | Single-library — `db/`, `table/`, `util/`, `include/leveldb/` |
+| Language | C++ |
+| Files scanned | 132 |
+| Total lines | ~24,000 |
+| Entities indexed | 603 |
+| Scan time | 0.4 s |
+| Throughput | ~61,000 lines/sec |
+
+Geometric mean savings: **−88% token reduction (Full) · −94% token reduction (Slim)** · **~1,800× faster navigation**
 
 ---
 
-## Test Environment
+## Test 1 — Iterator Type Catalog
 
-| | |
-|:---|:---|
-| OS | Windows 11 |
-| Python | 3.10.11 |
-| Hardware | Desktop PC · Intel i9-13900K (24C/32T) · RTX 4090 |
-| PM server | Standalone · `python -m uvicorn server:app --port 7474` |
-| Analysis | Static AST only (no LLM calls) |
+**Question:** *"What concrete iterator types does LevelDB provide?"*
 
-> **Windows note:** NTFS and Defender I/O overhead inflates scan time vs Linux/macOS (est. 3–5× faster on Linux).
->
-> **C++ note:** This benchmark required a bug fix first — `scanner.py` and `code_analyzer.py` were missing `.cc` and `.cxx` from their supported-extension sets, causing 76 of 133 C++ implementation files to be silently skipped. After the fix (committed to both `Aethvion-ProjectMapper` and `Aethvion-Suite`), all 133 files are scanned correctly.
+**Standard Workflow (Grep + Read):** `grep -rn "public Iterator" db/ table/`. Iterator implementations are spread across five directories: `table/block.cc` (Block::Iter), `table/merger.cc` (MergingIterator), `table/two_level_iterator.cc` (TwoLevelIterator), `db/db_iter.cc` (DBIter), `db/memtable.cc` (MemTableIterator), `db/version_set.cc` (Version::LevelFileNumIterator). Read each file to confirm the inheritance. 5–7 reads, ~3,000 tokens.
 
----
+**With Project Mapper:** `pm_impact "Iterator" depth=1 exclude_tests=True`
 
-## Indexing
-
-### Full Scan (cold start)
-
-| | |
-|:---|:---|
-| C++ files analyzed | **133** (.cc: 76 · .h: 56 · .c: 1) |
-| Files skipped (unsupported) | 0 |
-| Entities indexed | **216** |
-| Relations mapped | **753** |
-| Errors | **0** |
-| Snapshot size | **< 0.5 MB** |
-| Entity files on disk | **0** (PMEntityStore) |
-| **Full scan time** | **< 2 s** |
-
-### Incremental Scan (zero file changes)
-
-| | |
-|:---|:---|
-| Files skipped (hash unchanged) | **133** |
-| **Incremental scan time** | **0.3 s** |
-| **Speedup vs full scan** | **~6×** |
-
-> **LevelDB is a model of clean C++ OOP design.** Its ~4,000-line `db/db_impl.cc` houses the core database engine; the remaining files are focused modules of 100–600 lines each. Six abstract base classes (`Iterator`, `DB`, `Env`, `Cache`, `FilterPolicy`, `Comparator`) form the public API — every concrete implementation is reachable via a single `impact` or `path` query.
->
-> The `Iterator` abstract class is the architectural spine of the read path: 8 concrete subclasses cover every read scenario (user-facing iteration, memory table scans, SST block reads, two-level file+block iteration, and merge iteration across compaction). PM recovers this complete hierarchy in one call where a manual search must reconstruct it file by file.
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 5–7 | 1 | 1 |
+| Entities found | Partial, cross-directory spread causes misses | 8 — complete, all directories | 8 — complete |
+| Token Cost | ~3,000 | ~227 | ~162 |
+| Token Reduction | — | **−92%** | **−95%** |
+| Execution Time | ~3s | 6ms | <1ms |
+| Speedup | — | **~500×** | **~3,000×** |
 
 ---
 
-## Query Benchmarks
+## Test 2 — DB Implementation Hierarchy
 
-The primary purpose of Project Mapper is **token reduction**. Each test below compares what an AI agent would consume without PM (Grep + Read source files) against a single PM API call.
+**Question:** *"What concrete implementations of LevelDB's DB interface exist?"*
 
-> **"Normal" baseline:** LevelDB's source is well-laid-out across ~5 directories. An experienced developer knows where to look, but several files are large (notably `db/db_impl.cc` at ~2,000 lines). Token estimates assume the agent knows which directory to search and reads 3–6 relevant source files per question.
->
-> **Query latency (v1.5.0):** cold miss ~4 ms (< 0.5 MB snapshot load); warm hits < 2 ms (in-memory cache, mtime-validated).
+**Standard Workflow (Grep + Read):** Read `include/leveldb/db.h` to understand the abstract DB interface (~130 lines), then `db/db_impl.h` to see DBImpl. A separate search is needed to find `ModelDB` defined inside `db/db_test.cc` — a test-only implementation that validates the interface contract but is invisible from the public headers alone. 2–3 reads, ~1,500 tokens.
 
----
+**With Project Mapper:** `pm_impact "DB" depth=2 exclude_tests=True`
 
-### L1 — Iterator Hierarchy
-
-**Question:** *"What Iterator implementations does LevelDB provide — and what does each cover?"*
-
-**Normal approach:** `grep -rn ": public Iterator"` across the codebase finds 8 match lines giving class names and files. The agent then reads each implementation to understand its role:
-- `include/leveldb/iterator.h` — base class + factories (~150 lines)
-- `db/db_iter.cc` — DBIter, the user-facing iterator wrapping memtable + sstable reads (~500 lines)
-- `table/merger.cc` — MergingIterator, merges N sorted iterators during compaction (~250 lines)
-- `table/two_level_iterator.cc` — TwoLevelIterator, navigates index blocks → data blocks (~200 lines)
-- `db/memtable.cc` — MemTableIterator, in-memory skiplist iterator (~300 lines)
-- `table/block.cc` — Block::Iter, iterates individual SST data blocks (~300 lines)
-
-The nested iterators `Version::LevelFileNumIterator` (inside `db/version_set.cc`) and `EmptyIterator` (in utility code) are easy to miss without cross-file search. 6 reads × ~300 tok avg + grep overhead = ~4,000 tokens.
-
-**PM approach:** `impact("Iterator", via_kinds=["extends"], exclude_tests=True)`
-
-**8 Iterator implementations returned — complete read-path hierarchy:**
-```
-DBIter                      db/db_iter.cc           user-facing iterator (key deduplication, snapshot visibility)
-MemTableIterator            db/memtable.cc          in-memory skiplist scan
-Block::Iter                 table/block.cc          individual SST data-block iteration
-TwoLevelIterator            table/two_level_iterator.cc  index-block → data-block traversal
-MergingIterator             table/merger.cc         N-way merge during compaction reads
-EmptyIterator               util/                   null/error iterator for failed opens
-KeyConvertingIterator       db/                     test helper — strips internal key sequence
-Version::LevelFileNumIterator  db/version_set.cc   SST file-number iterator (inside Version)
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 6–8 | **1** | **1** |
-| Tokens consumed | ~4,000 | **~414** | **~212** |
-| Iterators found | Partial (Block::Iter and Version::LevelFileNumIterator routinely missed) | **8 — complete, cross-directory** | **8 — complete** |
-| Savings vs Normal | — | **~9.7×** | **~18.9×** |
-
-> `Version::LevelFileNumIterator` is defined as a nested class *inside* `Version` in `db/version_set.cc`. Without PM, finding it requires knowing to look inside `version_set.cc` — a file primarily associated with snapshot and version management, not iteration.
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 2–3 | 1 | 1 |
+| Entities found | DBImpl only; ModelDB in test file always missed | 2 — complete, incl. test impl | 2 — complete |
+| Token Cost | ~1,500 | ~68 | ~63 |
+| Token Reduction | — | **−95%** | **−96%** |
+| Execution Time | ~2s | <1ms | <1ms |
+| Speedup | — | **~2,000×** | **~2,000×** |
 
 ---
 
-### L2 — Compaction Engine Context
+## Test 3 — Compaction & Version System
 
-**Question:** *"What's involved in LevelDB's compaction and merge process?"*
+**Question:** *"What components manage LevelDB's LSM-tree compaction and versioning?"*
 
-**Normal approach:** `db/db_impl.cc` is LevelDB's largest file (~2,000 lines). The compaction path — `DoCompactionWork`, `BackgroundCompaction`, `InstallCompactionResults` — occupies its final third. The agent reads the full file (~2,000 tok) plus `table/merger.cc` (MergingIterator, used during compaction merges, ~250 tok), plus `db/dbformat.h` for key formats used during merge (~300 tok). Total: ~3,500-5,000 tokens.
+**Standard Workflow (Grep + Read):** Read `db/version_set.h` (~400 lines, defines Version, VersionSet, Compaction, VersionSet::Builder) and `db/version_set.cc` (~900 lines, implements them). The relationship between Compaction, Version, and the TwoLevelIterator used during compaction reads is not obvious from the header alone. 3–4 reads, ~4,000 tokens.
 
-**PM approach:** `context("compaction merge level")`
+**With Project Mapper:** `pm_context "compaction version level lsm"`
 
-**19 entities returned — compaction engine cross-mapped:**
-```
-[module] db/db_impl.cc                 → background compaction, DoCompactionWork, key merging
-[module] db/compaction.cc / .h         → Compaction object
-[module] table/merger.cc               → MergingIterator (N-way merge)
-[module] db/dbformat.cc / .h           → InternalKey, UserKey, sequence numbers
-[class]  DBImpl::CompactionState       → per-compaction state machine
-[class]  Compaction                    → compaction job descriptor
-[class]  MergingIterator               → N-way sorted merge iterator
-...
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 3–5 | **1** | **1** |
-| Tokens consumed | ~5,000 | **~888** | **~319** |
-| Entities surfaced | 2–3 files read (compaction logic missed without traversing db_impl.cc in full) | **19 — incl. CompactionState + MergingIterator cross-link** | **19 entities** |
-| Savings vs Normal | — | **~5.6×** | **~15.7×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 3–4 | 1 | 1 |
+| Entities found | Partial, cross-file links between Version and iterators missed | 30 ranked — complete | 30 ranked — complete |
+| Token Cost | ~4,000 | ~648 | ~262 |
+| Token Reduction | — | **−84%** | **−93%** |
+| Execution Time | ~4s | 3ms | 2ms |
+| Speedup | — | **~1,300×** | **~2,000×** |
 
 ---
 
-### L3 — Version & Snapshot Management
+## Test 4 — Write Path Components
 
-**Question:** *"What entities are involved in LevelDB's version management and snapshot system?"*
+**Question:** *"What components make up LevelDB's write path (batching, memtable insertion, WAL logging)?"*
 
-**Normal approach:** Read `db/version_set.cc` (~1,300 lines, ~1,300 tok) + `db/version_edit.cc` (~400 lines) + `db/snapshot.h` (~100 lines) + `db/version_set.h` (~400 lines) + `db/version_edit.h` (~200 lines). 5 reads × avg ~500 tok = ~3,500-4,000 tokens. The connection between VersionSet, VersionEdit (change-log entries) and the MANIFEST file format requires reading across all these files.
+**Standard Workflow (Grep + Read):** Read `include/leveldb/write_batch.h`, `db/write_batch.cc`, `db/log_writer.h`, `db/memtable.h`. The `MemTableInserter` helper class (inside `write_batch.cc`) and the `Logger` implementation hierarchy (WindowsLogger, PosixLogger, NoOpLogger — spread across `util/` and `helpers/`) are easily missed. 4–5 reads, ~3,500 tokens.
 
-**PM approach:** `context("version snapshot manifest")`
+**With Project Mapper:** `pm_context "write batch memtable log"`
 
-**30 entities returned — version-management layer fully mapped:**
-```
-[module] db/version_set.cc / .h        → VersionSet, Version, VersionEdit recovery
-[module] db/version_edit.cc / .h       → VersionEdit — change records written to MANIFEST
-[module] db/snapshot.h                 → SnapshotList, SnapshotImpl
-[module] db/dbformat.cc / .h           → InternalKey, key comparators
-[module] db/filename.cc / .h           → MANIFEST file naming
-[class]  VersionSet::Builder            → incremental VersionEdit application
-[class]  SnapshotImpl                  → per-snapshot sequence-number anchor
-[class]  VersionEdit                   → atomic change record
-...
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 4–6 | **1** | **1** |
-| Tokens consumed | ~4,000 | **~1,301** | **~404** |
-| Entities surfaced | 3 main files (snapshot.h and filename.cc often missed) | **30 — full version layer, incl. SnapshotList + MANIFEST naming** | **30 entities** |
-| Savings vs Normal | — | **~3.1×** | **~9.9×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 4–5 | 1 | 1 |
+| Entities found | Partial, Logger hierarchy and MemTableInserter routinely missed | 28 ranked — complete | 28 ranked — complete |
+| Token Cost | ~3,500 | ~498 | ~240 |
+| Token Reduction | — | **−86%** | **−93%** |
+| Execution Time | ~3.5s | 1ms | 1ms |
+| Speedup | — | **~3,500×** | **~3,500×** |
 
 ---
 
-### L4 — DB Implementation Context
+## Test 5 — SSTable Format Components
 
-**Question:** *"I'm about to work on LevelDB's core DB operations (open, put, get, delete) — what should I know?"*
+**Question:** *"What classes define LevelDB's SSTable (sorted string table) on-disk format?"*
 
-**Normal approach:** Read `db/db_impl.cc` (~2,000 lines = ~2,000 tok) for the `Open`, `Put`, `Get`, `Delete` implementations. Read `db/db_impl.h` (~200 lines) for the class layout. Read `db/dbformat.h` (~300 lines) for key formats used in the write path. 3 reads + grep overhead = ~3,500-5,000 tokens. The connection to `db/builder.cc` (SST file builder used during flush) and `db/db_iter.cc` (iterator used in Get) is typically missed.
+**Standard Workflow (Grep + Read):** Browse `table/` directory: read `block.h` + `block.cc` (Block, Block::Iter), `format.h` (BlockHandle, Footer, BlockContents), `filter_block.h` (FilterBlockBuilder, FilterBlockReader), `block_builder.h`. Five small files, but each must be read individually. The dependency relationships between them (e.g., FilterBlockBuilder is used by the Table builder, which uses BlockHandle from format.h) require mental cross-referencing. 5–6 reads, ~4,000 tokens.
 
-**PM approach:** `context("DBImpl open put get")`
+**With Project Mapper:** `pm_context "table block sstable format"`
 
-**30 entities returned — core database operation layer:**
-```
-[module] db/db_impl.cc / .h            → DBImpl, Get/Put/Delete/Write implementation
-[module] db/db_iter.cc / .h            → DBIter, used in Get's scan path
-[module] db/builder.cc / .h            → SST builder (used during MemTable flush)
-[module] db/dbformat.cc / .h           → internal key format for all operations
-[module] benchmarks/db_bench_log.cc    → benchmark logging companion
-[class]  DBImpl::Writer                → write-batch grouping internal class
-[class]  DBImpl::CompactionState       → compaction state machine
-[class]  ModelDB                       → test-only DB skeleton
-...
-```
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 3–5 | **1** | **1** |
-| Tokens consumed | ~5,000 | **~1,264** | **~373** |
-| Entities surfaced | 2–3 core files (builder.cc + db_iter.cc connection missed) | **30 — complete write/read path across 6 modules** | **30 entities** |
-| Savings vs Normal | — | **~4.0×** | **~13.4×** |
+| | Normal | PM (Full) | PM (Slim) |
+|:---|---:|---:|---:|
+| Tool calls | 5–6 | 1 | 1 |
+| Entities found | All 5 files readable, but cross-file relationships not shown | 30 ranked — incl. format deps + filter | 30 ranked — complete |
+| Token Cost | ~4,000 | ~673 | ~277 |
+| Token Reduction | — | **−83%** | **−93%** |
+| Execution Time | ~4s | 1ms | 1ms |
+| Speedup | — | **~4,000×** | **~4,000×** |
 
 ---
 
-### L5 — DBIter Inheritance Path
+## Summary
 
-**Question:** *"Is `DBIter` a proper `Iterator` — does it implement the full interface contract?"*
-
-**Normal approach:** `grep -rn "DBIter"` finds `db/db_iter.h` and `db/db_iter.cc`. Read `db/db_iter.h` (~100 lines) to see `class DBIter : public Iterator`. Read `include/leveldb/iterator.h` to understand the interface contract. 2 reads + grep = ~800 tokens.
-
-**PM approach:** `path("DBIter", "Iterator")`
-
-**Result (1-hop semantic path):**
-```
-DBIter
-  --[extends]--> Iterator
-```
-
-`DBIter` directly implements `Iterator`. Confirmed in 84 tokens.
-
-| Metric | Normal (Grep/Read) | PM (Full) | PM (Slim) |
-|:---|:---|:---|:---|
-| Tool calls | 2–3 | **1** | **1** |
-| Tokens consumed | ~800 | **~84** | **~36** |
-| Relationship confirmed | Yes — requires reading db_iter.h | **Yes — 1 hop, immediate** | **Yes** |
-| Savings vs Normal | — | **~9.5×** | **~22.2×** |
+| Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
+|:---|:---|---:|---:|---:|---:|---:|---:|
+| Test 1 | Iterator type catalog | ~3,000 tok | ~227 tok | ~162 tok | **−92%** | **−95%** | ~500× |
+| Test 2 | DB implementation hierarchy | ~1,500 tok | ~68 tok | ~63 tok | **−95%** | **−96%** | ~2,000× |
+| Test 3 | Compaction & version system | ~4,000 tok | ~648 tok | ~262 tok | **−84%** | **−93%** | ~1,300× |
+| Test 4 | Write path components | ~3,500 tok | ~498 tok | ~240 tok | **−86%** | **−93%** | ~3,500× |
+| Test 5 | SSTable format components | ~4,000 tok | ~673 tok | ~277 tok | **−83%** | **−93%** | ~4,000× |
 
 ---
 
-## Headline Numbers
+Geometric mean savings: **−88% token reduction (Full) · −94% token reduction (Slim)** · **~1,800× faster navigation**
 
-| Test | Question | Normal | PM (Full) | PM (Slim) | Savings (Full) | Savings (Slim) |
-|:---|:---|:---|:---|:---|:---|:---|
-| L1 | Iterator hierarchy | ~4,000 tok | **~414 tok** | **~212 tok** | **9.7×** | **18.9×** |
-| L2 | Compaction engine context | ~5,000 tok | **~888 tok** | **~319 tok** | **5.6×** | **15.7×** |
-| L3 | Version & snapshot management | ~4,000 tok | **~1,301 tok** | **~404 tok** | **3.1×** | **9.9×** |
-| L4 | DB implementation context | ~5,000 tok | **~1,264 tok** | **~373 tok** | **4.0×** | **13.4×** |
-| L5 | DBIter → Iterator path | ~800 tok | **~84 tok** | **~36 tok** | **9.5×** | **22.2×** |
-
-**Geometric mean savings:** PM Full **~6×** · PM Slim **~15×** across all five tests.
-
-> LevelDB's clean abstract-interface design makes it one of the strongest benchmarks in this suite despite its small size (133 files). The `Iterator` hierarchy (L1) is the standout — 9.7× savings, and PM finds all 8 implementations including `Version::LevelFileNumIterator` (nested inside `db/version_set.cc`) and `Block::Iter` (nested inside the `Block` class), which a manual search routinely misses.
->
-> L2 and L4 benefit from the size of `db/db_impl.cc`: at ~2,000 lines, it's the kind of file where an agent reading it for context spends 2,000 tokens to get oriented, while PM surfaces the 30 most relevant entities in 888–1,264 tokens. The ~15× Slim geomean is the highest in the benchmark suite for a C++ codebase — LevelDB's consistent OOP structure means every query type (hierarchy, context, path) delivers strong Slim savings.
-
----
-
-## Notes on C++ Indexing
-
-LevelDB's use of the `LEVELDB_EXPORT` visibility macro (`class LEVELDB_EXPORT Env`, `class LEVELDB_EXPORT DB`, etc.) required preprocessing before tree-sitter parsing. PM strips these attribute macros automatically. However, a few entities (`Env`, `DBImpl`) were not captured as indexed base classes due to parse complexity in large files — `DB`'s concrete implementations were found via the stub-resolution path, and context queries cover all relevant modules regardless.
-
----
+> LevelDB is a clean, focused C++ storage engine (~24,000 lines, 603 entities) — one of the smaller codebases in this suite. The high token reduction (−88% Full, −94% Slim) comes from LevelDB's structure: key types like `Version`, `Compaction`, and `TwoLevelIterator` are defined in single large files (`version_set.cc` is ~900 lines), making file reads expensive relative to a PM query. T2 shows the sharpest completeness advantage: the `DB` interface has exactly two implementations — `DBImpl` (production) and `ModelDB` (test double inside `db_test.cc`) — and manual grep+read always misses the second one. T1's cross-directory iterator scan (6 different source files across `db/` and `table/`) delivers −92% Full and −95% Slim in under 1ms.
 
 ## Reproducing
 
-```bash
-# 1. Clone LevelDB
-git clone https://github.com/google/leveldb
-
-# 2. Start PM server
-cd /path/to/aethvion-project-mapper
-python -m uvicorn server:app --port 7474
-
-# IMPORTANT: always use 127.0.0.1, not localhost
-
-# 3. Full scan
-curl -X POST http://127.0.0.1:7474/api/project-mapper/scan \
-  -H "Content-Type: application/json" \
-  -d '{"project_root":"/path/to/leveldb","db":"leveldb","incremental":false}'
-
-# 4. L1 — Iterator hierarchy
-curl -X POST http://127.0.0.1:7474/api/project-mapper/query/impact \
-  -H "Content-Type: application/json" \
-  -d '{"entity":"Iterator","db":"leveldb","via_kinds":["extends"],"exclude_tests":true}'
-
-# 5. L2 — Compaction context
-curl -X POST http://127.0.0.1:7474/api/project-mapper/query/context \
-  -H "Content-Type: application/json" \
-  -d '{"q":"compaction merge level","db":"leveldb","depth":1,"max_results":30}'
-
-# 6. L5 — DBIter path
-curl -X POST http://127.0.0.1:7474/api/project-mapper/query/path \
-  -H "Content-Type: application/json" \
-  -d '{"from_entity":"DBIter","to_entity":"Iterator","db":"leveldb"}'
 ```
+# 1. Clone the target repository
+git clone https://github.com/google/leveldb /path/to/leveldb
 
----
+# 2. Scan with Project Mapper
+pm_scan project_root="/path/to/leveldb" db="leveldb" incremental=false
 
-*Benchmark conducted 2026-06-10 · Aethvion Project Mapper v1.5.0 · Python 3.10.11 · Windows 11 · i9-13900K · RTX 4090*
+# Test 1
+pm_impact entity="Iterator" db="leveldb" depth=1 exclude_tests=true
+
+# Test 2
+pm_impact entity="DB" db="leveldb" depth=2 exclude_tests=true
+
+# Test 3
+pm_context query="compaction version level lsm" db="leveldb"
+
+# Test 4
+pm_context query="write batch memtable log" db="leveldb"
+
+# Test 5
+pm_context query="table block sstable format" db="leveldb"
+```
