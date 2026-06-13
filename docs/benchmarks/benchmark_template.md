@@ -14,8 +14,9 @@
 | Total lines | 0 |
 | Entities indexed | 0 |
 | Scan time | 0.0 s |
-| Total Lines | 0 |
 | Throughput | 0 lines/sec |
+
+Geometric mean savings: ~0% token reduction · ~× faster navigation
 
 ---
 
