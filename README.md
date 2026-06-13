@@ -1,7 +1,8 @@
 # Aethvion Project Mapper
 
 > **Give your AI coding agent a living map of your codebase.**  
-> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **8–13× fewer tokens** than reading raw files.
+> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **87–92% fewer tokens** than reading raw files.  
+> **Runs entirely on your machine.** No data leaves your computer.
 
 ---
 
@@ -34,7 +35,7 @@ uv tool install "aethvion-project-mapper[languages]"
 
 Or jump to the [full MCP config section](#mcp-stdio-claude-code--cursor--antigravity--codex) below for raw JSON.
 
-New here? The [`docs/explained/`](docs/explained/) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), and [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md).
+New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md), and the [full tools reference](docs/explained/pm-tools-reference.md).
 
 ---
 
@@ -42,7 +43,7 @@ New here? The [`docs/explained/`](docs/explained/) folder covers [what Project M
 
 AI coding agents (Claude Code, Cursor, Copilot, etc.) search through your files on every task — reading source files, following imports, grepping for context. That's expensive and slow, and context windows fill up with semi-relevant content before the agent sees what actually matters.
 
-Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, reducing token costs by **83–92% on average**.
+Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, reducing token costs by **87–92% on average**.
 
 ---
 
@@ -50,14 +51,16 @@ Project Mapper scans your codebase once, builds a structured knowledge graph of 
 
 Measured across [11 real-world codebases](docs/benchmarks/README.md) — Python, Java/Kotlin, C#, PHP, C, Go, Ruby, TypeScript/JS, Rust, C++, Swift — ranging from 57 to 11,083 files.
 
-### Token reduction (geometric mean across 11 benchmarks)
+### Summary (Geometric Mean across all 11 projects)
 
-| | Normal (Grep + Read) | PM Full | PM Slim |
-|---|---|---|---|
-| Tokens per query | baseline | **~8× less** | **~13× less** |
-| At 100,000 input tokens | 100,000 | **~13,000** | **~8,000** |
+| Mode | Token Reduction | Speedup vs Normal |
+|:---|:---|:---|
+| **PM Full** | **~87%** | **~380×** faster |
+| **PM Slim** | **~92%** | **~380×** faster |
 
-PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. See the [benchmark suite](docs/benchmarks/README.md) for per-codebase numbers.
+At 100,000 input tokens, PM typically uses **~13,000** (Full) or **~8,000** (Slim) tokens.
+
+PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. See the [full benchmark suite](docs/benchmarks/README.md) for per-codebase numbers and the [security benchmark](docs/benchmarks_security/README.md) for a 3-test audit comparison.
 
 ### Query latency (measured)
 
@@ -78,7 +81,7 @@ The entity map is stored as a single snapshot file built at the end of each scan
 
 ### Financial impact at scale (modelled)
 
-> Modelled from the measured ~8× Full / ~13× Slim token reduction (geomean, 11 codebases). Assumes
+> Modelled from the measured ~87% Full / ~92% Slim token reduction (geomean, 11 codebases). Assumes
 > 10 tasks/dev/day, 8 turns/task, Claude Sonnet pricing. See the
 > [cost calculator](https://aethvion.com/projectmapper.html) for your own numbers.
 
@@ -95,17 +98,33 @@ The entity map is stored as a single snapshot file built at the end of each scan
 
 1. **Static scan** — walks your project, extracts every module / class / function via AST analysis. No AI needed for this step.
 2. **Knowledge graph** — stores entities + relationships (imports, calls, extends, depends_on, …) in a local JSON database.
-3. **Agent queries** — 7 MCP tools that agents call instead of reading raw files:
+3. **Agent queries** — 10 MCP tools that agents call instead of reading raw files:
 
 | Tool | What it answers |
 |---|---|
 | `pm_context` | "What should I know before touching the auth system?" |
 | `pm_impact` | "What breaks if I change `UserService`?" |
 | `pm_path` | "How does `RateLimiter` connect to the payment flow?" |
+| `pm_find` | "Where is `validateToken` defined?" |
+| `pm_orphans` | "What code is never called?" |
+| `pm_security` | "Are there security vulnerabilities in this codebase?" |
 | `pm_contribute` | "Record that I added rate limiting to endpoint X" |
 | `pm_stats` | "What's already indexed in this database?" |
 | `pm_delta` | "What changed since the last scan?" |
 | `pm_scan` | "Scan this project directory right now" |
+
+See the [PM Tools Reference](docs/explained/pm-tools-reference.md) for full documentation on each tool.
+
+## Security scanning
+
+`pm_security` is a standalone SAST-style scanner built into Project Mapper. One call checks your entire codebase — no scan dependency, no setup beyond installation.
+
+- **132+ patterns** across OWASP Top 10 (A01–A10) in 8 languages: Python, TypeScript/JS, Java, Go, C#, PHP, Ruby, C/C++
+- **Runs in 1–5 seconds** on codebases of any size
+- **Route-reachability taint tracking** — ⚡ flags findings confirmed reachable from HTTP handlers
+- **CWE mapping** on every finding, stable finding IDs for triage persistence, snapshot delta across scans
+
+It's designed to work alongside `pm_context`: `pm_security` catches pattern-detectable vulnerabilities across 100% of files in seconds; `pm_context` then closes the logic-flaw and IDOR gaps that patterns can't detect. See the [security benchmark](docs/benchmarks_security/README.md) for a 3-test comparison on OWASP Juice Shop.
 
 ---
 
@@ -148,7 +167,7 @@ PROJECTS_DIR=/home/you/code docker compose up
 
 ### MCP stdio (Claude Code / Cursor / Antigravity / Codex)
 
-> Detailed step-by-step setup guides (including Windows and Linux/macOS paths) are in [`docs/howto/`](docs/howto/).
+> Detailed step-by-step setup guides (including Windows and Linux/macOS paths) are in [`docs/howto/`](docs/howto/README.md).
 
 A single global config gives every session access to Project Mapper. The AI passes the project root when it calls `pm_scan`, so you don't need to specify it upfront — just tell Claude (or Cursor, etc.) to scan the current project and it handles the rest.
 
@@ -266,7 +285,7 @@ project_mapper/
 ├── query.py           — Impact / context / shortest-path algorithms
 ├── cleanup.py         — Incremental scan maintenance
 ├── delta.py           — Filesystem diff (no DB writes)
-├── mcp_tools.py       — 7 MCP tool schemas + handlers
+├── mcp_tools.py       — 10 MCP tool schemas + handlers
 ├── mcp_server.py      — JSON-RPC 2.0 stdio MCP server
 └── db/
     ├── entity_schema.py   — Entity data model + validation
