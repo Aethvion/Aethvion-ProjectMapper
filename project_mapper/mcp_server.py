@@ -99,8 +99,17 @@ poll pm_stats. Incremental (default) only re-processes changed files.
 use slim=false when you need docstrings/summaries instead.
 4. pm_find for one symbol's definition, callers, and callees. pm_impact for \
 blast radius before a change. pm_path to connect two entities.
-5. pm_contribute to save your findings (properties, relations, rationale) back \
+5. pm_visualize to generate a Mermaid or DOT subgraph around a named entity \
+(depth, direction, relation-kind filters). Paste the block into a PR or doc.
+6. pm_contribute to save your findings (properties, relations, rationale) back \
 into the graph for future sessions.
+
+Security scanning (no pm_scan required):
+- pm_security scans raw files for OWASP Top 10 patterns (140+ rules, 8 \
+languages). Run once for instant full-codebase coverage with stable finding \
+IDs. Use pm_security_triage to mark false positives so they stay hidden on \
+subsequent runs. Combine with pm_context to close logic-flaw gaps patterns \
+cannot detect.
 
 Important notes:
 - One database per project root. Scanning a different root into the same \
