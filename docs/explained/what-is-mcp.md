@@ -36,7 +36,7 @@ The whole exchange is local. The MCP server for Project Mapper is just a Python 
 
 ## What Project Mapper's MCP tools can do
 
-Project Mapper exposes 10 tools:
+Project Mapper exposes 12 tools:
 
 | Tool | What the AI can do |
 |---|---|
@@ -46,12 +46,14 @@ Project Mapper exposes 10 tools:
 | `pm_path` | Find the connection between two parts of the codebase |
 | `pm_find` | Look up a specific symbol by name |
 | `pm_orphans` | Find dead code — entities with no inbound references |
-| `pm_security` | Run a security scan (132+ OWASP patterns) across the full codebase |
+| `pm_visualize` | Generate a dependency-graph diagram (Mermaid/DOT) around an entity |
+| `pm_security` | Run a security scan (140+ OWASP patterns) across the full codebase |
+| `pm_security_triage` | Mark a finding as false-positive, confirmed, or resolved (persists across scans) |
 | `pm_contribute` | Write a note about something the AI discovered (e.g. "I added rate limiting here") |
 | `pm_stats` | Get a summary of what is currently indexed |
 | `pm_delta` | See what files changed since the last scan |
 
-That is the complete list. The AI cannot use Project Mapper to read arbitrary files, run commands, access the internet, or do anything outside these 10 actions. For a full description of each tool, see the [PM Tools Reference](pm-tools-reference.md).
+That is the complete list. The AI cannot use Project Mapper to read arbitrary files, run commands, access the internet, or do anything outside these 12 actions. For a full description of each tool, see the [PM Tools Reference](project-mapper-tools.md).
 
 ---
 

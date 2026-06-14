@@ -6,7 +6,7 @@ Regex-pattern-based static analysis — patterns are applied to source text,
 no AST or extra parsing required.  Run on-demand via the pm_security MCP tool
 (never during normal pm_scan so it adds zero overhead there).
 
-Coverage: OWASP Top 10 (2021), 132+ patterns across Python, JS/TS, PHP, Ruby,
+Coverage: OWASP Top 10 (2021), 140+ patterns across Python, JS/TS, PHP, Ruby,
 Go, Java, C#, and C/C++.  Every finding carries a CWE ID, OWASP category,
 severity, taint-reachability flag, and a one-line remediation hint.
 

@@ -238,13 +238,37 @@ Scans all files in the project (not just indexed ones) using 140+ static pattern
 **Key output features:**
 - ⚡ `ROUTE-REACHABLE` flag on findings confirmed reachable from HTTP handlers (taint tracking)
 - Stable 8-char hex finding IDs — persist across scans for triage workflows
-- Triage lifecycle: `new` / `acknowledged` / `fixed` / `false-positive` states
+- Triage lifecycle (via `pm_security_triage`): `unreviewed` / `false_positive` / `verified_vulnerability` / `resolved`
 - Snapshot delta: `+N new  ✓N resolved since last scan`
 - Top files by risk score, OWASP category bar chart
 
 **Note on rule precision:** `pm_security` maps generic patterns to broad CWE categories (e.g., all `vm.runInContext` calls → CWE-95 Eval Injection). In an agentic workflow, the agent reads the surrounding context to reclassify specific instances — `vm.runInContext` wrapping XML parsing becomes XXE (CWE-611); wrapping `yaml.load()` becomes DoS (CWE-400). Generic detection + contextual reclassification is the intended division of labour.
 
 **When to use:** at the start of any security-focused session, or as a routine check after merging new code. Results are most valuable when combined with `pm_context` follow-up queries to investigate the logic-flaw gaps that patterns cannot detect. See the [security benchmark](../benchmarks_security/pm-security-benchmark-juice-shop.md) for a detailed comparison.
+
+---
+
+## pm_security_triage
+
+**Records a review verdict on a security finding so it persists across future scans.**
+
+`pm_security` assigns every finding a stable 8-char hex ID. `pm_security_triage` lets the agent (or you) mark what a finding actually is — false positives stop reappearing, and confirmed bugs stay visible until they're fixed.
+
+| Parameter | Description |
+|:---|:---|
+| `status` | New verdict: `"false_positive"`, `"verified_vulnerability"`, `"resolved"`, or `"unreviewed"` (required) |
+| `id` | The 8-char finding ID from `pm_security` output — triages a single finding |
+| `file` | File-path substring — bulk-triages every finding in matching files |
+| `notes` | Investigation notes stored alongside the finding |
+| `project_root` | Absolute path to the project (defaults to the configured root) |
+
+**What each status means:**
+- `unreviewed` — default; the finding still needs investigation
+- `false_positive` — confirmed safe; hidden from future `pm_security` output to save tokens
+- `verified_vulnerability` — confirmed real; kept visible as a reminder until fixed
+- `resolved` — auto-set when a previously triaged finding disappears from the codebase
+
+**When to use:** right after investigating `pm_security` results. Triage verdicts are written to the findings snapshot and survive re-scans, so the noise you've already cleared never comes back.
 
 ---
 
@@ -273,3 +297,4 @@ Configured via the `--watch` flag on the MCP server or via the `pm_watch` tool c
 | `pm_orphans` | What code is unused? | 10–100 ms |
 | `pm_visualize` | Show the dependency graph for entity X | < 50 ms |
 | `pm_security` | Are there security vulnerabilities? | 1–5 s (full codebase) |
+| `pm_security_triage` | Mark a finding false-positive / confirmed / resolved | < 5 ms |

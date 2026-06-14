@@ -41,18 +41,22 @@ Project Mapper solves this by scanning your code once and storing a summary — 
 
 ## Supported languages
 
-Project Mapper currently extracts structured data from:
+Project Mapper currently extracts structured data from **13 languages**:
 
 | Language | What is extracted |
 |---|---|
 | Python | Modules, classes, functions, imports, calls, docstrings |
-| TypeScript / JavaScript | Classes, interfaces, functions, arrow functions, imports, JSDoc |
-| Java / Kotlin | Classes, interfaces, methods, imports |
-| C# | Classes, interfaces, methods, namespaces |
-| PHP | Classes, functions, methods |
-| Ruby | Classes, modules, methods |
-| C / C++ | Functions, structs, includes |
+| JavaScript | Classes, functions, arrow functions, imports, JSDoc |
+| TypeScript | Classes, interfaces, functions, arrow functions, imports, JSDoc |
+| Java | Classes, interfaces, methods, imports |
+| Kotlin | Classes, interfaces, methods, imports |
+| Go | Functions, structs, interfaces, imports |
 | Rust | Functions, structs, traits, modules |
+| C | Functions, structs, includes |
+| C++ | Functions, classes, structs, includes |
+| C# | Classes, interfaces, methods, namespaces |
+| Ruby | Classes, modules, methods |
+| PHP | Classes, functions, methods |
 | Swift | Classes, structs, protocols, functions |
 
 Other file types are indexed by file path only (not parsed) so they still appear in the graph.

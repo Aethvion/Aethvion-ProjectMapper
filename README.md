@@ -35,7 +35,7 @@ claude mcp add -s user project-mapper -- pm-mcp --db workspace
 
 Step-by-step per-agent guides: [`docs/howto/`](docs/howto/README.md)
 
-New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md), and the [full tools reference](docs/explained/pm-tools-reference.md).
+New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md), and the [full tools reference](docs/explained/project-mapper-tools.md).
 
 ---
 
@@ -98,7 +98,7 @@ The entity map is stored as a single snapshot file built at the end of each scan
 
 1. **Static scan** — walks your project, extracts every module / class / function via AST analysis. No AI needed for this step.
 2. **Knowledge graph** — stores entities + relationships (imports, calls, extends, depends_on, …) in a local JSON database.
-3. **Agent queries** — 11 MCP tools that agents call instead of reading raw files:
+3. **Agent queries** — 12 MCP tools that agents call instead of reading raw files:
 
 | Tool | What it answers |
 |---|---|
@@ -109,12 +109,13 @@ The entity map is stored as a single snapshot file built at the end of each scan
 | `pm_orphans` | "What code is never called?" |
 | `pm_visualize` | "Show me the dependency graph for `UserService`" |
 | `pm_security` | "Are there security vulnerabilities in this codebase?" |
+| `pm_security_triage` | "Mark this finding as a false positive (or a confirmed bug)" |
 | `pm_contribute` | "Record that I added rate limiting to endpoint X" |
 | `pm_stats` | "What's already indexed in this database?" |
 | `pm_delta` | "What changed since the last scan?" |
 | `pm_scan` | "Scan this project directory right now" |
 
-See the [PM Tools Reference](docs/explained/pm-tools-reference.md) for full documentation on each tool.
+See the [PM Tools Reference](docs/explained/project-mapper-tools.md) for full documentation on each tool.
 
 ## Security scanning
 
@@ -310,7 +311,7 @@ project_mapper/
 ├── query.py           — Impact / context / shortest-path algorithms
 ├── cleanup.py         — Incremental scan maintenance
 ├── delta.py           — Filesystem diff (no DB writes)
-├── mcp_tools.py       — 10 MCP tool schemas + handlers
+├── mcp_tools.py       — 12 MCP tool schemas + handlers
 ├── mcp_server.py      — JSON-RPC 2.0 stdio MCP server
 └── db/
     ├── entity_schema.py   — Entity data model + validation

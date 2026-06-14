@@ -1,6 +1,6 @@
 # Project Mapper Benchmarks
 
-Real-world benchmarks across 11 languages and open-source projects (v1.8.0).
+Real-world benchmarks across 11 open-source projects (v1.8.0).
 
 **Date:** 2026-06-13
 

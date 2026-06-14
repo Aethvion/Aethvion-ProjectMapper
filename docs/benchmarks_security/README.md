@@ -11,7 +11,7 @@ Each benchmark runs three independent tests on the same target. Each test is sta
 | Phase | Method | Goal |
 |:---|:---|:---|
 | 1 — Manual | Grep + Read + Glob only | Establish baseline: what a skilled agent finds without PM tools |
-| 2 — pm_security | Single `pm_security` call | Full pattern coverage — OWASP Top 10, 132+ rules, 100% file scan |
+| 2 — pm_security | Single `pm_security` call | Full pattern coverage — OWASP Top 10, 140+ rules, 100% file scan |
 | 3 — pm_security + pm | pm_security + targeted PM queries | Close logic/architecture gaps that patterns miss |
 
 **No hiding behind favourable results.** If manual finds something PM misses, it's listed. If PM finds something manual misses, it's listed. Both gaps appear in every benchmark.
