@@ -507,26 +507,13 @@ async def run_scan(
         f"created={stats['entities_created']}"
     )
 
-    # Build snapshot so the next list_all() call uses the fast single-file path
-    # instead of reading N individual entity files.  This runs after the scan
-    # key is popped so it does not block start_scan() for the same db_root.
-    #
-    # PMEntityStore provides flush() which writes the snapshot + name index in
-    # one call (no entity files to read back first).  EntityWriter falls back
-    # to the original list_all() + snapshot.build() two-step.
+    # Flush: write snapshot + name index to disk in a single atomic call.
+    # Runs after the scan key is popped so it does not block start_scan()
+    # for the same db_root.
     try:
-        if hasattr(writer, "flush"):
-            # PMEntityStore: single in-memory → snapshot write
-            await asyncio.to_thread(writer.flush)
-        else:
-            # EntityWriter: read all entity files, then build snapshot
-            from .db import snapshot as _snap
-            all_for_snap = await asyncio.to_thread(
-                writer.list_all, True, False   # include_deleted=True, use_snapshot=False
-            )
-            await asyncio.to_thread(_snap.build, db_root, all_for_snap)
+        await asyncio.to_thread(writer.flush)
     except Exception as exc:
-        logger.warning(f"[Scanner] Snapshot build failed (non-critical): {exc}")
+        logger.warning(f"[Scanner] Snapshot flush failed (non-critical): {exc}")
 
 
 

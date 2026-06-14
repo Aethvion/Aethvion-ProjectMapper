@@ -37,7 +37,7 @@ from typing import Any, Optional
 class MCPContext:
     db_root:        Path
     db_name:        str
-    writer:         Any    # EntityWriter
+    writer:         Any    # PMEntityStore
     index:          Any    # NameIndex
     file_manifest:  Any    # FileManifest
     project_root:   Optional[str] = None   # default project dir for scan/delta

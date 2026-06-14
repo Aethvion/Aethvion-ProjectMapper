@@ -134,7 +134,7 @@ def make_empty(
 ) -> dict[str, Any]:
     """
     Return a minimal valid entity dict.
-    Use EntityWriter.create() for persistent on-disk creation.
+    Use PMEntityStore.create() to persist to the knowledge graph.
     """
     now = _now_iso()
     entity: dict[str, Any] = {

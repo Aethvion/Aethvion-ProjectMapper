@@ -1,48 +1,31 @@
 """
 project_mapper/db/snapshot.py
-Fast-load snapshot for AethvionDB entity maps.
+Snapshot persistence for the PMEntityStore knowledge graph.
 
-Problem
--------
-``EntityWriter.list_all()`` opens and parses N individual ``ws_*.json`` files.
-For large databases (10 000+ entities) this costs 1–2 s per call on Windows
-(NTFS + Defender latency × N file syscalls).
-
-Solution
---------
-After each scan, serialise the complete entity map to a single JSON file.
-Subsequent ``list_all()`` calls load the one snapshot file instead of N
-individual files — ~10× faster in practice (measured: 2 038 ms → 205 ms
-for ~12 000 entities on Windows).
+PMEntityStore.flush() calls build() once at the end of every scan to
+serialise the complete entity list to a single JSON file.  Subsequent
+load() calls return that file directly — no per-entity file reads.
 
 Snapshot files
 --------------
   <db_root>/AethvionDB.SNAPSHOT            — compact JSON array of all entities
   <db_root>/AethvionDB.SNAPSHOT.meta.json  — build metadata (count, timestamp)
+  <db_root>/AethvionDB.PMSTORE            — marker: database uses snapshot-only storage
 
 The snapshot stores ALL entities including ``status="deleted"`` ones so that
-filtering by ``include_deleted`` can happen at load time without needing to
-rebuild.
+filtering by ``include_deleted`` can happen at load time without rebuilding.
 
 Stale detection (``is_fresh``)
 ------------------------------
-The snapshot is considered stale and bypassed when any of the following is true:
-
-  1. The snapshot or meta file is missing.
-  2. Any ``ws_*.json`` in *entities_dir* has an mtime **newer** than the
-     snapshot — catches creates and in-place updates.
-  3. The count of ``ws_*.json`` files differs from the stored ``entity_count``
-     in the meta file — catches hard deletes (file removed, no mtime to check).
+The snapshot is considered fresh when:
+  1. Both snapshot and meta files exist.
+  2. The AethvionDB.PMSTORE marker is present (snapshot is the sole source
+     of truth — no individual entity files exist by design).
 
 Thread safety
 -------------
-Writes use an atomic temp-file → ``replace()`` pattern, identical to the
-entity writer itself.  A partial snapshot write can never be read.
-
-Layout note
------------
-Entities live in ``<db_root>/entities/``, so the snapshot files land in
-``<db_root>/`` (i.e. ``entities_dir.parent``).
+Writes use an atomic temp-file → ``replace()`` pattern.  A partial write
+can never be observed by a concurrent reader.
 """
 
 from __future__ import annotations
@@ -189,8 +172,7 @@ def build(db_root: Path, entities: list[dict[str, Any]]) -> None:
 def load(db_root: Path) -> list[dict[str, Any]]:
     """Load and return all entities from the snapshot file.
 
-    Returns an empty list if the snapshot is missing or corrupt; the caller
-    should fall back to ``EntityWriter._raw_list_all()`` in that case.
+    Returns an empty list if the snapshot is missing or corrupt.
     """
     snap = snapshot_path(db_root)
     if not snap.exists():

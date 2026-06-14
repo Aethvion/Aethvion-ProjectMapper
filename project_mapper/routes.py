@@ -46,31 +46,20 @@ def _db_root(db: str = "default", path: Optional[str] = None) -> Path:
     return resolve_db_root(db)
 
 
-def _get_writer(db: str = "default", path: Optional[str] = None):
-    from .db.entity_writer import EntityWriter
-    from .db.name_index import NameIndex
-    root  = _db_root(db, path)
-    index = NameIndex(index_path=root / "name_index.json")
-    return EntityWriter(entities_dir=root / "entities", index=index)
-
-
-def _get_pm_writer(
+def _get_scan_writer(
     db:          str  = "default",
     path:        Optional[str] = None,
     incremental: bool = False,
 ) -> tuple:
     """Return (PMEntityStore, PMNameIndex) for scan operations.
 
-    PMEntityStore replaces EntityWriter during a PM scan to eliminate
-    per-entity disk I/O.  All entities live in memory; a single snapshot
-    is written at scan completion via flush().
+    All entities live in memory during the scan; flush() writes a single
+    snapshot file at completion.  Both objects share the same PMNameIndex
+    instance so the scanner, ingestor, and stub-resolver all see the same
+    in-memory state.
 
-    Both objects share the same PMNameIndex instance — the scanner passes
-    index separately to ProjectIngestor and resolve_stubs, so they must
-    all refer to the same object.
-
-    For incremental scans the store is pre-populated from the existing
-    snapshot; for full scans the store starts empty.
+    Incremental scans pre-populate the store from the existing snapshot so
+    entities for unchanged files survive intact.
     """
     from .db.pm_store import PMEntityStore, PMNameIndex
     from .db import snapshot as _snap
@@ -84,31 +73,16 @@ def _get_pm_writer(
 
 
 def _get_mutation_writer(db: str = "default", path: Optional[str] = None) -> tuple:
-    """Return (writer, index) suitable for mutating entities outside a scan.
+    """Return (PMEntityStore, PMNameIndex) for mutations outside a scan.
 
-    PM-store databases (AethvionDB.PMSTORE marker present) have no
-    ws_*.json entity files — EntityWriter.get()/update() would silently
-    return None / raise FileNotFoundError against them.  For those, load
-    the full snapshot into a PMEntityStore, mutate in memory, and let the
-    caller persist with writer.flush() (which rewrites the snapshot; the
-    QueryCache auto-invalidates via the snapshot mtime).
-
-    Classic databases keep using EntityWriter unchanged.
+    Loads the full snapshot into memory.  The caller must call
+    writer.flush() to persist changes back to the snapshot file.
     """
-    from .db import snapshot as _snap
-    root = _db_root(db, path)
-    if (root / _snap.PM_MARKER_FILE).exists():
-        from .db.pm_store import PMEntityStore, PMNameIndex
-        index  = PMNameIndex(index_path=root / "name_index.json")
-        writer = PMEntityStore.from_snapshot(root, index)
-        return writer, index
-    return _get_writer(db, path), _get_index(db, path)
-
-
-def _get_index(db: str = "default", path: Optional[str] = None):
-    from .db.name_index import NameIndex
-    root = _db_root(db, path)
-    return NameIndex(index_path=root / "name_index.json")
+    from .db.pm_store import PMEntityStore, PMNameIndex
+    root  = _db_root(db, path)
+    index = PMNameIndex(index_path=root / "name_index.json")
+    writer = PMEntityStore.from_snapshot(root, index)
+    return writer, index
 
 
 def _get_file_manifest(db: str = "default", path: Optional[str] = None):
@@ -117,7 +91,7 @@ def _get_file_manifest(db: str = "default", path: Optional[str] = None):
 
 
 def _ensure_db(root: Path) -> None:
-    (root / "entities").mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
     (root / "chunks").mkdir(parents=True, exist_ok=True)
 
 
@@ -195,7 +169,7 @@ async def start_project_scan(req: ScanRequest):
 
     # Use PMEntityStore for scan operations — eliminates per-entity disk I/O.
     # Both writer and index share the same PMNameIndex instance.
-    writer, index = _get_pm_writer(req.db, req.db_path, req.incremental)
+    writer, index = _get_scan_writer(req.db, req.db_path, req.incremental)
     file_manifest = _get_file_manifest(req.db, req.db_path)
 
     started = start_scan(
@@ -254,7 +228,7 @@ async def project_mapper_stats(
 
     fm_stats = _get_file_manifest(db, path).stats()
 
-    writer = _get_writer(db, path)
+    writer, _ = _get_mutation_writer(db, path)
     pm_types = {"module", "class", "function", "service", "endpoint", "model",
                 "workflow", "config", "dependency", "decision", "goal", "constraint"}
     type_counts: dict[str, int] = {}

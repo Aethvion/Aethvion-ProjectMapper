@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 from .scanner import SUPPORTED_EXTENSIONS, _EXCLUDED_DIRS
 
 if TYPE_CHECKING:
-    from .db.entity_writer import EntityWriter
+    from .db.pm_store import PMEntityStore
     from .db.name_index import NameIndex
     from .db.file_manifest import FileManifest
 
@@ -48,7 +48,7 @@ def _now_iso() -> str:
 def retire_entity(
     entity_id: str,
     reason:    str,
-    writer:    "EntityWriter",
+    writer:    "PMEntityStore",
 ) -> bool:
     """
     Soft-delete *entity_id*: mark status='deleted' and append a timeline event.
@@ -93,7 +93,7 @@ class RetireFileResult:
 def retire_file_entities(
     path:          str,
     file_manifest: "FileManifest",
-    writer:        "EntityWriter",
+    writer:        "PMEntityStore",
 ) -> RetireFileResult:
     """
     Retire all entities associated with *path* (a deleted source file).
@@ -147,7 +147,7 @@ def retire_file_entities(
 def prune_removed_symbols(
     module_entity_id: str,
     new_child_ids:    list[str],
-    writer:           "EntityWriter",
+    writer:           "PMEntityStore",
 ) -> int:
     """
     After re-scanning a modified module, retire child entities (classes /
@@ -170,7 +170,7 @@ def prune_removed_symbols(
     module_entity_id : ID of the module entity that was just re-ingested.
     new_child_ids    : Entity IDs produced by the fresh ingest pass
                        (class_entity_ids + function_entity_ids).
-    writer           : EntityWriter for the target database.
+    writer           : PMEntityStore for the target database.
     """
     module = writer.get(module_entity_id)
     if not module:
@@ -253,7 +253,7 @@ class CleanupResult:
 def run_deletion_cleanup(
     project_root:  "str | Path",
     file_manifest: "FileManifest",
-    writer:        "EntityWriter",
+    writer:        "PMEntityStore",
     index:         "NameIndex",       # reserved for future use (symbol index update)
     existing_paths: Optional[set[str]] = None,
 ) -> CleanupResult:
@@ -271,7 +271,7 @@ def run_deletion_cleanup(
     ----------
     project_root  : The project directory that was (or is being) scanned.
     file_manifest : FileManifest for the target database.
-    writer        : EntityWriter for the target database.
+    writer        : PMEntityStore for the target database.
     index         : NameIndex (currently unused; included for future symbol cleanup).
     existing_paths: Optional set of all supported relative paths currently on disk.
     """
@@ -341,7 +341,7 @@ class StubResolveResult:
 
 
 def resolve_stubs(
-    writer: "EntityWriter",
+    writer: "PMEntityStore",
     index:  "NameIndex",
 ) -> StubResolveResult:
     """
@@ -487,7 +487,7 @@ def resolve_stubs(
 # 6. Orphan stub pruning
 # ---------------------------------------------------------------------------
 
-def prune_orphan_stubs(writer: "EntityWriter") -> int:
+def prune_orphan_stubs(writer: "PMEntityStore") -> int:
     """
     Delete stub entities that no active entity references.
 

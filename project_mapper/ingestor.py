@@ -217,7 +217,7 @@ class ProjectIngestor:
     Parameters
     ----------
     db_root      : Path to the database root directory.
-    writer       : EntityWriter for the target DB.
+    writer       : PMEntityStore for the target DB.
     index        : NameIndex for the target DB.
     file_manifest: FileManifest for provenance tracking.
     """

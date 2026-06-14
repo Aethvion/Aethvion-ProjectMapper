@@ -1,46 +1,28 @@
 """
 project_mapper/db/pm_store.py
-In-memory entity store for Project Mapper scan sessions.
+In-memory entity store — the sole persistence backend for Project Mapper.
 
-Problem
--------
-EntityWriter writes one ws_*.json file per entity during a scan.
-For a codebase with ~12,000 entities that is 12,000 atomic file operations,
-each of which Windows Defender scans before the rename completes.
-NameIndex._save() is called on every get_or_create(), adding another 12,000
-writes to name_index.json. Combined, these dominate scan time on Windows
-(measured: 394 s for a 2,417-file Python codebase).
+Architecture
+------------
+PMEntityStore holds all entities in a dict[id → entity] for the lifetime of
+a scan or mutation session.  No individual entity files are ever written to
+disk.  At scan completion, flush() writes two files:
 
-Solution
---------
-PMEntityStore keeps all entities in a dict[id → entity] for the duration
-of the scan.  No ws_*.json files are written.  At scan completion, flush()
-writes a single AethvionDB snapshot file and the name index in two file
-operations (vs. 24,000+).
+  1. AethvionDB.SNAPSHOT  — single JSON array of all entities
+  2. name_index.json      — accumulated name → ID map
 
-PMNameIndex is a NameIndex subclass that overrides _save() to a no-op during
-the scan, deferring the single final write to flush_to_disk().
+PMNameIndex defers every _save() call to a no-op during the scan, then
+writes the complete index once via flush_to_disk().  This reduces disk I/O
+from O(N) per-entity writes to two atomic file operations.
 
-AethvionDB is untouched — this is a PM-specific layer only.
-
-Compatibility
--------------
-All public methods match the EntityWriter interface so that scanner.py,
-ingestor.py, cleanup.py, and routes.py work without modification beyond the
-injection point at start_project_scan().
-
-The snapshot written by flush() is identical in format to the one written by
-EntityWriter — queries use it transparently via snapshot.load().
-
-An AethvionDB.PMSTORE marker file is written alongside the snapshot so that
-snapshot.is_fresh() can return True even with no ws_*.json entity files on
-disk (see snapshot.py).
+An AethvionDB.PMSTORE marker file is written by flush() so that
+snapshot.is_fresh() returns True even with no individual entity files on disk.
 
 Incremental scans
 -----------------
-Use PMEntityStore.from_snapshot() to pre-populate the store from an existing
-snapshot.  Entities for unchanged files are already in the store; the scanner
-re-creates / updates only the entities for changed files.
+Use PMEntityStore.from_snapshot() to pre-populate the store from the existing
+snapshot so entities for unchanged files survive intact; the scanner
+re-creates / updates only entries for changed files.
 """
 
 from __future__ import annotations
@@ -95,16 +77,11 @@ class PMNameIndex(NameIndex):
 
 class PMEntityStore:
     """
-    Drop-in replacement for EntityWriter during PM scan sessions.
+    In-memory entity store for Project Mapper scan and mutation sessions.
 
-    All entities live in self._store (dict[id → entity]) for the duration of
-    the scan.  No ws_*.json files are ever written.  A single snapshot is
-    built at flush() time.
-
-    Interface: identical to EntityWriter for the methods called by scanner,
-    ingestor, and cleanup (create, get, update, delete, list_all, list_stubs,
-    get_stub_names_for, count, exists, get_by_name, search_by_type,
-    search_by_kind, search_by_tag).
+    All entities live in self._store (dict[id → entity]).  No individual
+    entity files are ever written to disk.  A single snapshot is built by
+    flush() at scan completion.
 
     Incremental scans: pre-populate self._store from the existing snapshot via
     from_snapshot() so that entities for unchanged files survive intact.
@@ -134,7 +111,7 @@ class PMEntityStore:
                 store._store[entity["id"]] = entity
         return store
 
-    # ── EntityWriter-compatible API ─────────────────────────────────────────
+    # ── Public API ────────────────────────────────────────────────────────────
 
     def exists(self, entity_id: str) -> bool:
         return entity_id in self._store
@@ -173,7 +150,7 @@ class PMEntityStore:
                 existing = self._store.get(entity_id)
                 if existing:
                     if existing.get("status") in ("deleted", "retired"):
-                        # Reactivate soft-deleted entity, mirror EntityWriter behaviour.
+                        # Reactivate soft-deleted entity.
                         existing["status"] = resolved_status
                         if sections_override:
                             self._apply_sections(existing, sections_override)
@@ -208,7 +185,7 @@ class PMEntityStore:
         mutations:     dict[str, Any],
         merge_sections: bool = True,
     ) -> dict[str, Any]:
-        """Update an entity in memory.  Mirrors EntityWriter.update() semantics."""
+        """Update an entity in memory."""
         with self._lock:
             entity = self._store.get(entity_id)
             if entity is None:
@@ -331,12 +308,15 @@ class PMEntityStore:
         Called by scanner.py at scan completion instead of the normal
         list_all() + snapshot.build() two-step.  Writes:
 
-          1. AethvionDB.SNAPSHOT  — single JSON array, identical format to
-             EntityWriter's snapshot (queries work transparently).
+          1. AethvionDB.SNAPSHOT  — single JSON array of all entities.
           2. AethvionDB.SNAPSHOT.meta.json — count + timestamp metadata.
           3. name_index.json — the accumulated name→ID map.
           4. AethvionDB.PMSTORE — marker file so snapshot.is_fresh() returns
              True even though no ws_*.json entity files exist.
+
+        Also removes any stale ws_*.json files that may exist from earlier
+        installs (pre-v1.8.0 wrote individual entity files to db_root).
+        The snapshot is the sole source of truth after flush().
         """
         entities = list(self._store.values())
         _snapshot.build(self._db_root, entities)
@@ -349,6 +329,23 @@ class PMEntityStore:
             marker.write_text("pm-store\n", encoding="utf-8")
         except Exception as exc:
             logger.warning(f"[PMEntityStore] Could not write PM marker: {exc}")
+
+        # Remove stale individual entity files from pre-v1.8.0 installs.
+        # Files may exist in db_root or db_root/entities/ — both are safe to
+        # delete once the snapshot exists.
+        _stale = 0
+        for _candidate_dir in (self._db_root, self._db_root / "entities"):
+            try:
+                for _ws in _candidate_dir.glob("ws_*.json"):
+                    try:
+                        _ws.unlink()
+                        _stale += 1
+                    except Exception as _exc:
+                        logger.warning(f"[PMEntityStore] Could not remove stale {_ws.name}: {_exc}")
+            except Exception:
+                pass
+        if _stale:
+            logger.info(f"[PMEntityStore] Removed {_stale} stale entity file(s)")
 
         logger.info(
             f"[PMEntityStore] Flushed {len(entities)} entities → snapshot"
