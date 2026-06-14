@@ -135,11 +135,43 @@ Returns functions, classes, and modules that nothing else imports or calls. Thes
 
 ---
 
+## pm_visualize
+
+**Generates a Mermaid or DOT diagram of the dependency/call graph around a named entity.**
+
+Given any entity name, `pm_visualize` builds a subgraph centred on it — showing what it calls, what calls it, what it imports, and what imports it — up to a configurable depth. Output is a fenced Mermaid code block that renders natively in GitHub/GitLab markdown, VS Code Mermaid extension, and Obsidian.
+
+| Parameter | Description |
+|:---|:---|
+| `entity` | Name of the entity to centre the diagram on |
+| `depth` | Traversal hops from the centre (1–4, default 2) |
+| `direction` | `"out"` (what it calls/imports), `"in"` (who calls/imports it), `"both"` (default) |
+| `relations` | Relation kinds to include (default: calls, imports, uses, extends, implements, depends_on) |
+| `format` | `"mermaid"` (default) or `"dot"` (Graphviz) |
+| `max_nodes` | Cap on nodes in the diagram (default 40) |
+
+**When to use:** when you want to see the architecture of a subsystem at a glance, explain a module's role in a PR description, visualise blast radius before a refactor, or answer "what does this class connect to?" without reading a chain of files.
+
+**Example output (Mermaid):**
+```
+graph TD
+    n1a2b3c4["UserService\n[service]"]
+    n5e6f7a8["AuthService\n[service]"]
+    n9b0c1d2["UserRepository\n[class]"]
+    n1a2b3c4 -->|calls| n5e6f7a8
+    n1a2b3c4 -->|imports| n9b0c1d2
+    style n1a2b3c4 fill:#4a90d9,color:#fff,stroke:#2c5282,stroke-width:2px
+```
+
+**Note:** `pm_visualize` requires `pm_scan` to have been run first — it reads the knowledge graph, not the raw files. The DOT format is useful when you need a rendered PNG/SVG via `dot -Tpng`.
+
+---
+
 ## pm_security
 
 **Runs a SAST-style security scan across the entire codebase.**
 
-Scans all files in the project (not just indexed ones) using 132+ static patterns mapped to OWASP Top 10 categories and CWE identifiers. No PM scan dependency — it works standalone on any directory.
+Scans all files in the project (not just indexed ones) using 140+ static patterns mapped to OWASP Top 10 categories and CWE identifiers. No PM scan dependency — it works standalone on any directory.
 
 | Parameter | Description |
 |:---|:---|
@@ -195,4 +227,5 @@ Configured via the `--watch` flag on the MCP server or via the `pm_watch` tool c
 | `pm_stats` | What's indexed right now? | < 5 ms |
 | `pm_delta` | What changed since last scan? | < 50 ms |
 | `pm_orphans` | What code is unused? | 10–100 ms |
+| `pm_visualize` | Show the dependency graph for entity X | < 50 ms |
 | `pm_security` | Are there security vulnerabilities? | 1–5 s (full codebase) |

@@ -97,7 +97,7 @@ The entity map is stored as a single snapshot file built at the end of each scan
 
 1. **Static scan** — walks your project, extracts every module / class / function via AST analysis. No AI needed for this step.
 2. **Knowledge graph** — stores entities + relationships (imports, calls, extends, depends_on, …) in a local JSON database.
-3. **Agent queries** — 10 MCP tools that agents call instead of reading raw files:
+3. **Agent queries** — 11 MCP tools that agents call instead of reading raw files:
 
 | Tool | What it answers |
 |---|---|
@@ -106,6 +106,7 @@ The entity map is stored as a single snapshot file built at the end of each scan
 | `pm_path` | "How does `RateLimiter` connect to the payment flow?" |
 | `pm_find` | "Where is `validateToken` defined?" |
 | `pm_orphans` | "What code is never called?" |
+| `pm_visualize` | "Show me the dependency graph for `UserService`" |
 | `pm_security` | "Are there security vulnerabilities in this codebase?" |
 | `pm_contribute` | "Record that I added rate limiting to endpoint X" |
 | `pm_stats` | "What's already indexed in this database?" |
@@ -118,7 +119,7 @@ See the [PM Tools Reference](docs/explained/pm-tools-reference.md) for full docu
 
 `pm_security` is a standalone SAST-style scanner built into Project Mapper. One call checks your entire codebase — no scan dependency, no setup beyond installation.
 
-- **132+ patterns** across OWASP Top 10 (A01–A10) in 8 languages: Python, TypeScript/JS, Java, Go, C#, PHP, Ruby, C/C++
+- **140+ patterns** across OWASP Top 10 (A01–A10) in 8 languages: Python, TypeScript/JS, Java, Go, C#, PHP, Ruby, C/C++
 - **Runs in 1–5 seconds** on codebases of any size
 - **Route-reachability taint tracking** — ⚡ flags findings confirmed reachable from HTTP handlers
 - **CWE mapping** on every finding, stable finding IDs for triage persistence, snapshot delta across scans
