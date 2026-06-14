@@ -21,18 +21,19 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 **Step 2 — Install Project Mapper:**
 
 ```bash
-uv tool install "aethvion-project-mapper[languages]"
+uv tool install "aethvion-project-mapper[languages]" --python 3.10
 ```
 
 **Step 3 — Connect to your agent:**
 
+Add Project Mapper to your agent's MCP config, then restart the agent. The exact one-liner or JSON block per agent is below under [Connect your agent](#connect-your-agent).
+
+For **Claude Code**:
 ```bash
-pm-setup claude-code   # or: cursor  antigravity  codex
+claude mcp add -s user project-mapper -- pm-mcp --db workspace
 ```
 
-This writes the MCP config for your agent automatically — no JSON editing required. Restart your agent once and Project Mapper is active in every session.
-
-Per-agent guides (including manual config): [`docs/howto/`](docs/howto/README.md)
+Step-by-step per-agent guides: [`docs/howto/`](docs/howto/README.md)
 
 New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md), and the [full tools reference](docs/explained/pm-tools-reference.md).
 
@@ -189,22 +190,25 @@ pip install uv
 **Step 2 — install Project Mapper** (one-time):
 
 ```bash
-uv tool install "aethvion-project-mapper[languages]"
+uv tool install "aethvion-project-mapper[languages]" --python 3.10
 ```
 
-This installs `pm-mcp` and `pm-setup` as global commands and downloads all language parsers. Takes ~30 seconds on first run, instant on subsequent starts.
+This installs `pm-mcp` as a global command and downloads all language parsers. Takes ~30 seconds on first run, instant on subsequent starts.
 
+`--python 3.10` tells `uv` to fetch and pin the exact Python version Project Mapper is tested on, into an isolated environment — so it never depends on (or collides with) whatever Python is already on your system. This is what makes the install reproducible: every user runs the same interpreter and the same locked dependencies.
+
+<a id="connect-your-agent"></a>
 **Step 3 — connect your agent:**
 
+Add the Project Mapper entry to your agent's MCP config below, then restart the agent. These are the only files involved — nothing edits your config for you, so you stay in control of what changes.
+
+**Claude Code** — run this (registers Project Mapper for all your projects):
 ```bash
-pm-setup claude-code   # or: cursor  antigravity  codex
+claude mcp add -s user project-mapper -- pm-mcp --db workspace
 ```
+> ⚠️ Do **not** put `mcpServers` in `~/.claude/settings.json` — Claude Code ignores MCP definitions there. It only reads them from `~/.claude.json` (which `claude mcp add` writes) or a project-level `.mcp.json`.
 
-`pm-setup` locates the right config file for your agent, safely merges the Project Mapper entry into it, and leaves all your existing settings untouched. Then restart your agent.
-
-**Manual config (if you prefer to edit the JSON yourself):**
-
-**Claude Code** — add to `~/.claude/settings.json`:
+If you don't have the `claude` CLI on your PATH, create a `.mcp.json` in your project root instead:
 ```json
 {
   "mcpServers": {

@@ -24,10 +24,10 @@ After installing, open a **new terminal window** so the `uv` command is on your 
 ## Step 2 — Install Project Mapper
 
 ```bash
-uv tool install "aethvion-project-mapper[languages]"
+uv tool install "aethvion-project-mapper[languages]" --python 3.10
 ```
 
-This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command.
+This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command. `--python 3.10` pins the exact Python version Project Mapper is tested on, in an isolated environment, so the install is reproducible and never collides with your system Python.
 
 **Verify it worked:**
 
@@ -37,13 +37,23 @@ pm-mcp --help
 
 ---
 
-## Step 3 — Run pm-setup
+## Step 3 — Add the MCP config
 
-```bash
-pm-setup codex
+Open `~/.codex/config.json` in any text editor (create the file and folder if they don't exist) and add the `project-mapper` entry. If the file already has other settings, add only the `"mcpServers"` key alongside them — don't replace the whole file.
+
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
 ```
 
-`pm-setup` finds `~/.codex/config.json`, reads it safely, adds the Project Mapper entry under `mcpServers`, and writes back — without touching any of your existing settings. If the file or folder doesn't exist yet it creates them.
+> Codex CLI MCP support was introduced in 2025. If the config format has changed in a newer release, check the [official Codex CLI docs](https://github.com/openai/codex) for the latest MCP configuration reference.
 
 ---
 
@@ -92,25 +102,3 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
 **MCP server not connecting** — run `codex --version` to confirm your Codex CLI version supports MCP, then verify the JSON in `config.json` is valid using [jsonlint.com](https://jsonlint.com).
 
 **Updating to a new version** — run `uv tool upgrade aethvion-project-mapper`.
-
----
-
-## Manual setup (alternative to pm-setup)
-
-If you prefer to edit the config yourself, open `~/.codex/config.json` in any text editor (create the file and folder if they don't exist) and add the `mcpServers` block:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
-```
-
-> Codex CLI MCP support was introduced in 2025. If the config format has changed in a newer release, check the [official Codex CLI docs](https://github.com/openai/codex) for the latest MCP configuration reference.
-
-If the file already has other settings, add only the `"mcpServers"` key alongside them — do not replace the whole file.

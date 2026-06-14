@@ -7,7 +7,7 @@ name = "aethvion-project-mapper"
 version = "1.9.0"
 description = "Static code analysis + knowledge-graph for AI coding agents — 11 MCP tools, 10 languages, cut token costs by 87–92 %"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = { text = "AGPL-3.0-or-later" }
 authors = [
     { name = "Aethvion", email = "contact@aethvion.com" },
@@ -114,7 +114,6 @@ dev = [
 [project.scripts]
 pm-server = "project_mapper.app:serve"
 pm-mcp    = "project_mapper.mcp_server:main"
-pm-setup  = "project_mapper.setup_cmd:main"
 
 [project.urls]
 Homepage      = "https://aethvion.com/projectmapper.html"

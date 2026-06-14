@@ -26,10 +26,10 @@ After installing, open a **new terminal window** so the `uv` command is on your 
 ## Step 2 — Install Project Mapper
 
 ```bash
-uv tool install "aethvion-project-mapper[languages]"
+uv tool install "aethvion-project-mapper[languages]" --python 3.10
 ```
 
-This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command.
+This downloads Project Mapper and all language parsers (~30 seconds on first run). When it finishes, `pm-mcp` is available as a global command. `--python 3.10` pins the exact Python version Project Mapper is tested on, in an isolated environment, so the install is reproducible and never collides with your system Python.
 
 **Verify it worked:**
 
@@ -41,13 +41,33 @@ You should see the Project Mapper MCP server help text.
 
 ---
 
-## Step 3 — Run pm-setup
+## Step 3 — Add the MCP config
+
+Register Project Mapper for **all** your projects with the Claude Code CLI:
 
 ```bash
-pm-setup claude-code
+claude mcp add -s user project-mapper -- pm-mcp --db workspace
 ```
 
-`pm-setup` finds `~/.claude/settings.json`, reads it safely, adds the Project Mapper entry under `mcpServers`, and writes back — without touching any of your existing settings. If the file doesn't exist yet it creates it.
+This writes to `~/.claude.json` — the file Claude Code actually reads for MCP servers.
+
+> ⚠️ **Do not** add `mcpServers` to `~/.claude/settings.json`. Claude Code **ignores** MCP definitions there — the server will silently never load. It only reads them from `~/.claude.json` (what `claude mcp add` writes) or a project-level `.mcp.json`.
+
+**No `claude` CLI on your PATH?** Create a `.mcp.json` file in the root of the project you want to use Project Mapper in, with exactly this content:
+
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
+```
+
+This enables it for that one project. (The CLI command above enables it everywhere.)
 
 ---
 
@@ -95,26 +115,6 @@ If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happe
 
 **`pm-mcp` not found** — the `uv tool install` step adds `pm-mcp` to `~/.local/bin` (Linux/macOS) or `%USERPROFILE%\.local\bin` (Windows). Open a **new** terminal window after installing — the PATH update only takes effect in new sessions. If it still doesn't work, run `uv tool list` to confirm the install succeeded.
 
-**MCP server doesn't appear in Claude** — double-check that the JSON in `settings.json` is valid (no missing commas, no unmatched braces). Paste it into [jsonlint.com](https://jsonlint.com) if unsure.
+**MCP server doesn't appear in Claude** — first confirm it's registered: run `claude mcp list` (or `/mcp` inside Claude Code). If it's missing, the config went to the wrong place — make sure it's in `~/.claude.json` or a project `.mcp.json`, **not** `~/.claude/settings.json`. If it's listed but failing, check the per-server log under `%LOCALAPPDATA%\claude-cli-nodejs\Cache\<project>\mcp-logs-project-mapper\` for the exact error.
 
 **Updating to a new version** — run `uv tool upgrade aethvion-project-mapper` to get the latest release.
-
----
-
-## Manual setup (alternative to pm-setup)
-
-If you prefer to edit the config yourself, open `~/.claude/settings.json` in any text editor (create it if it doesn't exist) and add the `mcpServers` block:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
-```
-
-If the file already has other settings, add only the `"mcpServers"` key alongside them — do not replace the whole file.

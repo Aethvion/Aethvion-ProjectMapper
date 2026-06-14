@@ -7,8 +7,9 @@ No external dependencies beyond Python stdlib + fastapi/uvicorn (for the HTTP se
 
 Recommended install
 -------------------
-    uv tool install "aethvion-project-mapper[languages]"
+    uv tool install "aethvion-project-mapper[languages]" --python 3.10
     # installs pm-mcp as a global command — no Python or repo clone required
+    # --python 3.10 pins the tested interpreter in an isolated environment
 
 Usage (after uv tool install)
 ------------------------------
@@ -34,8 +35,14 @@ Environment variable equivalents (CLI overrides env):
     PM_WATCH          — "1" / "true" / "yes" to enable watch mode
     PM_WATCH_INTERVAL — poll interval in seconds (default: 10)
 
-Claude Code config  (~/.claude/settings.json  or  .claude/settings.json)
-------------------------------------------------------------------------
+Claude Code config
+------------------
+    Register for all projects with the Claude Code CLI:
+        claude mcp add -s user project-mapper -- pm-mcp --db workspace
+
+    This writes to ~/.claude.json. Do NOT put mcpServers in
+    ~/.claude/settings.json — Claude Code ignores MCP definitions there.
+    No CLI? Create a project-level .mcp.json instead:
     {
       "mcpServers": {
         "project-mapper": {
