@@ -37,52 +37,23 @@ pm-mcp --help
 
 ---
 
-## Step 3 — Find your MCP config file
+## Step 3 — Run pm-setup
 
-Cursor uses a dedicated MCP config file separate from its main settings.
-
-| Scope | OS | Path |
-|---|---|---|
-| Global (all projects) | Windows | `C:\Users\<YourUsername>\.cursor\mcp.json` |
-| Global (all projects) | Linux / macOS | `~/.cursor/mcp.json` |
-| Project-only | Any | `.cursor/mcp.json` inside the project folder |
-
-For most users the **global** file is the right choice — it makes Project Mapper available in every workspace.
-
-**How to get there:**
-
-- **Windows** — Open File Explorer and paste `%USERPROFILE%\.cursor` into the address bar.
-- **macOS** — Finder → Go → Go to Folder → `~/.cursor`.
-- **Linux** — `cd ~/.cursor` in a terminal.
-
----
-
-## Step 4 — Add the mcpServers block
-
-Open `mcp.json` in any text editor. If it doesn't exist yet, create it. The config is the same on every OS:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
+```bash
+pm-setup cursor
 ```
 
-> **Note:** Cursor does not require a `"type"` field — it infers `stdio` automatically.
+`pm-setup` finds `~/.cursor/mcp.json`, reads it safely, adds the Project Mapper entry under `mcpServers`, and writes back — without touching any of your existing settings. If the file doesn't exist yet it creates it.
 
 ---
 
-## Step 5 — Restart Cursor
+## Step 4 — Restart Cursor
 
-Save the file and fully restart Cursor. You can also reload MCP servers via **Cursor Settings → MCP** without a full restart.
+Fully restart Cursor. You can also reload MCP servers via **Cursor Settings → MCP** without a full restart.
 
 ---
 
-## Step 6 — Smoke test
+## Step 5 — Smoke test
 
 Open any project in Cursor and tell the AI:
 
@@ -120,3 +91,24 @@ Add `PM_PROJECT_ROOT` via the `env` field so the AI always knows which project t
 **Server not appearing in Cursor** — check **Cursor Settings → MCP** to see if the server shows a connection error. Verify the JSON in `mcp.json` is valid using [jsonlint.com](https://jsonlint.com).
 
 **Updating to a new version** — run `uv tool upgrade aethvion-project-mapper`.
+
+---
+
+## Manual setup (alternative to pm-setup)
+
+If you prefer to edit the config yourself, open `~/.cursor/mcp.json` in any text editor (create it if it doesn't exist) and add the `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
+```
+
+> Cursor does not require a `"type"` field — it infers `stdio` automatically.
+
+If the file already has other settings, add only the `"mcpServers"` key alongside them — do not replace the whole file.

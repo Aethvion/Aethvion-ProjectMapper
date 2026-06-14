@@ -26,14 +26,13 @@ uv tool install "aethvion-project-mapper[languages]"
 
 **Step 3 — Connect to your agent:**
 
-| Agent | Setup guide |
-|---|---|
-| Claude Code | [docs/howto/setup-pm-on-claude-code.md](docs/howto/setup-pm-on-claude-code.md) |
-| Cursor | [docs/howto/setup-pm-on-cursor.md](docs/howto/setup-pm-on-cursor.md) |
-| Antigravity (Google) | [docs/howto/setup-pm-on-antigravity.md](docs/howto/setup-pm-on-antigravity.md) |
-| Codex | [docs/howto/setup-pm-on-codex.md](docs/howto/setup-pm-on-codex.md) |
+```bash
+pm-setup claude-code   # or: cursor  antigravity  codex
+```
 
-Or jump to the [full MCP config section](#mcp-stdio-claude-code--cursor--antigravity--codex) below for raw JSON.
+This writes the MCP config for your agent automatically — no JSON editing required. Restart your agent once and Project Mapper is active in every session.
+
+Per-agent guides (including manual config): [`docs/howto/`](docs/howto/README.md)
 
 New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md), and the [full tools reference](docs/explained/pm-tools-reference.md).
 
@@ -192,9 +191,17 @@ pip install uv
 uv tool install "aethvion-project-mapper[languages]"
 ```
 
-This installs `pm-mcp` as a global command and downloads all language parsers. Takes ~30 seconds on first run, instant on subsequent starts.
+This installs `pm-mcp` and `pm-setup` as global commands and downloads all language parsers. Takes ~30 seconds on first run, instant on subsequent starts.
 
-**Step 3 — add to your agent config and restart:**
+**Step 3 — connect your agent:**
+
+```bash
+pm-setup claude-code   # or: cursor  antigravity  codex
+```
+
+`pm-setup` locates the right config file for your agent, safely merges the Project Mapper entry into it, and leaves all your existing settings untouched. Then restart your agent.
+
+**Manual config (if you prefer to edit the JSON yourself):**
 
 **Claude Code** — add to `~/.claude/settings.json`:
 ```json
@@ -209,7 +216,7 @@ This installs `pm-mcp` as a global command and downloads all language parsers. T
 }
 ```
 
-**Cursor** — add to `.cursor/mcp.json`:
+**Cursor** — add to `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -234,6 +241,19 @@ This installs `pm-mcp` as a global command and downloads all language parsers. T
 }
 ```
 
+**Codex CLI** — add to `~/.codex/config.json`:
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
+```
+
 **Alternative — no install, run directly with uvx:**
 ```json
 {
@@ -242,7 +262,7 @@ This installs `pm-mcp` as a global command and downloads all language parsers. T
 }
 ```
 
-> All three agents use the same `mcpServers` format — only the config file location differs. Restart the agent after editing the config.
+> Restart the agent after editing the config.
 
 **Optional — pin to a single project:**  
 If you always work on one codebase, add `PM_PROJECT_ROOT` so the AI never needs to specify it:

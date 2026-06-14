@@ -37,52 +37,23 @@ pm-mcp --help
 
 ---
 
-## Step 3 — Find your config file
+## Step 3 — Run pm-setup
 
-Codex CLI reads its configuration from:
-
-| OS | Path |
-|---|---|
-| Windows | `C:\Users\<YourUsername>\.codex\config.json` |
-| Linux / macOS | `~/.codex/config.json` |
-
-**How to get there:**
-
-- **Windows** — Open File Explorer and paste `%USERPROFILE%\.codex` into the address bar.
-- **macOS** — Finder → Go → Go to Folder → `~/.codex`.
-- **Linux** — `cd ~/.codex` in a terminal.
-
----
-
-## Step 4 — Add the mcpServers block
-
-Open `config.json` in any text editor. If it doesn't exist yet, create it (and the `.codex` folder if needed). The config is the same on every OS:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
+```bash
+pm-setup codex
 ```
 
-> **Note:** Codex CLI MCP support was introduced in 2025. If the config format has changed
-> in a newer release, check the [official Codex CLI docs](https://github.com/openai/codex) for
-> the latest MCP configuration reference.
+`pm-setup` finds `~/.codex/config.json`, reads it safely, adds the Project Mapper entry under `mcpServers`, and writes back — without touching any of your existing settings. If the file or folder doesn't exist yet it creates them.
 
 ---
 
-## Step 5 — Restart Codex CLI
+## Step 4 — Restart Codex CLI
 
 Start a new Codex CLI session. MCP servers are launched automatically at session start.
 
 ---
 
-## Step 6 — Smoke test
+## Step 5 — Smoke test
 
 Open any project and say:
 
@@ -121,3 +92,25 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
 **MCP server not connecting** — run `codex --version` to confirm your Codex CLI version supports MCP, then verify the JSON in `config.json` is valid using [jsonlint.com](https://jsonlint.com).
 
 **Updating to a new version** — run `uv tool upgrade aethvion-project-mapper`.
+
+---
+
+## Manual setup (alternative to pm-setup)
+
+If you prefer to edit the config yourself, open `~/.codex/config.json` in any text editor (create the file and folder if they don't exist) and add the `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
+```
+
+> Codex CLI MCP support was introduced in 2025. If the config format has changed in a newer release, check the [official Codex CLI docs](https://github.com/openai/codex) for the latest MCP configuration reference.
+
+If the file already has other settings, add only the `"mcpServers"` key alongside them — do not replace the whole file.

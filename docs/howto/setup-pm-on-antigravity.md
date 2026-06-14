@@ -37,48 +37,23 @@ pm-mcp --help
 
 ---
 
-## Step 3 — Find your MCP config file
+## Step 3 — Run pm-setup
 
-Antigravity reads MCP server configuration from:
-
-| OS | Path |
-|---|---|
-| Windows | `C:\Users\<YourUsername>\.gemini\antigravity\mcp_config.json` |
-| Linux / macOS | `~/.gemini/antigravity/mcp_config.json` |
-
-**How to get there:**
-
-- **Windows** — Open File Explorer and paste `%USERPROFILE%\.gemini\antigravity` into the address bar.
-- **macOS** — Finder → Go → Go to Folder → `~/.gemini/antigravity`.
-- **Linux** — `cd ~/.gemini/antigravity` in a terminal.
-
----
-
-## Step 4 — Add the mcpServers block
-
-Open `mcp_config.json` in any text editor. If the file or the `.gemini/antigravity` folder doesn't exist yet, create them. The config is the same on every OS:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
+```bash
+pm-setup antigravity
 ```
 
----
-
-## Step 5 — Restart Antigravity
-
-Save the file and restart Antigravity. MCP servers are loaded at startup.
+`pm-setup` finds `~/.gemini/antigravity/mcp_config.json`, reads it safely, adds the Project Mapper entry under `mcpServers`, and writes back — without touching any of your existing settings. If the file or folder doesn't exist yet it creates them.
 
 ---
 
-## Step 6 — Smoke test
+## Step 4 — Restart Antigravity
+
+Restart Antigravity. MCP servers are loaded at startup.
+
+---
+
+## Step 5 — Smoke test
 
 Open any project and tell the agent:
 
@@ -117,3 +92,23 @@ Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebas
 **Config file not picked up** — make sure the file is named exactly `mcp_config.json` inside the `antigravity` subfolder, not `mcp.json` or `settings.json`.
 
 **Updating to a new version** — run `uv tool upgrade aethvion-project-mapper`.
+
+---
+
+## Manual setup (alternative to pm-setup)
+
+If you prefer to edit the config yourself, open `~/.gemini/antigravity/mcp_config.json` in any text editor (create the file and the `antigravity` folder if they don't exist) and add the `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
+```
+
+If the file already has other settings, add only the `"mcpServers"` key alongside them — do not replace the whole file.

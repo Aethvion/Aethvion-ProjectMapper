@@ -41,63 +41,23 @@ You should see the Project Mapper MCP server help text.
 
 ---
 
-## Step 3 — Find your Claude Code settings file
+## Step 3 — Run pm-setup
 
-| OS | Path |
-|---|---|
-| Windows | `C:\Users\<YourUsername>\.claude\settings.json` |
-| Linux / macOS | `~/.claude/settings.json` |
-
-**How to get there:**
-
-- **Windows** — Open File Explorer, paste `%USERPROFILE%\.claude` into the address bar, press Enter.
-- **macOS** — Open Finder → Go → Go to Folder → type `~/.claude` → press Go.
-- **Linux** — run `cd ~/.claude` in a terminal.
-
----
-
-## Step 4 — Add the mcpServers block
-
-Open `settings.json` in any text editor. If it doesn't exist yet, create it.
-
-The config is the same on every OS — no paths to set:
-
-```json
-{
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
+```bash
+pm-setup claude-code
 ```
 
-If your file already has other settings, add only the `"mcpServers"` block:
-
-```json
-{
-  "extraKnownMarketplaces": { "...existing settings..." },
-  "mcpServers": {
-    "project-mapper": {
-      "type": "stdio",
-      "command": "pm-mcp",
-      "args": ["--db", "workspace"]
-    }
-  }
-}
-```
+`pm-setup` finds `~/.claude/settings.json`, reads it safely, adds the Project Mapper entry under `mcpServers`, and writes back — without touching any of your existing settings. If the file doesn't exist yet it creates it.
 
 ---
 
-## Step 5 — Restart Claude Code
+## Step 4 — Restart Claude Code
 
-Save the file and fully restart Claude Code. The MCP server starts automatically on launch.
+Fully restart Claude Code. The MCP server starts automatically on launch.
 
 ---
 
-## Step 6 — Smoke test
+## Step 5 — Smoke test
 
 Open a new session inside any project folder and say:
 
@@ -138,3 +98,23 @@ If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happe
 **MCP server doesn't appear in Claude** — double-check that the JSON in `settings.json` is valid (no missing commas, no unmatched braces). Paste it into [jsonlint.com](https://jsonlint.com) if unsure.
 
 **Updating to a new version** — run `uv tool upgrade aethvion-project-mapper` to get the latest release.
+
+---
+
+## Manual setup (alternative to pm-setup)
+
+If you prefer to edit the config yourself, open `~/.claude/settings.json` in any text editor (create it if it doesn't exist) and add the `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "project-mapper": {
+      "type": "stdio",
+      "command": "pm-mcp",
+      "args": ["--db", "workspace"]
+    }
+  }
+}
+```
+
+If the file already has other settings, add only the `"mcpServers"` key alongside them — do not replace the whole file.
