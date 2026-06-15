@@ -1,6 +1,6 @@
 # Benchmark: Python — Django
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-15 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -13,10 +13,14 @@
 | Files scanned | 2,411 |
 | Total lines | ~420,000 |
 | Entities indexed | 12,066 |
-| Scan time | 9.5 s |
-| Throughput | ~44,200 lines/sec |
+| Scan time | 9.8 s |
+| Throughput | ~42,900 lines/sec |
 
-Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (Slim)** · **~97× faster navigation**
+Geometric mean savings: **~93% token reduction (Full) · ~95% token reduction (Slim)** · **~95× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -31,11 +35,11 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
-| Entities found | ~50–80, misses GIS/Postgres | 150 — complete | 150 — complete |
-| Token Cost | ~35,000 | ~3,662 | ~3,129 |
-| Token Reduction | — | **−90%** | **−91%** |
-| Execution Time | ~4s | 21ms | 39ms |
-| Speedup | — | **~190×** | **~103×** |
+| Entities found | ~50–80, misses GIS/Postgres | 178 — complete | 178 — complete |
+| Token Cost | ~35,000 | ~5,362 | ~4,311 |
+| Token Reduction | — | **−85%** | **−88%** |
+| Execution Time | ~4s | 20ms | 40ms |
+| Speedup | — | **~200×** | **~100×** |
 
 ---
 
@@ -51,10 +55,10 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 3+ | 1 | 1 |
 | Entities found | Yes, via manual tracing | 1-hop confirmed | 1-hop confirmed |
-| Token Cost | ~13,200 | ~21 | ~21 |
+| Token Cost | ~13,200 | ~24 | ~24 |
 | Token Reduction | — | **−99.8%** | **−99.8%** |
-| Execution Time | ~2s | 42ms | 42ms |
-| Speedup | — | **~48×** | **~48×** |
+| Execution Time | ~2s | 43ms | 41ms |
+| Speedup | — | **~47×** | **~47×** |
 
 ---
 
@@ -69,11 +73,11 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
-| Entities found | Partial, misses cross-app | 6 prod + 2 transitive — complete | 6 prod + 2 transitive — complete |
-| Token Cost | ~4,100 | ~309 | ~210 |
-| Token Reduction | — | **−93%** | **−95%** |
-| Execution Time | ~3s | 14ms | 14ms |
-| Speedup | — | **~214×** | **~214×** |
+| Entities found | Partial, misses cross-app | 8 — complete | 8 — complete |
+| Token Cost | ~4,100 | ~337 | ~234 |
+| Token Reduction | — | **−92%** | **−94%** |
+| Execution Time | ~3s | 38ms | 14ms |
+| Speedup | — | **~79×** | **~214×** |
 
 ---
 
@@ -89,9 +93,9 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
 | Entities found | Partial | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~13,479 | ~1,102 | ~444 |
+| Token Cost | ~13,479 | ~1,083 | ~440 |
 | Token Reduction | — | **−92%** | **−97%** |
-| Execution Time | ~4s | 86ms | 86ms |
+| Execution Time | ~4s | 85ms | 86ms |
 | Speedup | — | **~47×** | **~47×** |
 
 ---
@@ -108,8 +112,8 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 4–5 | 1 | 1 |
 | Entities found | ~15, generic only | 43 — complete, all apps | 43 — complete, all apps |
-| Token Cost | ~10,000 | ~1,133 | ~896 |
-| Token Reduction | — | **−89%** | **−91%** |
+| Token Cost | ~10,000 | ~1,320 | ~999 |
+| Token Reduction | — | **−87%** | **−90%** |
 | Execution Time | ~3s | 15ms | 14ms |
 | Speedup | — | **~200×** | **~214×** |
 
@@ -126,11 +130,11 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
-| Entities found | Partial | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~8,000 | ~973 | ~374 |
-| Token Reduction | — | **−88%** | **−95%** |
-| Execution Time | ~3s | 78ms | 78ms |
-| Speedup | — | **~38×** | **~38×** |
+| Entities found | Partial | 29 ranked — complete | 29 ranked — complete |
+| Token Cost | ~8,000 | ~1,049 | ~406 |
+| Token Reduction | — | **−87%** | **−95%** |
+| Execution Time | ~3s | 76ms | 77ms |
+| Speedup | — | **~39×** | **~39×** |
 
 ---
 
@@ -145,11 +149,11 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
-| Entities found | Partial, misses abstract chain | 386 — complete | 386 — complete |
-| Token Cost | ~40,000 | ~9,565 | ~8,157 |
-| Token Reduction | — | **−76%** | **−80%** |
-| Execution Time | ~5s | 42ms | 17ms |
-| Speedup | — | **~119×** | **~294×** |
+| Entities found | Partial, misses abstract chain | 122 direct subclasses — complete | 122 direct subclasses — complete |
+| Token Cost | ~40,000 | ~11,177 | ~8,835 |
+| Token Reduction | — | **−72%** | **−78%** |
+| Execution Time | ~5s | 19ms | 41ms |
+| Speedup | — | **~263×** | **~122×** |
 
 ---
 
@@ -157,17 +161,17 @@ Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (S
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | ORM Field types | ~35,000 tok | ~3,662 tok | ~3,129 tok | **−90%** | **−91%** | ~190× |
-| Test 2 | Admin → ORM path | ~13,200 tok | ~21 tok | ~21 tok | **−99.8%** | **−99.8%** | ~48× |
-| Test 3 | Management commands | ~4,100 tok | ~309 tok | ~210 tok | **−93%** | **−95%** | ~214× |
-| Test 4 | Auth/middleware context | ~13,479 tok | ~1,102 tok | ~444 tok | **−92%** | **−97%** | ~47× |
-| Test 5 | CBV hierarchy | ~10,000 tok | ~1,133 tok | ~896 tok | **−89%** | **−91%** | ~200× |
-| Test 6 | Signal dispatch | ~8,000 tok | ~973 tok | ~374 tok | **−88%** | **−95%** | ~38× |
-| Test 7 | Model subclasses | ~40,000 tok | ~9,565 tok | ~8,157 tok | **−76%** | **−80%** | ~119× |
+| Test 1 | ORM Field types | ~35,000 tok | ~5,362 tok | ~4,311 tok | **−85%** | **−88%** | ~200× |
+| Test 2 | Admin → ORM path | ~13,200 tok | ~24 tok | ~24 tok | **−99.8%** | **−99.8%** | ~47× |
+| Test 3 | Management commands | ~4,100 tok | ~337 tok | ~234 tok | **−92%** | **−94%** | ~79× |
+| Test 4 | Auth/middleware context | ~13,479 tok | ~1,083 tok | ~440 tok | **−92%** | **−97%** | ~47× |
+| Test 5 | CBV hierarchy | ~10,000 tok | ~1,320 tok | ~999 tok | **−87%** | **−90%** | ~200× |
+| Test 6 | Signal dispatch | ~8,000 tok | ~1,049 tok | ~406 tok | **−87%** | **−95%** | ~39× |
+| Test 7 | Model subclasses | ~40,000 tok | ~11,177 tok | ~8,835 tok | **−72%** | **−78%** | ~263× |
 
 ---
 
-Geometric mean savings: **~91% token reduction (Full) · ~93% token reduction (Slim)** · **~97× faster navigation**
+Geometric mean savings: **~93% token reduction (Full) · ~95% token reduction (Slim)** · **~95× faster navigation**
 
 ## Reproducing
 
