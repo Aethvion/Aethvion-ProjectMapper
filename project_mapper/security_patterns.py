@@ -1322,8 +1322,6 @@ _CWE_FIX: dict[str, tuple[str, str]] = {
     "cs_xpath_injection":        ("CWE-643", "Use XPathVariableResolver to inject values; never concatenate user input into XPath strings"),
     # ── Auth Token in Insecure Storage (CWE-922) ──────────────────────────────
     "js_localstorage_auth":      ("CWE-922", "Store auth tokens in HttpOnly cookies, not localStorage; any JS on the page can read localStorage"),
-    # ── LocalFile Injection (CWE-73) ─────────────────────────────────────────
-    "php_header_injection":      ("CWE-113", "Strip or reject \\r and \\n in header values before calling header()"),
     # ── Reverse Tabnapping (CWE-1022) ─────────────────────────────────────────
     "js_open_tabnapping":            ("CWE-1022", "Add rel='noopener noreferrer' to all links with target='_blank'"),
     # ── Missing HttpOnly Cookie Flag (CWE-1004) ───────────────────────────────
