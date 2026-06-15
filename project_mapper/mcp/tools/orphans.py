@@ -94,12 +94,3 @@ def handle_pm_orphans(args: dict[str, Any], ctx: MCPContext) -> str:
         lines.append("")
 
     return "\n".join(lines).rstrip()
-
-
-# ---------------------------------------------------------------------------
-# pm_visualize handler
-# ---------------------------------------------------------------------------
-
-_VIZ_DEFAULT_KINDS: frozenset[str] = frozenset({
-    "calls", "imports", "uses", "extends", "implements", "depends_on",
-})
