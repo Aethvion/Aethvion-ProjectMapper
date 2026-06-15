@@ -301,32 +301,46 @@ If you always work on one codebase, add `PM_PROJECT_ROOT` so the AI never needs 
 
 ## Project structure
 
+The package is layered: **analyzers → core → {mcp, http}**, with `config` and
+`db` as shared infrastructure. Interface layers (mcp, http) are thin adapters
+over the transport-agnostic `core`; `core` never imports from them.
+
 ```
 project_mapper/
-├── app.py             — FastAPI app factory + pm-server CLI entry point
-├── config.py          — DATA_DIR / environment config
-├── routes.py          — FastAPI router (/api/project-mapper/*)
-├── scanner.py         — Async background scan engine
-├── ingestor.py        — CodeAnalysis → AethvionDB entities
-├── code_analyzer.py   — Python AST extractor
-├── ts_analyzer.py … swift_analyzer.py — 11 tree-sitter extractors (JS/TS, Java, Kotlin, Go, Rust, C, C++, C#, Ruby, PHP, Swift)
-├── query.py           — Impact / context / shortest-path algorithms
-├── query_cache.py     — Query-result cache (snapshot-mtime invalidation)
-├── cleanup.py         — Incremental scan maintenance
-├── delta.py           — Filesystem diff (no DB writes)
-├── security_patterns.py — Standalone SAST scanner (140+ OWASP patterns)
-├── watcher.py         — Auto-scan file watcher (--watch mode)
-├── mcp_tools.py       — 12 MCP tool schemas + handlers
-├── mcp_server.py      — JSON-RPC 2.0 stdio MCP server
-└── db/
-    ├── entity_schema.py   — Entity data model + validation
-    ├── pm_store.py        — In-memory entity store (PMEntityStore)
-    ├── name_index.py      — Thread-safe name → ID index
-    ├── file_manifest.py   — File ↔ entity provenance tracking
-    ├── snapshot.py        — Single-file snapshot persistence
-    ├── db_registry.py     — Named database registry
-    └── utils.py           — Logging + atomic-write helpers
-server.py              — FastAPI dev entry shim (uvicorn server:app)
+├── config.py             — DATA_DIR / environment config
+├── analyzers/            — language extractors (one file per language)
+│   ├── base.py               shared types (CodeAnalysis) + language dispatch
+│   └── python.py  typescript.py  java.py  kotlin.py  go.py  rust.py
+│       c.py  cpp.py  csharp.py  ruby.py  php.py  swift.py
+├── core/                 — transport-agnostic engine
+│   ├── scanner.py            async background scan engine
+│   ├── ingestor.py           CodeAnalysis → AethvionDB entities
+│   ├── query_cache.py        query-result cache (snapshot-mtime invalidation)
+│   ├── cleanup.py            incremental scan maintenance
+│   ├── delta.py              filesystem diff (no DB writes)
+│   ├── watcher.py            auto-scan file watcher (--watch mode)
+│   ├── query/               graph queries, one module per primitive
+│   │   ├── _common.py            entity-map build, resolution, shared constants
+│   │   └── context.py  impact.py  path.py  find.py  orphans.py  contribute.py
+│   └── security/            standalone SAST scanner (OWASP Top 10, 140+ rules)
+│       ├── patterns.py          the pattern catalog (data)
+│       └── scanner.py           the scan engine (logic)
+├── db/                   — storage
+│   ├── entity_schema.py      entity data model + validation
+│   ├── pm_store.py           in-memory entity store (PMEntityStore)
+│   ├── name_index.py         thread-safe name → ID index
+│   ├── file_manifest.py      file ↔ entity provenance tracking
+│   ├── snapshot.py           single-file snapshot persistence
+│   ├── db_registry.py        named database registry
+│   └── utils.py              logging + atomic-write helpers
+├── mcp/                  — MCP (stdio) interface
+│   ├── server.py             JSON-RPC 2.0 stdio MCP server
+│   └── tools/               12 tools, one module per tool (+ base.py)
+└── http/                 — HTTP (FastAPI) interface
+    ├── app.py                app factory + pm-server CLI entry point
+    └── routes.py             FastAPI router (/api/project-mapper/*)
+
+server.py                 — FastAPI dev entry shim (uvicorn server:app)
 ```
 
 ---
