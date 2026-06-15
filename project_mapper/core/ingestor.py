@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from .analyzers import CodeAnalysis, ImportInfo
+from ..analyzers import CodeAnalysis, ImportInfo
 
 logger = logging.getLogger(__name__)
 

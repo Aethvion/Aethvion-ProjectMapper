@@ -339,7 +339,7 @@ class MCPServer:
                     "[ProjectMapper MCP] --watch ignored: --project-root not set."
                 )
             else:
-                from .watcher import AutoScanner
+                from .core.watcher import AutoScanner
                 ctx = self._get_ctx()   # initialise eagerly so watcher shares the same objects
                 scanner = AutoScanner(
                     project_root=self._project_root,

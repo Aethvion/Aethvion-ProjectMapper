@@ -30,9 +30,9 @@ from typing import TYPE_CHECKING, Any
 from .scanner import SUPPORTED_EXTENSIONS, _EXCLUDED_DIRS
 
 if TYPE_CHECKING:
-    from .db.pm_store import PMEntityStore
-    from .db.name_index import NameIndex
-    from .db.file_manifest import FileManifest
+    from ..db.pm_store import PMEntityStore
+    from ..db.name_index import NameIndex
+    from ..db.file_manifest import FileManifest
 
 logger = logging.getLogger(__name__)
 

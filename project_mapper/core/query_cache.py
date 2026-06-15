@@ -43,9 +43,9 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from .db import snapshot as _snapshot
-from .db.name_index import NameIndex
-from .db.utils import get_logger
+from ..db import snapshot as _snapshot
+from ..db.name_index import NameIndex
+from ..db.utils import get_logger
 
 logger = get_logger(__name__)
 

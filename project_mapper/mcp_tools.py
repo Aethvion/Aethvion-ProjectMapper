@@ -607,7 +607,7 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
 # ---------------------------------------------------------------------------
 
 def handle_pm_context(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, context_query
+    from .core.query import build_entity_map, context_query
 
     q            = args.get("query", "").strip()
     anchors      = args.get("entities") or []
@@ -664,7 +664,7 @@ def handle_pm_context(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, impact_query
+    from .core.query import build_entity_map, impact_query
 
     entity_name = args.get("entity", "").strip()
     depth       = max(1, min(int(args.get("depth", 2)), 4))
@@ -739,7 +739,7 @@ def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_path(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, shortest_path
+    from .core.query import build_entity_map, shortest_path
 
     from_name = args.get("from_entity", "").strip()
     to_name   = args.get("to_entity", "").strip()
@@ -798,7 +798,7 @@ def handle_pm_path(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_contribute(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, apply_contribution, _resolve_entity
+    from .core.query import build_entity_map, apply_contribution, _resolve_entity
 
     entity_name = args.get("entity_name", "").strip()
     properties  = args.get("properties", {}) or {}
@@ -845,7 +845,7 @@ def handle_pm_contribute(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .scanner import scan_status, SCANINFO
+    from .core.scanner import scan_status, SCANINFO
 
     scan = scan_status(ctx.db_root)
     fm   = ctx.file_manifest.stats()
@@ -937,7 +937,7 @@ def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .delta import compute_delta
+    from .core.delta import compute_delta
 
     project_root = args.get("project_root") or ctx.project_root
     if not project_root:
@@ -1002,7 +1002,7 @@ def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:
 
 def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     import asyncio, threading, time
-    from .scanner import run_scan
+    from .core.scanner import run_scan
 
     project_root = args.get("project_root") or ctx.project_root
     incremental  = bool(args.get("incremental", True))
@@ -1026,7 +1026,7 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     # entities and prune their stubs, but the agent should know it happened.
     project_mismatch_warning = ""
     try:
-        from .scanner import _read_scaninfo
+        from .core.scanner import _read_scaninfo
         prev_info = _read_scaninfo(ctx.db_root)
         prev_root = prev_info.get("project_root", "")
         if prev_root and str(Path(prev_root).resolve()) != project_root:
@@ -1099,7 +1099,7 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
             lock.release()
 
     # Read the final scan stats
-    from .scanner import scan_status
+    from .core.scanner import scan_status
     status = scan_status(ctx.db_root)
     stats  = status.get("stats", {})
 
@@ -1226,7 +1226,7 @@ def _format_method_find(queried: str, result: dict[str, Any]) -> str:
 
 
 def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, find_query, find_by_method
+    from .core.query import build_entity_map, find_query, find_by_method
 
     name = args.get("name", "").strip()
     if not name:
@@ -1290,7 +1290,7 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_orphans(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .query import build_entity_map, orphan_query
+    from .core.query import build_entity_map, orphan_query
 
     types_filter    = args.get("types") or None
     include_modules = bool(args.get("include_modules", False))
@@ -1445,7 +1445,7 @@ def _viz_dot(
 
 def handle_pm_visualize(args: dict[str, Any], ctx: MCPContext) -> str:
     from collections import deque
-    from .query import build_entity_map
+    from .core.query import build_entity_map
 
     entity_name = (args.get("entity") or "").strip()
     depth       = max(1, min(4, int(args.get("depth") or 2)))
@@ -1595,7 +1595,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     import os
     from datetime import datetime, timezone
     from pathlib import Path as _Path
-    from .security_patterns import scan_file_security, is_route_handler_file
+    from .core.security_patterns import scan_file_security, is_route_handler_file
 
     project_root_arg = (args.get("project_root") or ctx.project_root or "").strip()
     if not project_root_arg:

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 from .scanner import SUPPORTED_EXTENSIONS, _EXCLUDED_DIRS
 
 if TYPE_CHECKING:
-    from .db.file_manifest import FileManifest
+    from ..db.file_manifest import FileManifest
 
 logger = logging.getLogger(__name__)
 
