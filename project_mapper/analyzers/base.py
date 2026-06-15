@@ -1,5 +1,5 @@
 """
-project_mapper/code_analyzer.py
+project_mapper/analyzers/base.py
 Python AST-based code structure extractor.
 
 Given a file path and its content, extracts all structurally meaningful
@@ -769,37 +769,37 @@ def analyze_file(path: str, content: str, language: str = "") -> CodeAnalysis:
     if language == "python":
         return analyze_python(path, content)
     if language in ("typescript", "javascript"):
-        from .ts_analyzer import analyze_typescript
+        from .typescript import analyze_typescript
         return analyze_typescript(path, content, language)
     if language == "java":
-        from .java_analyzer import analyze_java
+        from .java import analyze_java
         return analyze_java(path, content)
     if language == "go":
-        from .go_analyzer import analyze_go
+        from .go import analyze_go
         return analyze_go(path, content)
     if language == "csharp":
-        from .csharp_analyzer import analyze_csharp
+        from .csharp import analyze_csharp
         return analyze_csharp(path, content)
     if language == "rust":
-        from .rust_analyzer import analyze_rust
+        from .rust import analyze_rust
         return analyze_rust(path, content)
     if language in ("c", "cpp"):
         if language == "c":
-            from .c_analyzer import analyze_c
+            from .c import analyze_c
             return analyze_c(path, content)
-        from .cpp_analyzer import analyze_cpp
+        from .cpp import analyze_cpp
         return analyze_cpp(path, content)
     if language == "php":
-        from .php_analyzer import analyze_php
+        from .php import analyze_php
         return analyze_php(path, content)
     if language == "ruby":
-        from .ruby_analyzer import analyze_ruby
+        from .ruby import analyze_ruby
         return analyze_ruby(path, content)
     if language == "kotlin":
-        from .kotlin_analyzer import analyze_kotlin
+        from .kotlin import analyze_kotlin
         return analyze_kotlin(path, content)
     if language == "swift":
-        from .swift_analyzer import analyze_swift
+        from .swift import analyze_swift
         return analyze_swift(path, content)
     # Minimal stub for unsupported file types
     return CodeAnalysis(

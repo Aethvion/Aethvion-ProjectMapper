@@ -25,7 +25,7 @@ try:
 except Exception:
     _AVAILABLE = False
 
-from .code_analyzer import (
+from .base import (
     ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
 )
 

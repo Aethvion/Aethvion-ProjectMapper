@@ -2,7 +2,7 @@
 project_mapper/csharp_analyzer.py
 C# code structure extractor using tree-sitter.
 
-Extracts the same CodeAnalysis structure as code_analyzer.py so the
+Extracts the same CodeAnalysis structure as base.py so the
 ingestor can handle C# files uniformly.
 
 Supports:
@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .code_analyzer import (
+from .base import (
     ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
 )
 

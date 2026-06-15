@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .code_analyzer import analyze_file
+from .analyzers import analyze_file
 from .ingestor import ProjectIngestor
 
 logger = logging.getLogger(__name__)
@@ -350,7 +350,7 @@ async def run_scan(
             file_manifest.set_stat(rel, file_size, file_mtime, save=False)
             return
 
-        from .code_analyzer import detect_language_for_path  # inline to avoid circular
+        from .analyzers import detect_language_for_path  # inline to avoid circular
         language = detect_language_for_path(str(fp))
         analysis = await asyncio.to_thread(analyze_file, rel, content, language)
 
