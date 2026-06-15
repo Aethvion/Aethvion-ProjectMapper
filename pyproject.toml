@@ -112,8 +112,8 @@ dev = [
 ]
 
 [project.scripts]
-pm-server = "project_mapper.app:serve"
-pm-mcp    = "project_mapper.mcp_server:main"
+pm-server = "project_mapper.http.app:serve"
+pm-mcp    = "project_mapper.mcp.server:main"
 
 [project.urls]
 Homepage      = "https://aethvion.com/projectmapper.html"

@@ -607,7 +607,7 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
 # ---------------------------------------------------------------------------
 
 def handle_pm_context(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.query import build_entity_map, context_query
+    from ..core.query import build_entity_map, context_query
 
     q            = args.get("query", "").strip()
     anchors      = args.get("entities") or []
@@ -664,7 +664,7 @@ def handle_pm_context(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.query import build_entity_map, impact_query
+    from ..core.query import build_entity_map, impact_query
 
     entity_name = args.get("entity", "").strip()
     depth       = max(1, min(int(args.get("depth", 2)), 4))
@@ -739,7 +739,7 @@ def handle_pm_impact(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_path(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.query import build_entity_map, shortest_path
+    from ..core.query import build_entity_map, shortest_path
 
     from_name = args.get("from_entity", "").strip()
     to_name   = args.get("to_entity", "").strip()
@@ -798,7 +798,7 @@ def handle_pm_path(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_contribute(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.query import build_entity_map, apply_contribution, _resolve_entity
+    from ..core.query import build_entity_map, apply_contribution, _resolve_entity
 
     entity_name = args.get("entity_name", "").strip()
     properties  = args.get("properties", {}) or {}
@@ -845,7 +845,7 @@ def handle_pm_contribute(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.scanner import scan_status, SCANINFO
+    from ..core.scanner import scan_status, SCANINFO
 
     scan = scan_status(ctx.db_root)
     fm   = ctx.file_manifest.stats()
@@ -937,7 +937,7 @@ def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.delta import compute_delta
+    from ..core.delta import compute_delta
 
     project_root = args.get("project_root") or ctx.project_root
     if not project_root:
@@ -1002,7 +1002,7 @@ def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:
 
 def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     import asyncio, threading, time
-    from .core.scanner import run_scan
+    from ..core.scanner import run_scan
 
     project_root = args.get("project_root") or ctx.project_root
     incremental  = bool(args.get("incremental", True))
@@ -1026,7 +1026,7 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     # entities and prune their stubs, but the agent should know it happened.
     project_mismatch_warning = ""
     try:
-        from .core.scanner import _read_scaninfo
+        from ..core.scanner import _read_scaninfo
         prev_info = _read_scaninfo(ctx.db_root)
         prev_root = prev_info.get("project_root", "")
         if prev_root and str(Path(prev_root).resolve()) != project_root:
@@ -1099,7 +1099,7 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
             lock.release()
 
     # Read the final scan stats
-    from .core.scanner import scan_status
+    from ..core.scanner import scan_status
     status = scan_status(ctx.db_root)
     stats  = status.get("stats", {})
 
@@ -1226,7 +1226,7 @@ def _format_method_find(queried: str, result: dict[str, Any]) -> str:
 
 
 def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.query import build_entity_map, find_query, find_by_method
+    from ..core.query import build_entity_map, find_query, find_by_method
 
     name = args.get("name", "").strip()
     if not name:
@@ -1290,7 +1290,7 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
 
 
 def handle_pm_orphans(args: dict[str, Any], ctx: MCPContext) -> str:
-    from .core.query import build_entity_map, orphan_query
+    from ..core.query import build_entity_map, orphan_query
 
     types_filter    = args.get("types") or None
     include_modules = bool(args.get("include_modules", False))
@@ -1445,7 +1445,7 @@ def _viz_dot(
 
 def handle_pm_visualize(args: dict[str, Any], ctx: MCPContext) -> str:
     from collections import deque
-    from .core.query import build_entity_map
+    from ..core.query import build_entity_map
 
     entity_name = (args.get("entity") or "").strip()
     depth       = max(1, min(4, int(args.get("depth") or 2)))
@@ -1595,7 +1595,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     import os
     from datetime import datetime, timezone
     from pathlib import Path as _Path
-    from .core.security_patterns import scan_file_security, is_route_handler_file
+    from ..core.security_patterns import scan_file_security, is_route_handler_file
 
     project_root_arg = (args.get("project_root") or ctx.project_root or "").strip()
     if not project_root_arg:
@@ -1677,7 +1677,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     # security findings publicly.  Path is keyed by a hash of the absolute
     # project root so different projects never share a file.
     import hashlib as _hashlib
-    from .config import DATA_DIR as _DATA_DIR
+    from ..config import DATA_DIR as _DATA_DIR
     _abs_root   = str(project_root.resolve())
     _root_hash  = _hashlib.sha256(_abs_root.encode()).hexdigest()[:10]
     _sec_dir    = _DATA_DIR / "security"
@@ -1779,7 +1779,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     }
 
     try:
-        from .mcp_server import SERVER_VERSION as _sv
+        from .server import SERVER_VERSION as _sv
         pm_version = _sv
     except Exception:
         pm_version = ""
@@ -1980,7 +1980,7 @@ def handle_pm_security_triage(args: dict[str, Any], ctx: MCPContext) -> str:
     import json as _json
     import hashlib as _hl
     from pathlib import Path as _Path
-    from .config import DATA_DIR as _DATA_DIR
+    from ..config import DATA_DIR as _DATA_DIR
 
     new_status  = (args.get("status") or "").strip()
     finding_id  = (args.get("id") or "").strip()

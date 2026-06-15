@@ -81,7 +81,7 @@ async def health():
 @app.get("/.well-known/mcp/server-card.json", include_in_schema=False)
 async def server_card():
     """Smithery tool-discovery endpoint — returns MCP tool list without needing a live connection."""
-    from .mcp_tools import TOOL_SCHEMAS
+    from ..mcp.tools import TOOL_SCHEMAS
     return {
         "name": "aethvion-project-mapper",
         "version": __version__,
@@ -146,7 +146,7 @@ def serve() -> None:
     print(f"  http://{args.host}:{args.port}  |  docs: http://{args.host}:{args.port}/docs")
 
     uvicorn.run(
-        "project_mapper.app:app",
+        "project_mapper.http.app:app",
         host=args.host,
         port=args.port,
         workers=args.workers if not args.reload else 1,

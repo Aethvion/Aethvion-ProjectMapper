@@ -17,9 +17,9 @@ Usage (after uv tool install)
 
 Usage (direct, for development)
 --------------------------------
-    python -m project_mapper.mcp_server --db my_project
-    python -m project_mapper.mcp_server --db-path /data/pm/my_project
-    python -m project_mapper.mcp_server --db my_project --project-root /path/to/project
+    python -m project_mapper.mcp.server --db my_project
+    python -m project_mapper.mcp.server --db-path /data/pm/my_project
+    python -m project_mapper.mcp.server --db my_project --project-root /path/to/project
 
 Watch mode (auto-scan)
 ---------------------
@@ -171,10 +171,10 @@ class MCPServer:
         if self._ctx is not None:
             return self._ctx
 
-        from .db.pm_store import PMEntityStore, PMNameIndex
-        from .db.file_manifest import FileManifest
-        from .db import snapshot as _snap
-        from .mcp_tools import MCPContext
+        from ..db.pm_store import PMEntityStore, PMNameIndex
+        from ..db.file_manifest import FileManifest
+        from ..db import snapshot as _snap
+        from .tools import MCPContext
 
         self._db_root.mkdir(parents=True, exist_ok=True)
         name_index = PMNameIndex(index_path=self._db_root / "name_index.json")
@@ -236,11 +236,11 @@ class MCPServer:
         })
 
     def _handle_tools_list(self, req_id: Any, params: dict) -> None:
-        from .mcp_tools import TOOL_SCHEMAS
+        from .tools import TOOL_SCHEMAS
         self._ok(req_id, {"tools": TOOL_SCHEMAS})
 
     def _handle_tools_call(self, req_id: Any, params: dict) -> None:
-        from .mcp_tools import HANDLERS
+        from .tools import HANDLERS
 
         name      = params.get("name", "")
         arguments = params.get("arguments", {}) or {}
@@ -339,7 +339,7 @@ class MCPServer:
                     "[ProjectMapper MCP] --watch ignored: --project-root not set."
                 )
             else:
-                from .core.watcher import AutoScanner
+                from ..core.watcher import AutoScanner
                 ctx = self._get_ctx()   # initialise eagerly so watcher shares the same objects
                 scanner = AutoScanner(
                     project_root=self._project_root,
@@ -393,20 +393,20 @@ def _resolve_db_root(db_name: str, db_path: Optional[str]) -> tuple[Path, str]:
 
     if db_name:
         try:
-            from .db.db_registry import resolve_db_root
+            from ..db.db_registry import resolve_db_root
             return resolve_db_root(db_name), db_name
         except Exception:
             pass
         # Fallback: under DATA_DIR
-        from .config import DATA_DIR
+        from ..config import DATA_DIR
         return DATA_DIR / db_name, db_name
 
     # Nothing specified — use "default"
     try:
-        from .db.db_registry import resolve_db_root
+        from ..db.db_registry import resolve_db_root
         return resolve_db_root("default"), "default"
     except Exception:
-        from .config import DATA_DIR
+        from ..config import DATA_DIR
         return DATA_DIR / "default", "default"
 
 
@@ -414,7 +414,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        prog="python -m project_mapper.mcp_server",
+        prog="python -m project_mapper.mcp.server",
         description="ProjectMapper MCP stdio server",
     )
     parser.add_argument(

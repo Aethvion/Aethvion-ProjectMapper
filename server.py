@@ -1,6 +1,6 @@
 """
 server.py
-Development shim — re-exports the app from project_mapper.app.
+Development shim — re-exports the app from project_mapper.http.app.
 
 Usage (local development, from repo root):
     uvicorn server:app --reload --port 7474
@@ -11,6 +11,6 @@ For production use the installed CLI command instead:
     pm-server --port 8080 --workers 2
 """
 
-from project_mapper.app import app  # noqa: F401  re-exported for uvicorn
+from project_mapper.http.app import app  # noqa: F401  re-exported for uvicorn
 
 __all__ = ["app"]

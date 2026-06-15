@@ -16,7 +16,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from .core.scanner import (
+from ..core.scanner import (
     scan_folder_preview,
     scan_status,
     start_scan,
@@ -42,7 +42,7 @@ def _db_root(db: str = "default", path: Optional[str] = None) -> Path:
         return Path(path)
     if not _SAFE_RE.match(db):
         raise HTTPException(400, f"Invalid database name {db!r}")
-    from .db.db_registry import resolve_db_root
+    from ..db.db_registry import resolve_db_root
     return resolve_db_root(db)
 
 
@@ -61,8 +61,8 @@ def _get_scan_writer(
     Incremental scans pre-populate the store from the existing snapshot so
     entities for unchanged files survive intact.
     """
-    from .db.pm_store import PMEntityStore, PMNameIndex
-    from .db import snapshot as _snap
+    from ..db.pm_store import PMEntityStore, PMNameIndex
+    from ..db import snapshot as _snap
     root  = _db_root(db, path)
     index = PMNameIndex(index_path=root / "name_index.json")
     if incremental and _snap.snapshot_path(root).exists():
@@ -78,7 +78,7 @@ def _get_mutation_writer(db: str = "default", path: Optional[str] = None) -> tup
     Loads the full snapshot into memory.  The caller must call
     writer.flush() to persist changes back to the snapshot file.
     """
-    from .db.pm_store import PMEntityStore, PMNameIndex
+    from ..db.pm_store import PMEntityStore, PMNameIndex
     root  = _db_root(db, path)
     index = PMNameIndex(index_path=root / "name_index.json")
     writer = PMEntityStore.from_snapshot(root, index)
@@ -86,7 +86,7 @@ def _get_mutation_writer(db: str = "default", path: Optional[str] = None) -> tup
 
 
 def _get_file_manifest(db: str = "default", path: Optional[str] = None):
-    from .db.file_manifest import FileManifest
+    from ..db.file_manifest import FileManifest
     return FileManifest(_db_root(db, path))
 
 
@@ -301,7 +301,7 @@ async def query_cache_stats(
     path: Optional[str] = Query(None),
 ):
     """Return the current state of the in-memory query cache."""
-    from .core.query_cache import get_query_cache
+    from ..core.query_cache import get_query_cache
     return get_query_cache().stats()
 
 
@@ -318,8 +318,8 @@ async def query_impact(req: ImpactRequest):
     depth 2 = dependents of dependents (default)
     depth 3–4 = wider blast radius (can be slow on large graphs)
     """
-    from .core.query import impact_query
-    from .core.query_cache import get_query_cache
+    from ..core.query import impact_query
+    from ..core.query_cache import get_query_cache
 
     depth      = max(1, min(req.depth, 4))
     root       = _db_root(req.db, req.path)
@@ -349,8 +349,8 @@ async def query_context(req: ContextRequest):
       medium — + classes, components, workflows, configs, dependencies
       low    — + functions, endpoints, models (full implementation detail)
     """
-    from .core.query import context_query
-    from .core.query_cache import get_query_cache
+    from ..core.query import context_query
+    from ..core.query_cache import get_query_cache
 
     depth      = max(0, min(req.depth, 2))
     root       = _db_root(req.db, req.path)
@@ -379,8 +379,8 @@ async def query_path(req: PathRequest):
     Traverses all relation kinds in both directions (undirected).
     Useful for answering "how does the auth system connect to the payment flow?"
     """
-    from .core.query import shortest_path
-    from .core.query_cache import get_query_cache
+    from ..core.query import shortest_path
+    from ..core.query_cache import get_query_cache
 
     root       = _db_root(req.db, req.path)
     entity_map, index = await get_query_cache().get(root)
@@ -418,7 +418,7 @@ async def project_delta(
     - Detect deleted files to manually trigger a cleanup.
     - CI pipelines that need to know if a re-scan is necessary.
     """
-    from .core.delta import compute_delta
+    from ..core.delta import compute_delta
 
     file_manifest = _get_file_manifest(db, path)
     try:
@@ -464,7 +464,7 @@ async def run_cleanup(
 
     Returns a summary of how many files and entities were retired.
     """
-    from .core.cleanup import run_deletion_cleanup
+    from ..core.cleanup import run_deletion_cleanup
 
     root          = _db_root(db, path)
     writer, index = _get_mutation_writer(db, path)
@@ -506,10 +506,10 @@ async def list_mcp_tools():
     Return the MCP tool schemas for all ProjectMapper tools.
 
     These are the same schemas exposed by the standalone MCP server
-    (project_mapper.mcp_server) and published in tools.json.
+    (project_mapper.mcp.server) and published in tools.json.
     Useful for Cursor, Antigravity, and other HTTP-based MCP hosts.
     """
-    from .mcp_tools import TOOL_SCHEMAS
+    from ..mcp.tools import TOOL_SCHEMAS
     return {
         "schema_version": "2024-11-05",
         "server":         "project-mapper",
@@ -531,7 +531,7 @@ async def agent_contribute(req: ContributeRequest):
     Designed for AI coding agents (Claude Code, Cursor, etc.) to call after
     implementing a feature or making an architectural decision.
     """
-    from .core.query import build_entity_map, apply_contribution, _resolve_entity
+    from ..core.query import build_entity_map, apply_contribution, _resolve_entity
 
     writer, index = _get_mutation_writer(req.db, req.path)
 
