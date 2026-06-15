@@ -303,24 +303,30 @@ If you always work on one codebase, add `PM_PROJECT_ROOT` so the AI never needs 
 
 ```
 project_mapper/
-├── config.py          — DATA_DIR config
+├── app.py             — FastAPI app factory + pm-server CLI entry point
+├── config.py          — DATA_DIR / environment config
 ├── routes.py          — FastAPI router (/api/project-mapper/*)
 ├── scanner.py         — Async background scan engine
 ├── ingestor.py        — CodeAnalysis → AethvionDB entities
 ├── code_analyzer.py   — Python AST extractor
+├── ts_analyzer.py … swift_analyzer.py — 11 tree-sitter extractors (JS/TS, Java, Kotlin, Go, Rust, C, C++, C#, Ruby, PHP, Swift)
 ├── query.py           — Impact / context / shortest-path algorithms
+├── query_cache.py     — Query-result cache (snapshot-mtime invalidation)
 ├── cleanup.py         — Incremental scan maintenance
 ├── delta.py           — Filesystem diff (no DB writes)
+├── security_patterns.py — Standalone SAST scanner (140+ OWASP patterns)
+├── watcher.py         — Auto-scan file watcher (--watch mode)
 ├── mcp_tools.py       — 12 MCP tool schemas + handlers
 ├── mcp_server.py      — JSON-RPC 2.0 stdio MCP server
 └── db/
     ├── entity_schema.py   — Entity data model + validation
-    ├── entity_writer.py   — Create / update / delete entities
+    ├── pm_store.py        — In-memory entity store (PMEntityStore)
     ├── name_index.py      — Thread-safe name → ID index
     ├── file_manifest.py   — File ↔ entity provenance tracking
-    ├── snapshot.py        — Fast-load snapshot cache
-    └── db_registry.py     — Named database registry
-server.py              — FastAPI app entry point
+    ├── snapshot.py        — Single-file snapshot persistence
+    ├── db_registry.py     — Named database registry
+    └── utils.py           — Logging + atomic-write helpers
+server.py              — FastAPI dev entry shim (uvicorn server:app)
 ```
 
 ---
