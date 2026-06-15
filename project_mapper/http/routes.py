@@ -397,6 +397,67 @@ async def query_path(req: PathRequest):
     return result
 
 
+@router.get("/query/find")
+async def query_find(
+    name:        str = Query(..., description="Symbol name to look up (function, class, or module)"),
+    db:          str = Query("default"),
+    path:        Optional[str] = Query(None),
+    max_results: int = Query(10, description="Max matches when several symbols share the name"),
+):
+    """
+    Look up a symbol by name: its definition location, callers, and callees.
+
+    Tries exact name first, then class-qualified method lookup (e.g. "UserService.login"),
+    then partial matches.
+    """
+    from ..core.query import find_query, find_by_method
+    from ..core.query_cache import get_query_cache
+
+    root = _db_root(db, path)
+    entity_map, index = await get_query_cache().get(root)
+    if not entity_map:
+        raise HTTPException(404, f"Knowledge graph for database {db!r} is empty — run a scan first.")
+
+    result = await asyncio.to_thread(find_query, name, entity_map, index, max_results=max_results)
+    if result.get("not_found"):
+        method_result = await asyncio.to_thread(
+            find_by_method, name, entity_map, index, max_results=max_results,
+        )
+        if not method_result.get("not_found"):
+            return method_result
+        raise HTTPException(404, f"Symbol {name!r} not found in database {db!r}")
+    return result
+
+
+@router.get("/query/orphans")
+async def query_orphans(
+    db:              str = Query("default"),
+    path:            Optional[str] = Query(None),
+    types:           list[str] = Query(default=[], description="Limit to entity types, e.g. function, class"),
+    include_modules: bool = Query(False, description="Include module-level entities (often entry points)"),
+    max_results:     int = Query(100),
+):
+    """
+    Find entities with no inbound calls/imports/dependencies — dead-code candidates.
+
+    Entry points, dunder methods, and test functions are filtered out automatically.
+    Review results before deleting: dynamic dispatch and public API won't have graph callers.
+    """
+    from ..core.query import orphan_query
+    from ..core.query_cache import get_query_cache
+
+    root = _db_root(db, path)
+    entity_map, index = await get_query_cache().get(root)
+    if not entity_map:
+        raise HTTPException(404, f"Knowledge graph for database {db!r} is empty — run a scan first.")
+
+    result = await asyncio.to_thread(
+        orphan_query, entity_map,
+        types=types or None, include_modules=include_modules, max_results=max_results,
+    )
+    return result
+
+
 @router.get("/delta")
 async def project_delta(
     project_root:   str  = Query(..., description="Absolute path to the project directory"),
