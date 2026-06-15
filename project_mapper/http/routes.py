@@ -295,6 +295,17 @@ class ContributeRequest(BaseModel):
     source:      str = "agent"                     # caller identifier
 
 
+class VisualizeRequest(BaseModel):
+    entity:    str                                 # entity to centre the diagram on
+    db:        str = "default"
+    path:      Optional[str] = None
+    depth:     int = 2                             # traversal hops (1–4)
+    direction: str = "both"                        # out | in | both
+    relations: list[str] = []                      # relation kinds (default: calls/imports/uses/…)
+    format:    str = "mermaid"                     # mermaid | dot
+    max_nodes: int = 40
+
+
 @router.get("/query/cache")
 async def query_cache_stats(
     db:   str = Query("default"),
@@ -456,6 +467,31 @@ async def query_orphans(
         types=types or None, include_modules=include_modules, max_results=max_results,
     )
     return result
+
+
+@router.post("/query/visualize")
+async def query_visualize(req: VisualizeRequest):
+    """
+    Generate a Mermaid or DOT subgraph diagram centred on a named entity.
+
+    Returns the entity's call/import/dependency neighbourhood up to `depth` hops
+    as a fenced diagram block, plus node/edge counts. `format` is "mermaid" or "dot".
+    """
+    from ..core.query_cache import get_query_cache
+    from ..core.visualize import build_diagram
+
+    root = _db_root(req.db, req.path)
+    entity_map, index = await get_query_cache().get(root)
+
+    res = await asyncio.to_thread(
+        build_diagram, entity_map, index, req.entity,
+        req.depth, req.direction, req.relations or None, req.format, req.max_nodes,
+    )
+    if res["status"] == "empty":
+        raise HTTPException(404, f"Knowledge graph for database {req.db!r} is empty — run a scan first.")
+    if res["status"] == "not_found":
+        raise HTTPException(404, f"Entity {req.entity!r} not found in database {req.db!r}")
+    return res
 
 
 @router.get("/delta")
