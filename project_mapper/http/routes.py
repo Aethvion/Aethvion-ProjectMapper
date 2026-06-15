@@ -306,6 +306,24 @@ class VisualizeRequest(BaseModel):
     max_nodes: int = 40
 
 
+class SecurityScanRequest(BaseModel):
+    project_root:            str                    # absolute path to the project to scan
+    severity:                str = "medium"         # critical | high | medium | low | all
+    language:                Optional[str] = None   # filter to one language
+    owasp:                   Optional[str] = None   # filter by OWASP category prefix (e.g. A03)
+    file:                    Optional[str] = None   # filter by file-path substring
+    max_results:             int = 50
+    include_false_positives: bool = False
+
+
+class SecurityTriageRequest(BaseModel):
+    project_root: str                               # project whose snapshot to update
+    status:       str                               # false_positive | verified_vulnerability | resolved | unreviewed
+    id:           Optional[str] = None              # stable finding ID (single)
+    file:         Optional[str] = None              # file-path substring (bulk)
+    notes:        Optional[str] = None
+
+
 @router.get("/query/cache")
 async def query_cache_stats(
     db:   str = Query("default"),
@@ -492,6 +510,58 @@ async def query_visualize(req: VisualizeRequest):
     if res["status"] == "not_found":
         raise HTTPException(404, f"Entity {req.entity!r} not found in database {req.db!r}")
     return res
+
+
+@router.post("/security/scan")
+async def security_scan(req: SecurityScanRequest):
+    """
+    Run a SAST-style security scan across a project tree (OWASP Top 10, 140+ rules).
+
+    Standalone — no prior /scan needed. Maintains a findings snapshot with stable
+    8-char finding IDs and triage status (use /security/triage to mark them).
+    Returns risk level, severity counts, top files, OWASP coverage, and findings.
+    """
+    from ..core.security import scan_project
+
+    r = await asyncio.to_thread(
+        scan_project, req.project_root, req.severity, req.language, req.owasp,
+        req.file, req.max_results, req.include_false_positives,
+    )
+    if r["status"] == "no_project_root":
+        raise HTTPException(400, "project_root is required")
+    if r["status"] == "bad_root":
+        raise HTTPException(400, f"project_root does not exist or is not a directory: {r['root']}")
+    r.pop("all_findings", None)   # the displayed `findings` are returned; full set omitted for size
+    return r
+
+
+@router.post("/security/triage")
+async def security_triage(req: SecurityTriageRequest):
+    """
+    Update the review status of one or more security findings in the snapshot.
+
+    Identify a finding by `id` (single) or `file` substring (bulk). Statuses:
+    false_positive, verified_vulnerability, resolved, unreviewed.
+    """
+    from ..core.security import triage_findings
+
+    r = await asyncio.to_thread(
+        triage_findings, req.project_root, req.status, req.id, req.file, req.notes,
+    )
+    st = r["status"]
+    if st == "invalid_status":
+        raise HTTPException(400, f"status must be one of: {', '.join(r['valid'])}")
+    if st == "need_id_or_file":
+        raise HTTPException(400, "Provide id (a finding ID) or file (substring to bulk-update)")
+    if st == "no_project_root":
+        raise HTTPException(400, "project_root is required")
+    if st == "no_snapshot":
+        raise HTTPException(404, "No security snapshot for this project — run /security/scan first")
+    if st in ("read_error", "save_error"):
+        raise HTTPException(500, r.get("error", "snapshot I/O error"))
+    if st == "none_matched":
+        raise HTTPException(404, f"No findings matched {r['by']}={r['value']!r}")
+    return {"status": "ok", "updated_count": r["count"], "new_status": r["new_status"]}
 
 
 @router.get("/delta")
