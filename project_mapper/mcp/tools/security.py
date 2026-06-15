@@ -132,7 +132,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     import os
     from datetime import datetime, timezone
     from pathlib import Path as _Path
-    from ...core.security_patterns import scan_file_security, is_route_handler_file
+    from ...core.security import scan_file_security, is_route_handler_file
 
     project_root_arg = (args.get("project_root") or ctx.project_root or "").strip()
     if not project_root_arg:
