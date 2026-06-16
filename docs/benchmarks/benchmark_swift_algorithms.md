@@ -1,6 +1,6 @@
 # Benchmark: Swift — swift-algorithms
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-16 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -11,12 +11,16 @@
 | Repository | `apple/swift-algorithms` |
 | Language | Swift |
 | Files scanned | 57 |
-| Total lines | ~12,000 |
+| Total lines | ~12,200 |
 | Entities indexed | 197 |
 | Scan time | 0.2 s |
 | Throughput | ~61,000 lines/sec |
 
-Geometric mean savings: **−83% token reduction (Full) · −89% token reduction (Slim)** · **~2,400× faster navigation**
+Geometric mean savings: **~81% token reduction (Full) · ~88% token reduction (Slim)** · **~1,900× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -31,11 +35,11 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 8+ | 1 | 1 |
-| Entities found | Partial (~10–12), paired variants missed | 18 — complete, all 18 direct conformances | 18 — complete |
-| Token Cost | ~5,000 | ~568 | ~515 |
-| Token Reduction | — | **−89%** | **−90%** |
-| Execution Time | ~5s | 7ms | <1ms |
-| Speedup | — | **~700×** | **~5,000×** |
+| Entities found | Partial (~10–12), paired variants missed | 23 — complete, all conformances | 23 — complete |
+| Token Cost | ~5,000 | ~685 | ~570 |
+| Token Reduction | — | **−86%** | **−89%** |
+| Execution Time | ~5s | 9ms | 9ms |
+| Speedup | — | **~560×** | **~560×** |
 
 ---
 
@@ -50,9 +54,9 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 10+ | 1 | 1 |
-| Entities found | Partial (~15–18), conditional conformances missed | 25 — complete, all conformances | 25 — complete |
-| Token Cost | ~6,000 | ~662 | ~601 |
-| Token Reduction | — | **−89%** | **−90%** |
+| Entities found | Partial (~15–18), conditional conformances missed | 27 — complete, all conformances | 27 — complete |
+| Token Cost | ~6,000 | ~799 | ~664 |
+| Token Reduction | — | **−87%** | **−89%** |
 | Execution Time | ~6s | <1ms | <1ms |
 | Speedup | — | **~6,000×** | **~6,000×** |
 
@@ -70,10 +74,10 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 3+ | 1 | 1 |
 | Entities found | All accessible but one large file to parse | 30 ranked — all variants surfaced | 30 ranked — complete |
-| Token Cost | ~4,000 | ~826 | ~480 |
-| Token Reduction | — | **−79%** | **−88%** |
-| Execution Time | ~4s | 2ms | <1ms |
-| Speedup | — | **~2,000×** | **~4,000×** |
+| Token Cost | ~4,000 | ~939 | ~541 |
+| Token Reduction | — | **−77%** | **−86%** |
+| Execution Time | ~4s | 2ms | 2ms |
+| Speedup | — | **~2,000×** | **~2,000×** |
 
 ---
 
@@ -88,11 +92,11 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 3 | 1 | 1 |
-| Entities found | 3 files, cross-file connections invisible | 26 ranked — incl. Rotate dependency | 26 ranked — complete |
-| Token Cost | ~4,000 | ~718 | ~438 |
-| Token Reduction | — | **−82%** | **−89%** |
-| Execution Time | ~4s | <1ms | 2ms |
-| Speedup | — | **~4,000×** | **~2,000×** |
+| Entities found | 3 files, cross-file connections invisible | 24 ranked — incl. Rotate dependency | 24 ranked — complete |
+| Token Cost | ~4,000 | ~697 | ~401 |
+| Token Reduction | — | **−83%** | **−90%** |
+| Execution Time | ~4s | 2ms | 2ms |
+| Speedup | — | **~2,000×** | **~2,000×** |
 
 ---
 
@@ -107,11 +111,11 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 3 | 1 | 1 |
-| Entities found | Partial, 4 Joined variants in one file undercounted | 30 ranked — all variants surfaced | 30 ranked — complete |
-| Token Cost | ~3,500 | ~757 | ~437 |
-| Token Reduction | — | **−78%** | **−88%** |
-| Execution Time | ~3.5s | 1ms | 1ms |
-| Speedup | — | **~3,500×** | **~3,500×** |
+| Entities found | Partial, 4 Joined variants in one file undercounted | 29 ranked — all variants surfaced | 29 ranked — complete |
+| Token Cost | ~3,500 | ~849 | ~490 |
+| Token Reduction | — | **−76%** | **−86%** |
+| Execution Time | ~3.5s | 2ms | 2ms |
+| Speedup | — | **~1,750×** | **~1,750×** |
 
 ---
 
@@ -119,17 +123,17 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Sequence type catalog | ~5,000 tok | ~568 tok | ~515 tok | **−89%** | **−90%** | ~700× |
-| Test 2 | Lazy sequence catalog | ~6,000 tok | ~662 tok | ~601 tok | **−89%** | **−90%** | ~6,000× |
-| Test 3 | Windowing & chunking | ~4,000 tok | ~826 tok | ~480 tok | **−79%** | **−88%** | ~2,000× |
-| Test 4 | Combinatorics algorithms | ~4,000 tok | ~718 tok | ~438 tok | **−82%** | **−89%** | ~4,000× |
-| Test 5 | Sequence combining | ~3,500 tok | ~757 tok | ~437 tok | **−78%** | **−88%** | ~3,500× |
+| Test 1 | Sequence type catalog | ~5,000 tok | ~685 tok | ~570 tok | **−86%** | **−89%** | ~560× |
+| Test 2 | Lazy sequence catalog | ~6,000 tok | ~799 tok | ~664 tok | **−87%** | **−89%** | ~6,000× |
+| Test 3 | Windowing & chunking | ~4,000 tok | ~939 tok | ~541 tok | **−77%** | **−86%** | ~2,000× |
+| Test 4 | Combinatorics algorithms | ~4,000 tok | ~697 tok | ~401 tok | **−83%** | **−90%** | ~2,000× |
+| Test 5 | Sequence combining | ~3,500 tok | ~849 tok | ~490 tok | **−76%** | **−86%** | ~1,750× |
 
 ---
 
-Geometric mean savings: **−83% token reduction (Full) · −89% token reduction (Slim)** · **~2,400× faster navigation**
+Geometric mean savings: **~81% token reduction (Full) · ~88% token reduction (Slim)** · **~1,900× faster navigation**
 
-> swift-algorithms is the smallest codebase in this suite (57 files, ~12,000 lines, 197 entities) and the only one structured as a flat algorithm collection — one Swift file per algorithm — rather than a layered application. The completeness advantage dominates: T1 and T2 demonstrate that a one-file-per-algorithm layout makes exhaustive cataloguing hard for a normal grep workflow, because there are 18+ Sequence conformances spread across 18+ files with no central registry. PM returns the complete list in under 1ms. T3's story is the inverse: Chunked.swift is the largest file in the library, defining four distinct chunking strategies in one place — PM surfaces all four with their Index types in 480 Slim tokens vs parsing a large multi-type file.
+> swift-algorithms is the smallest codebase in this suite (57 files, 0.2s scan, 197 entities) and the only one structured as a flat algorithm collection — one Swift file per algorithm — rather than a layered application. The completeness advantage dominates: T1 and T2 demonstrate that a one-file-per-algorithm layout makes exhaustive cataloguing hard for a normal grep workflow, because there are 23+ Sequence conformances and 27+ LazySequenceProtocol conformances spread across 20+ files with no central registry. PM returns the complete list in under 1ms (T2) or 9ms (T1). T3's story is the inverse: Chunked.swift is the largest file in the library, defining four distinct chunking strategies in one place — PM surfaces all of them along with Windows and Stride types in 541 Slim tokens vs parsing a large multi-type file.
 
 ## Reproducing
 
@@ -138,20 +142,20 @@ Geometric mean savings: **−83% token reduction (Full) · −89% token reductio
 git clone https://github.com/apple/swift-algorithms /path/to/swift-algorithms
 
 # 2. Scan with Project Mapper
-pm_scan project_root="/path/to/swift-algorithms" db="swift_algorithms" incremental=false
+pm_scan project_root="/path/to/swift-algorithms" db="swift-algorithms" incremental=false
 
 # Test 1
-pm_impact entity="Sequence" db="swift_algorithms" depth=1 exclude_tests=true
+pm_impact entity="Sequence" db="swift-algorithms" depth=1 exclude_tests=true
 
 # Test 2
-pm_impact entity="LazySequenceProtocol" db="swift_algorithms" depth=1 exclude_tests=true
+pm_impact entity="LazySequenceProtocol" db="swift-algorithms" depth=1 exclude_tests=true
 
 # Test 3
-pm_context query="chunked windows sliding stride" db="swift_algorithms"
+pm_context query="chunked windows sliding stride" db="swift-algorithms"
 
 # Test 4
-pm_context query="permutation combination product" db="swift_algorithms"
+pm_context query="permutation combination product" db="swift-algorithms"
 
 # Test 5
-pm_context query="chain join intersperse merge" db="swift_algorithms"
+pm_context query="chain join intersperse merge" db="swift-algorithms"
 ```
