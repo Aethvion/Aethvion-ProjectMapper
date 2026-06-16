@@ -16,7 +16,7 @@
 | Scan time | 0.5 s |
 | Throughput | ~104,700 lines/sec |
 
-Geometric mean savings: **~46% token reduction (Full) · ~80% token reduction (Slim)** · **~1,700× faster navigation**
+Geometric mean savings: **~80% token reduction (Full) · ~90% token reduction (Slim)** · **~1,700× faster navigation**
 
 Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
 agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
@@ -36,8 +36,8 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 3–4 | 1 | 1 |
 | Entities found | ~2 impls, call-chain propagation invisible | 31 — 6 direct + 25 transitive | 31 — complete |
-| Token Cost | ~3,500 | ~2,802 | ~1,392 |
-| Token Reduction | — | **−20%** | **−60%** |
+| Token Cost | ~3,500 | ~974 | ~733 |
+| Token Reduction | — | **−72%** | **−79%** |
 | Execution Time | ~3.5s | <1ms | <1ms |
 | Speedup | — | **~3,500×** | **~3,500×** |
 
@@ -55,8 +55,8 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 3–4 | 1 | 1 |
 | Entities found | Partial, misses Box/&mut S blanket impls | 19 — direct + transitive | 19 — complete |
-| Token Cost | ~4,000 | ~1,895 | ~899 |
-| Token Reduction | — | **−53%** | **−78%** |
+| Token Cost | ~4,000 | ~641 | ~462 |
+| Token Reduction | — | **−84%** | **−88%** |
 | Execution Time | ~4s | <1ms | <1ms |
 | Speedup | — | **~4,000×** | **~4,000×** |
 
@@ -74,8 +74,8 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 4–6 | 1 | 1 |
 | Entities found | Partial, cross-crate wiring invisible | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~6,000 | ~2,843 | ~814 |
-| Token Reduction | — | **−53%** | **−86%** |
+| Token Cost | ~6,000 | ~1,374 | ~407 |
+| Token Reduction | — | **−77%** | **−93%** |
 | Execution Time | ~5s | 5ms | 5ms |
 | Speedup | — | **~1,000×** | **~1,000×** |
 
@@ -93,8 +93,8 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 4–5 | 1 | 1 |
 | Entities found | Partial, hyperlink/ sub-module easily missed | 30 ranked — incl. hyperlink and color internals | 30 ranked — complete |
-| Token Cost | ~7,000 | ~2,911 | ~825 |
-| Token Reduction | — | **−58%** | **−88%** |
+| Token Cost | ~7,000 | ~1,326 | ~399 |
+| Token Reduction | — | **−81%** | **−94%** |
 | Execution Time | ~5s | 5ms | 5ms |
 | Speedup | — | **~1,000×** | **~1,000×** |
 
@@ -112,8 +112,8 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 3+ | 1 | 1 |
 | Entities found | Buried in 2,000-line file; globset link invisible | 30 ranked — complete, cross-crate | 30 ranked — complete |
-| Token Cost | ~8,000 | ~2,689 | ~774 |
-| Token Reduction | — | **−66%** | **−90%** |
+| Token Cost | ~8,000 | ~1,183 | ~395 |
+| Token Reduction | — | **−85%** | **−95%** |
 | Execution Time | ~5s | 5ms | 5ms |
 | Speedup | — | **~1,000×** | **~1,000×** |
 
@@ -123,17 +123,17 @@ would spend reaching the same answer without Project Mapper.
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Matcher trait implementations | ~3,500 tok | ~2,802 tok | ~1,392 tok | **−20%** | **−60%** | ~3,500× |
-| Test 2 | Sink trait implementations | ~4,000 tok | ~1,895 tok | ~899 tok | **−53%** | **−78%** | ~4,000× |
-| Test 3 | Search engine components | ~6,000 tok | ~2,843 tok | ~814 tok | **−53%** | **−86%** | ~1,000× |
-| Test 4 | Output formatting & color | ~7,000 tok | ~2,911 tok | ~825 tok | **−58%** | **−88%** | ~1,000× |
-| Test 5 | Directory walking & ignore | ~8,000 tok | ~2,689 tok | ~774 tok | **−66%** | **−90%** | ~1,000× |
+| Test 1 | Matcher trait implementations | ~3,500 tok | ~974 tok | ~733 tok | **−72%** | **−79%** | ~3,500× |
+| Test 2 | Sink trait implementations | ~4,000 tok | ~641 tok | ~462 tok | **−84%** | **−88%** | ~4,000× |
+| Test 3 | Search engine components | ~6,000 tok | ~1,374 tok | ~407 tok | **−77%** | **−93%** | ~1,000× |
+| Test 4 | Output formatting & color | ~7,000 tok | ~1,326 tok | ~399 tok | **−81%** | **−94%** | ~1,000× |
+| Test 5 | Directory walking & ignore | ~8,000 tok | ~1,183 tok | ~395 tok | **−85%** | **−95%** | ~1,000× |
 
 ---
 
-Geometric mean savings: **~46% token reduction (Full) · ~80% token reduction (Slim)** · **~1,700× faster navigation**
+Geometric mean savings: **~80% token reduction (Full) · ~90% token reduction (Slim)** · **~1,700× faster navigation**
 
-> Rust is where **Slim mode matters most**: Rust doc comments are long and structured, so Full output is 3–4× more verbose than Slim for the same entity set (e.g., T3: 2,843 Full → 814 Slim). Use Slim for orientation and navigation; switch to Full only when you need the docstring detail. The multi-crate workspace is where PM's cross-crate graph pays off regardless — a normal grep + read workflow requires jumping between `crates/core/`, `crates/searcher/`, `crates/printer/`, `crates/ignore/`, and `crates/regex/` to trace any relationship. PM answers cross-crate queries in a single call in under 5ms. T5 is the clearest example: `walk.rs` is a 2,000-line file — PM returns 30 ranked entities across `ignore/` and `globset/` in 774 tokens (Slim).
+> Rust is where **Slim mode matters most**: Rust doc comments are long and structured, so Full output is noticeably more verbose than Slim for the same entity set (e.g., T3: 1,374 Full → 407 Slim). Use Slim for orientation and navigation; switch to Full only when you need the docstring detail. The multi-crate workspace is where PM's cross-crate graph pays off regardless — a normal grep + read workflow requires jumping between `crates/core/`, `crates/searcher/`, `crates/printer/`, `crates/ignore/`, and `crates/regex/` to trace any relationship. PM answers cross-crate queries in a single call in under 5ms. T5 is the clearest example: `walk.rs` is a 2,000-line file — PM returns 30 ranked entities across `ignore/` and `globset/` in 395 tokens (Slim).
 
 ## Reproducing
 

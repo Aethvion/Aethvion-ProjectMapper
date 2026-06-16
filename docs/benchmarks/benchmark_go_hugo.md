@@ -16,7 +16,7 @@
 | Scan time | 3.2 s |
 | Throughput | ~70,000 lines/sec |
 
-Geometric mean savings: **~69% token reduction (Full) · ~87% token reduction (Slim)** · **~191× faster navigation**
+Geometric mean savings: **~88% token reduction (Full) · ~93% token reduction (Slim)** · **~185× faster navigation**
 
 Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
 agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
@@ -36,8 +36,8 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
 | Entities found | Partial, misses NopPage and wrappers | 4 — complete | 4 — complete |
-| Token Cost | ~3,000 | ~401 | ~236 |
-| Token Reduction | — | **−87%** | **−92%** |
+| Token Cost | ~3,000 | ~157 | ~136 |
+| Token Reduction | — | **−95%** | **−95%** |
 | Execution Time | ~3s | 2ms | 2ms |
 | Speedup | — | **~1,500×** | **~1,500×** |
 
@@ -55,10 +55,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
 | Entities found | Partial, cross-package connections missed | 18 ranked — complete | 18 ranked — complete |
-| Token Cost | ~5,000 | ~1,547 | ~638 |
-| Token Reduction | — | **−69%** | **−87%** |
-| Execution Time | ~4s | 39ms | 38ms |
-| Speedup | — | **~103×** | **~105×** |
+| Token Cost | ~5,000 | ~687 | ~386 |
+| Token Reduction | — | **−86%** | **−92%** |
+| Execution Time | ~4s | 41ms | 41ms |
+| Speedup | — | **~98×** | **~98×** |
 
 ---
 
@@ -74,10 +74,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
 | Entities found | Partial, registration and resolution spread across packages | 26 ranked — complete | 26 ranked — complete |
-| Token Cost | ~4,000 | ~2,066 | ~732 |
-| Token Reduction | — | **−48%** | **−82%** |
-| Execution Time | ~3s | 40ms | 39ms |
-| Speedup | — | **~75×** | **~77×** |
+| Token Cost | ~4,000 | ~840 | ~438 |
+| Token Reduction | — | **−79%** | **−89%** |
+| Execution Time | ~3s | 40ms | 40ms |
+| Speedup | — | **~75×** | **~75×** |
 
 ---
 
@@ -93,10 +93,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
 | Entities found | Partial, hugofs and source packages not obviously connected | 19 ranked — complete | 19 ranked — complete |
-| Token Cost | ~4,000 | ~1,575 | ~610 |
-| Token Reduction | — | **−61%** | **−85%** |
-| Execution Time | ~3s | 41ms | 41ms |
-| Speedup | — | **~73×** | **~73×** |
+| Token Cost | ~4,000 | ~624 | ~349 |
+| Token Reduction | — | **−84%** | **−91%** |
+| Execution Time | ~3s | 42ms | 42ms |
+| Speedup | — | **~71×** | **~71×** |
 
 ---
 
@@ -112,10 +112,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 3+ | 1 | 1 |
 | Entities found | Requires reading site.go | Path confirmed | Path confirmed |
-| Token Cost | ~3,000 | ~313 | ~313 |
-| Token Reduction | — | **−90%** | **−90%** |
-| Execution Time | ~3s | 10ms | 10ms |
-| Speedup | — | **~300×** | **~300×** |
+| Token Cost | ~3,000 | ~33 | ~33 |
+| Token Reduction | — | **−99%** | **−99%** |
+| Execution Time | ~3s | 11ms | 11ms |
+| Speedup | — | **~273×** | **~273×** |
 
 ---
 
@@ -123,15 +123,15 @@ would spend reaching the same answer without Project Mapper.
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Page type hierarchy | ~3,000 tok | ~401 tok | ~236 tok | **−87%** | **−92%** | ~1,500× |
-| Test 2 | Template rendering pipeline | ~5,000 tok | ~1,547 tok | ~638 tok | **−69%** | **−87%** | ~103× |
-| Test 3 | Shortcode system | ~4,000 tok | ~2,066 tok | ~732 tok | **−48%** | **−82%** | ~75× |
-| Test 4 | Content source & filesystem | ~4,000 tok | ~1,575 tok | ~610 tok | **−61%** | **−85%** | ~73× |
-| Test 5 | Site → Page build path | ~3,000 tok | ~313 tok | ~313 tok | **−90%** | **−90%** | ~300× |
+| Test 1 | Page type hierarchy | ~3,000 tok | ~157 tok | ~136 tok | **−95%** | **−95%** | ~1,500× |
+| Test 2 | Template rendering pipeline | ~5,000 tok | ~687 tok | ~386 tok | **−86%** | **−92%** | ~98× |
+| Test 3 | Shortcode system | ~4,000 tok | ~840 tok | ~438 tok | **−79%** | **−89%** | ~75× |
+| Test 4 | Content source & filesystem | ~4,000 tok | ~624 tok | ~349 tok | **−84%** | **−91%** | ~71× |
+| Test 5 | Site → Page build path | ~3,000 tok | ~33 tok | ~33 tok | **−99%** | **−99%** | ~273× |
 
 ---
 
-Geometric mean savings: **~69% token reduction (Full) · ~87% token reduction (Slim)** · **~191× faster navigation**
+Geometric mean savings: **~88% token reduction (Full) · ~93% token reduction (Slim)** · **~185× faster navigation**
 
 ## Reproducing
 

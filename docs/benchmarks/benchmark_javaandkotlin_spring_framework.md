@@ -10,13 +10,13 @@
 |:---|:---|
 | Repository | `spring-projects/spring-framework` |
 | Language | Java / Kotlin |
-| Files scanned | 9,590 |
+| Files scanned | 9,576 |
 | Total lines | ~1,530,000 |
 | Entities indexed | 25,059 |
 | Scan time | 19.4 s |
 | Throughput | ~79,100 lines/sec |
 
-Geometric mean savings: **~87% token reduction (Full) · ~93% token reduction (Slim)** · **~88× faster navigation**
+Geometric mean savings: **~94% token reduction (Full) · ~95% token reduction (Slim)** · **~76× faster navigation**
 
 Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
 agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
@@ -36,10 +36,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
 | Entities found | Partial, misses cross-module stubs | 6 — direct impls, cross-module | 6 — complete |
-| Token Cost | ~5,000 | ~638 | ~392 |
-| Token Reduction | — | **−87%** | **−92%** |
-| Execution Time | ~4s | 46ms | 28ms |
-| Speedup | — | **~87×** | **~143×** |
+| Token Cost | ~5,000 | ~277 | ~247 |
+| Token Reduction | — | **−94%** | **−95%** |
+| Execution Time | ~4s | 37ms | 37ms |
+| Speedup | — | **~108×** | **~108×** |
 
 ---
 
@@ -55,10 +55,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
 | Entities found | No (requires reading 1,750-line class) | 6-hop path confirmed | 6-hop path confirmed |
-| Token Cost | ~18,000 | ~695 | ~695 |
-| Token Reduction | — | **−96%** | **−96%** |
-| Execution Time | ~6s | 131ms | 133ms |
-| Speedup | — | **~46×** | **~45×** |
+| Token Cost | ~18,000 | ~64 | ~64 |
+| Token Reduction | — | **−99.6%** | **−99.6%** |
+| Execution Time | ~6s | 140ms | 140ms |
+| Speedup | — | **~43×** | **~43×** |
 
 ---
 
@@ -74,10 +74,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 4–5 | 1 | 1 |
 | Entities found | Partial, one module at a time | 10 — MVC + WebFlux unified | 10 — complete |
-| Token Cost | ~8,000 | ~1,069 | ~662 |
-| Token Reduction | — | **−87%** | **−92%** |
-| Execution Time | ~4s | 20ms | 27ms |
-| Speedup | — | **~200×** | **~148×** |
+| Token Cost | ~8,000 | ~490 | ~440 |
+| Token Reduction | — | **−94%** | **−94%** |
+| Execution Time | ~4s | 37ms | 37ms |
+| Speedup | — | **~108×** | **~108×** |
 
 ---
 
@@ -93,10 +93,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 8+ | 1 | 1 |
 | Entities found | 8 files, unranked | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~12,000 | ~3,076 | ~1,494 |
-| Token Reduction | — | **−74%** | **−88%** |
-| Execution Time | ~6s | 265ms | 262ms |
-| Speedup | — | **~23×** | **~23×** |
+| Token Cost | ~12,000 | ~1,482 | ~1,064 |
+| Token Reduction | — | **−88%** | **−91%** |
+| Execution Time | ~6s | 250ms | 250ms |
+| Speedup | — | **~24×** | **~24×** |
 
 ---
 
@@ -112,10 +112,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 15+ | 1 | 1 |
 | Entities found | ~15–20, misses TX/aspects | 22 — complete, cross-module | 22 — complete |
-| Token Cost | ~24,000 | ~2,168 | ~1,267 |
-| Token Reduction | — | **−91%** | **−95%** |
-| Execution Time | ~8s | 28ms | 28ms |
-| Speedup | — | **~286×** | **~286×** |
+| Token Cost | ~24,000 | ~994 | ~879 |
+| Token Reduction | — | **−96%** | **−96%** |
+| Execution Time | ~8s | 37ms | 37ms |
+| Speedup | — | **~216×** | **~216×** |
 
 ---
 
@@ -123,15 +123,15 @@ would spend reaching the same answer without Project Mapper.
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | ApplicationContext hierarchy | ~5,000 tok | ~638 tok | ~392 tok | **−87%** | **−92%** | ~87× |
-| Test 2 | BeanFactory → BeanDefinition | ~18,000 tok | ~695 tok | ~695 tok | **−96%** | **−96%** | ~46× |
-| Test 3 | HandlerMapping hierarchy | ~8,000 tok | ~1,069 tok | ~662 tok | **−87%** | **−92%** | ~200× |
-| Test 4 | Transaction management | ~12,000 tok | ~3,076 tok | ~1,494 tok | **−74%** | **−88%** | ~23× |
-| Test 5 | AOP Advice hierarchy | ~24,000 tok | ~2,168 tok | ~1,267 tok | **−91%** | **−95%** | ~286× |
+| Test 1 | ApplicationContext hierarchy | ~5,000 tok | ~277 tok | ~247 tok | **−94%** | **−95%** | ~108× |
+| Test 2 | BeanFactory → BeanDefinition | ~18,000 tok | ~64 tok | ~64 tok | **−99.6%** | **−99.6%** | ~43× |
+| Test 3 | HandlerMapping hierarchy | ~8,000 tok | ~490 tok | ~440 tok | **−94%** | **−94%** | ~108× |
+| Test 4 | Transaction management | ~12,000 tok | ~1,482 tok | ~1,064 tok | **−88%** | **−91%** | ~24× |
+| Test 5 | AOP Advice hierarchy | ~24,000 tok | ~994 tok | ~879 tok | **−96%** | **−96%** | ~216× |
 
 ---
 
-Geometric mean savings: **~87% token reduction (Full) · ~93% token reduction (Slim)** · **~88× faster navigation**
+Geometric mean savings: **~94% token reduction (Full) · ~95% token reduction (Slim)** · **~76× faster navigation**
 
 ## Reproducing
 

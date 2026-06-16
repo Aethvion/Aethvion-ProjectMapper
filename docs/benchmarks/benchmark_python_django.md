@@ -16,7 +16,7 @@
 | Scan time | 9.8 s |
 | Throughput | ~42,900 lines/sec |
 
-Geometric mean savings: **~93% token reduction (Full) · ~95% token reduction (Slim)** · **~95× faster navigation**
+Geometric mean savings: **~88% token reduction (Full) · ~91% token reduction (Slim)** · **~111× faster navigation**
 
 Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
 agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
@@ -38,8 +38,8 @@ would spend reaching the same answer without Project Mapper.
 | Entities found | ~50–80, misses GIS/Postgres | 178 — complete | 178 — complete |
 | Token Cost | ~35,000 | ~5,362 | ~4,311 |
 | Token Reduction | — | **−85%** | **−88%** |
-| Execution Time | ~4s | 20ms | 40ms |
-| Speedup | — | **~200×** | **~100×** |
+| Execution Time | ~4s | 16ms | 40ms |
+| Speedup | — | **~250×** | **~100×** |
 
 ---
 
@@ -76,8 +76,8 @@ would spend reaching the same answer without Project Mapper.
 | Entities found | Partial, misses cross-app | 8 — complete | 8 — complete |
 | Token Cost | ~4,100 | ~337 | ~234 |
 | Token Reduction | — | **−92%** | **−94%** |
-| Execution Time | ~3s | 38ms | 14ms |
-| Speedup | — | **~79×** | **~214×** |
+| Execution Time | ~3s | 14ms | 14ms |
+| Speedup | — | **~214×** | **~214×** |
 
 ---
 
@@ -131,7 +131,7 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
 | Entities found | Partial | 29 ranked — complete | 29 ranked — complete |
-| Token Cost | ~8,000 | ~1,049 | ~406 |
+| Token Cost | ~8,000 | ~1,003 | ~406 |
 | Token Reduction | — | **−87%** | **−95%** |
 | Execution Time | ~3s | 76ms | 77ms |
 | Speedup | — | **~39×** | **~39×** |
@@ -150,10 +150,10 @@ would spend reaching the same answer without Project Mapper.
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
 | Entities found | Partial, misses abstract chain | 122 direct subclasses — complete | 122 direct subclasses — complete |
-| Token Cost | ~40,000 | ~11,177 | ~8,835 |
+| Token Cost | ~40,000 | ~11,121 | ~8,789 |
 | Token Reduction | — | **−72%** | **−78%** |
-| Execution Time | ~5s | 19ms | 41ms |
-| Speedup | — | **~263×** | **~122×** |
+| Execution Time | ~5s | 22ms | 41ms |
+| Speedup | — | **~227×** | **~122×** |
 
 ---
 
@@ -161,17 +161,17 @@ would spend reaching the same answer without Project Mapper.
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | ORM Field types | ~35,000 tok | ~5,362 tok | ~4,311 tok | **−85%** | **−88%** | ~200× |
+| Test 1 | ORM Field types | ~35,000 tok | ~5,362 tok | ~4,311 tok | **−85%** | **−88%** | ~250× |
 | Test 2 | Admin → ORM path | ~13,200 tok | ~24 tok | ~24 tok | **−99.8%** | **−99.8%** | ~47× |
-| Test 3 | Management commands | ~4,100 tok | ~337 tok | ~234 tok | **−92%** | **−94%** | ~79× |
+| Test 3 | Management commands | ~4,100 tok | ~337 tok | ~234 tok | **−92%** | **−94%** | ~214× |
 | Test 4 | Auth/middleware context | ~13,479 tok | ~1,083 tok | ~440 tok | **−92%** | **−97%** | ~47× |
 | Test 5 | CBV hierarchy | ~10,000 tok | ~1,320 tok | ~999 tok | **−87%** | **−90%** | ~200× |
-| Test 6 | Signal dispatch | ~8,000 tok | ~1,049 tok | ~406 tok | **−87%** | **−95%** | ~39× |
-| Test 7 | Model subclasses | ~40,000 tok | ~11,177 tok | ~8,835 tok | **−72%** | **−78%** | ~263× |
+| Test 6 | Signal dispatch | ~8,000 tok | ~1,003 tok | ~406 tok | **−87%** | **−95%** | ~39× |
+| Test 7 | Model subclasses | ~40,000 tok | ~11,121 tok | ~8,789 tok | **−72%** | **−78%** | ~227× |
 
 ---
 
-Geometric mean savings: **~93% token reduction (Full) · ~95% token reduction (Slim)** · **~95× faster navigation**
+Geometric mean savings: **~88% token reduction (Full) · ~91% token reduction (Slim)** · **~111× faster navigation**
 
 ## Reproducing
 
