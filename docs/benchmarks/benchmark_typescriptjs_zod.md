@@ -1,6 +1,6 @@
 # Benchmark: TypeScript/JS — Zod
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-16 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -10,13 +10,17 @@
 |:---|:---|
 | Repository | `colinhacks/zod` |
 | Language | TypeScript |
-| Files scanned | 405 |
-| Total lines | ~65,000 |
+| Files scanned | 406 |
+| Total lines | ~74,000 |
 | Entities indexed | 1,688 |
 | Scan time | 4.5 s |
-| Throughput | ~14,400 lines/sec |
+| Throughput | ~16,500 lines/sec |
 
-Geometric mean savings: **−90% token reduction (Full) · −93% token reduction (Slim)** · **~1,010× faster navigation**
+Geometric mean savings: **~70% token reduction (Full) · ~85% token reduction (Slim)** · **~1,070× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -31,9 +35,9 @@ Geometric mean savings: **−90% token reduction (Full) · −93% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 8–12 | 1 | 1 |
-| Entities found | ~35–40, misses v4 additions + mini variants | 62 — complete, all versions | 62 — complete |
-| Token Cost | ~15,000 | ~1,676 | ~1,488 |
-| Token Reduction | — | **−89%** | **−90%** |
+| Entities found | ~35–40, misses v4 additions + mini variants | 54 — complete, all versions | 54 — complete |
+| Token Cost | ~15,000 | ~4,651 | ~2,432 |
+| Token Reduction | — | **−69%** | **−84%** |
 | Execution Time | ~8s | 1ms | 1ms |
 | Speedup | — | **~8,000×** | **~8,000×** |
 
@@ -51,8 +55,8 @@ Geometric mean savings: **−90% token reduction (Full) · −93% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 2–3 | 1 | 1 |
 | Entities found | Partial, v3/v4 shape differences cause confusion | 16 — complete, canonical list | 16 — complete |
-| Token Cost | ~3,500 | ~399 | ~363 |
-| Token Reduction | — | **−89%** | **−90%** |
+| Token Cost | ~3,500 | ~1,438 | ~784 |
+| Token Reduction | — | **−59%** | **−78%** |
 | Execution Time | ~2s | 1ms | 1ms |
 | Speedup | — | **~2,000×** | **~2,000×** |
 
@@ -69,9 +73,9 @@ Geometric mean savings: **−90% token reduction (Full) · −93% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 3–5 | 1 | 1 |
-| Entities found | Partial, internal Def/Internals types always missed | 30 ranked — incl. internals + mini variants | 30 ranked — complete |
-| Token Cost | ~5,000 | ~669 | ~374 |
-| Token Reduction | — | **−87%** | **−93%** |
+| Entities found | Partial, internal Def/Internals types always missed | 19 ranked — incl. internals + mini variants | 19 ranked — complete |
+| Token Cost | ~5,000 | ~1,574 | ~614 |
+| Token Reduction | — | **−69%** | **−88%** |
 | Execution Time | ~4s | 11ms | 11ms |
 | Speedup | — | **~364×** | **~364×** |
 
@@ -88,9 +92,9 @@ Geometric mean savings: **−90% token reduction (Full) · −93% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 4–5 | 1 | 1 |
-| Entities found | Partial, v4/mini/coerce.ts easily overlooked | 30 ranked — all 3 API surfaces mapped | 30 ranked — complete |
-| Token Cost | ~5,000 | ~658 | ~398 |
-| Token Reduction | — | **−87%** | **−92%** |
+| Entities found | Partial, v4/mini/coerce.ts easily overlooked | 19 ranked — all 3 API surfaces mapped | 19 ranked — complete |
+| Token Cost | ~5,000 | ~1,597 | ~631 |
+| Token Reduction | — | **−68%** | **−87%** |
 | Execution Time | ~4s | 11ms | 11ms |
 | Speedup | — | **~364×** | **~364×** |
 
@@ -108,10 +112,10 @@ Geometric mean savings: **−90% token reduction (Full) · −93% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 2–3 | 1 | 1 |
 | Entities found | Requires reading a large file | 1-hop confirmed | 1-hop confirmed |
-| Token Cost | ~2,000 | ~23 | ~23 |
-| Token Reduction | — | **−99%** | **−99%** |
-| Execution Time | ~2s | 4ms | 4ms |
-| Speedup | — | **~500×** | **~500×** |
+| Token Cost | ~2,000 | ~197 | ~197 |
+| Token Reduction | — | **−90%** | **−90%** |
+| Execution Time | ~2s | 3ms | 3ms |
+| Speedup | — | **~667×** | **~667×** |
 
 ---
 
@@ -119,17 +123,17 @@ Geometric mean savings: **−90% token reduction (Full) · −93% token reductio
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Schema type catalog | ~15,000 tok | ~1,676 tok | ~1,488 tok | **−89%** | **−90%** | ~8,000× |
-| Test 2 | Validation error types | ~3,500 tok | ~399 tok | ~363 tok | **−89%** | **−90%** | ~2,000× |
-| Test 3 | Union & discriminated union | ~5,000 tok | ~669 tok | ~374 tok | **−87%** | **−93%** | ~364× |
-| Test 4 | Coercion & transform types | ~5,000 tok | ~658 tok | ~398 tok | **−87%** | **−92%** | ~364× |
-| Test 5 | ZodEffects inheritance | ~2,000 tok | ~23 tok | ~23 tok | **−99%** | **−99%** | ~500× |
+| Test 1 | Schema type catalog | ~15,000 tok | ~4,651 tok | ~2,432 tok | **−69%** | **−84%** | ~8,000× |
+| Test 2 | Validation error types | ~3,500 tok | ~1,438 tok | ~784 tok | **−59%** | **−78%** | ~2,000× |
+| Test 3 | Union & discriminated union | ~5,000 tok | ~1,574 tok | ~614 tok | **−69%** | **−88%** | ~364× |
+| Test 4 | Coercion & transform types | ~5,000 tok | ~1,597 tok | ~631 tok | **−68%** | **−87%** | ~364× |
+| Test 5 | ZodEffects inheritance | ~2,000 tok | ~197 tok | ~197 tok | **−90%** | **−90%** | ~667× |
 
 ---
 
-Geometric mean savings: **−90% token reduction (Full) · −93% token reduction (Slim)** · **~1,010× faster navigation**
+Geometric mean savings: **~70% token reduction (Full) · ~85% token reduction (Slim)** · **~1,070× faster navigation**
 
-> Z1 completeness is the headline: without PM, cataloguing all 62 Zod schema types across v3, v4 classic, and v4 mini routinely stops at ~35–40 types — missing v4-specific numeric formats, `ZodCodec`, and `ZodTemplateLiteral`. Z5's −99% reduction confirms one inheritance relationship in 23 tokens vs reading a 2,000-line file. Zod's monorepo structure (three parallel API surfaces) is exactly the scenario where PM's cross-file entity graph pays off most.
+> T1 completeness is the headline: without PM, cataloguing all Zod schema types across v3, v4 classic, and v4 mini routinely stops short — missing v4-specific numeric formats, `ZodCodec`, and `ZodTemplateLiteral`. T5's −90% reduction confirms one inheritance relationship in 197 tokens vs reading a 2,000-line file. Zod's monorepo structure (three parallel API surfaces) is exactly the scenario where PM's cross-file entity graph pays off most.
 
 ## Reproducing
 
