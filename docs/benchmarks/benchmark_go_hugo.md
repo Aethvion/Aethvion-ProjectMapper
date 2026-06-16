@@ -1,6 +1,6 @@
 # Benchmark: Go — Hugo
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-16 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -10,13 +10,17 @@
 |:---|:---|
 | Repository | `gohugoio/hugo` |
 | Language | Go |
-| Files scanned | ~750 |
-| Total lines | ~200,000 |
-| Entities indexed | 5,076 |
+| Files scanned | 896 |
+| Total lines | ~224,000 |
+| Entities indexed | 5,075 |
 | Scan time | 3.2 s |
-| Throughput | ~62,500 lines/sec |
+| Throughput | ~70,000 lines/sec |
 
-Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (Slim)** · **~163× faster navigation**
+Geometric mean savings: **~69% token reduction (Full) · ~87% token reduction (Slim)** · **~191× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -31,11 +35,11 @@ Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
-| Entities found | Partial, misses NopPage and wrappers | Complete | Complete |
-| Token Cost | ~3,000 | ~123 | ~113 |
-| Token Reduction | — | **−96%** | **−96%** |
-| Execution Time | ~3s | 4ms | 3ms |
-| Speedup | — | **~750×** | **~1,000×** |
+| Entities found | Partial, misses NopPage and wrappers | 4 — complete | 4 — complete |
+| Token Cost | ~3,000 | ~401 | ~236 |
+| Token Reduction | — | **−87%** | **−92%** |
+| Execution Time | ~3s | 2ms | 2ms |
+| Speedup | — | **~1,500×** | **~1,500×** |
 
 ---
 
@@ -50,11 +54,11 @@ Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
-| Entities found | Partial, cross-package connections missed | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~5,000 | ~654 | ~380 |
-| Token Reduction | — | **−87%** | **−92%** |
-| Execution Time | ~4s | 41ms | 40ms |
-| Speedup | — | **~98×** | **~100×** |
+| Entities found | Partial, cross-package connections missed | 18 ranked — complete | 18 ranked — complete |
+| Token Cost | ~5,000 | ~1,547 | ~638 |
+| Token Reduction | — | **−69%** | **−87%** |
+| Execution Time | ~4s | 39ms | 38ms |
+| Speedup | — | **~103×** | **~105×** |
 
 ---
 
@@ -69,11 +73,11 @@ Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
-| Entities found | Partial, registration and resolution spread across packages | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~4,000 | ~713 | ~376 |
-| Token Reduction | — | **−82%** | **−91%** |
-| Execution Time | ~3s | 41ms | 40ms |
-| Speedup | — | **~73×** | **~75×** |
+| Entities found | Partial, registration and resolution spread across packages | 26 ranked — complete | 26 ranked — complete |
+| Token Cost | ~4,000 | ~2,066 | ~732 |
+| Token Reduction | — | **−48%** | **−82%** |
+| Execution Time | ~3s | 40ms | 39ms |
+| Speedup | — | **~75×** | **~77×** |
 
 ---
 
@@ -88,11 +92,11 @@ Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
-| Entities found | Partial, hugofs and source packages not obviously connected | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~4,000 | ~602 | ~358 |
-| Token Reduction | — | **−85%** | **−91%** |
-| Execution Time | ~3s | 43ms | 42ms |
-| Speedup | — | **~70×** | **~71×** |
+| Entities found | Partial, hugofs and source packages not obviously connected | 19 ranked — complete | 19 ranked — complete |
+| Token Cost | ~4,000 | ~1,575 | ~610 |
+| Token Reduction | — | **−61%** | **−85%** |
+| Execution Time | ~3s | 41ms | 41ms |
+| Speedup | — | **~73×** | **~73×** |
 
 ---
 
@@ -108,10 +112,10 @@ Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 3+ | 1 | 1 |
 | Entities found | Requires reading site.go | Path confirmed | Path confirmed |
-| Token Cost | ~3,000 | ~33 | ~33 |
-| Token Reduction | — | **−99%** | **−99%** |
-| Execution Time | ~3s | 12ms | 12ms |
-| Speedup | — | **~250×** | **~250×** |
+| Token Cost | ~3,000 | ~313 | ~313 |
+| Token Reduction | — | **−90%** | **−90%** |
+| Execution Time | ~3s | 10ms | 10ms |
+| Speedup | — | **~300×** | **~300×** |
 
 ---
 
@@ -119,15 +123,15 @@ Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (S
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Page type hierarchy | ~3,000 tok | ~123 tok | ~113 tok | **−96%** | **−96%** | ~750× |
-| Test 2 | Template rendering pipeline | ~5,000 tok | ~654 tok | ~380 tok | **−87%** | **−92%** | ~98× |
-| Test 3 | Shortcode system | ~4,000 tok | ~713 tok | ~376 tok | **−82%** | **−91%** | ~73× |
-| Test 4 | Content source & filesystem | ~4,000 tok | ~602 tok | ~358 tok | **−85%** | **−91%** | ~70× |
-| Test 5 | Site → Page build path | ~3,000 tok | ~33 tok | ~33 tok | **−99%** | **−99%** | ~250× |
+| Test 1 | Page type hierarchy | ~3,000 tok | ~401 tok | ~236 tok | **−87%** | **−92%** | ~1,500× |
+| Test 2 | Template rendering pipeline | ~5,000 tok | ~1,547 tok | ~638 tok | **−69%** | **−87%** | ~103× |
+| Test 3 | Shortcode system | ~4,000 tok | ~2,066 tok | ~732 tok | **−48%** | **−82%** | ~75× |
+| Test 4 | Content source & filesystem | ~4,000 tok | ~1,575 tok | ~610 tok | **−61%** | **−85%** | ~73× |
+| Test 5 | Site → Page build path | ~3,000 tok | ~313 tok | ~313 tok | **−90%** | **−90%** | ~300× |
 
 ---
 
-Geometric mean savings: **~90% token reduction (Full) · ~93% token reduction (Slim)** · **~163× faster navigation**
+Geometric mean savings: **~69% token reduction (Full) · ~87% token reduction (Slim)** · **~191× faster navigation**
 
 ## Reproducing
 
