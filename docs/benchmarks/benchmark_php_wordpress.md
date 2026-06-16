@@ -1,6 +1,6 @@
 # Benchmark: PHP — WordPress
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-16 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -10,13 +10,17 @@
 |:---|:---|
 | Repository | `WordPress/WordPress` |
 | Language | PHP |
-| Files scanned | 2,295 |
-| Total lines | ~520,000 |
-| Entities indexed | 7,757 |
-| Scan time | 12.0 s |
-| Throughput | ~43,300 lines/sec |
+| Files scanned | 1,888 |
+| Total lines | ~657,000 |
+| Entities indexed | 7,574 |
+| Scan time | 7.7 s |
+| Throughput | ~85,400 lines/sec |
 
-Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (Slim)** · **~1,050× faster navigation**
+Geometric mean savings: **~91% token reduction (Full) · ~92% token reduction (Slim)** · **~1,365× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -32,10 +36,10 @@ Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
 | Entities found | Partial, misses theme widgets | 22 — complete, cross-directory | 22 — complete |
-| Token Cost | ~8,000 | ~630 | ~580 |
-| Token Reduction | — | **−92%** | **−93%** |
-| Execution Time | ~4s | 4ms | 3ms |
-| Speedup | — | **~1,000×** | **~1,333×** |
+| Token Cost | ~8,000 | ~763 | ~653 |
+| Token Reduction | — | **−90%** | **−92%** |
+| Execution Time | ~4s | 3ms | 3ms |
+| Speedup | — | **~1,333×** | **~1,333×** |
 
 ---
 
@@ -50,11 +54,11 @@ Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 8+ | 1 | 1 |
-| Entities found | Partial, misses recent additions | 44 — complete, full catalog | 44 — complete |
-| Token Cost | ~20,000 | ~1,572 | ~1,475 |
+| Entities found | Partial, misses recent additions | 43 — complete, full catalog | 43 — complete |
+| Token Cost | ~20,000 | ~1,692 | ~1,477 |
 | Token Reduction | — | **−92%** | **−93%** |
-| Execution Time | ~6s | 3ms | 2ms |
-| Speedup | — | **~2,000×** | **~3,000×** |
+| Execution Time | ~6s | 3ms | 3ms |
+| Speedup | — | **~2,000×** | **~2,000×** |
 
 ---
 
@@ -69,11 +73,11 @@ Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
-| Entities found | Partial, directory mixes panels/sections/controls | 20 — complete hierarchy | 20 — complete |
-| Token Cost | ~7,500 | ~705 | ~662 |
-| Token Reduction | — | **−91%** | **−91%** |
-| Execution Time | ~4s | 4ms | 5ms |
-| Speedup | — | **~1,000×** | **~800×** |
+| Entities found | Partial, directory mixes panels/sections/controls | 19 — complete hierarchy | 19 — complete |
+| Token Cost | ~7,500 | ~790 | ~695 |
+| Token Reduction | — | **−89%** | **−91%** |
+| Execution Time | ~4s | 3ms | 3ms |
+| Speedup | — | **~1,333×** | **~1,333×** |
 
 ---
 
@@ -88,11 +92,11 @@ Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
-| Entities found | Partial, misses multisite MS_* tables | 21 — complete, inc. multisite | 21 — complete |
-| Token Cost | ~7,500 | ~603 | ~560 |
-| Token Reduction | — | **−92%** | **−93%** |
-| Execution Time | ~4s | 5ms | 5ms |
-| Speedup | — | **~800×** | **~800×** |
+| Entities found | Partial, misses multisite MS_* tables | 19 — complete, inc. multisite | 19 — complete |
+| Token Cost | ~7,500 | ~712 | ~617 |
+| Token Reduction | — | **−91%** | **−92%** |
+| Execution Time | ~4s | 3ms | 3ms |
+| Speedup | — | **~1,333×** | **~1,333×** |
 
 ---
 
@@ -108,10 +112,10 @@ Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
 | Entities found | Partial, theme walkers in wp-content/ missed | 10 — complete, inc. theme walkers | 10 — complete |
-| Token Cost | ~4,000 | ~313 | ~290 |
-| Token Reduction | — | **−92%** | **−93%** |
-| Execution Time | ~3s | 5ms | 5ms |
-| Speedup | — | **~600×** | **~600×** |
+| Token Cost | ~4,000 | ~370 | ~320 |
+| Token Reduction | — | **−91%** | **−92%** |
+| Execution Time | ~3s | 3ms | 3ms |
+| Speedup | — | **~1,000×** | **~1,000×** |
 
 ---
 
@@ -119,17 +123,17 @@ Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (S
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Widget hierarchy | ~8,000 tok | ~630 tok | ~580 tok | **−92%** | **−93%** | ~1,000× |
-| Test 2 | REST API controller catalog | ~20,000 tok | ~1,572 tok | ~1,475 tok | **−92%** | **−93%** | ~2,000× |
-| Test 3 | Customizer control hierarchy | ~7,500 tok | ~705 tok | ~662 tok | **−91%** | **−91%** | ~1,000× |
-| Test 4 | Admin list table hierarchy | ~7,500 tok | ~603 tok | ~560 tok | **−92%** | **−93%** | ~800× |
-| Test 5 | Walker tree-renderer hierarchy | ~4,000 tok | ~313 tok | ~290 tok | **−92%** | **−93%** | ~600× |
+| Test 1 | Widget hierarchy | ~8,000 tok | ~763 tok | ~653 tok | **−90%** | **−92%** | ~1,333× |
+| Test 2 | REST API controller catalog | ~20,000 tok | ~1,692 tok | ~1,477 tok | **−92%** | **−93%** | ~2,000× |
+| Test 3 | Customizer control hierarchy | ~7,500 tok | ~790 tok | ~695 tok | **−89%** | **−91%** | ~1,333× |
+| Test 4 | Admin list table hierarchy | ~7,500 tok | ~712 tok | ~617 tok | **−91%** | **−92%** | ~1,333× |
+| Test 5 | Walker tree-renderer hierarchy | ~4,000 tok | ~370 tok | ~320 tok | **−91%** | **−92%** | ~1,000× |
 
 ---
 
-Geometric mean savings: **~92% token reduction (Full) · ~93% token reduction (Slim)** · **~1,050× faster navigation**
+Geometric mean savings: **~91% token reduction (Full) · ~92% token reduction (Slim)** · **~1,365× faster navigation**
 
-> WordPress is primarily procedural PHP — its extension system uses function-based hooks (`add_action` / `add_filter`) rather than class inheritance. PM indexes WordPress's OOP subsystems (Widgets, REST API, Customizer, Admin, Walker) where class hierarchies exist. The speed advantage is extreme (600–2,000×) because the small, warm entity graph (7,757 entities) answers these queries in 2–5ms flat.
+> WordPress is primarily procedural PHP — its extension system uses function-based hooks (`add_action` / `add_filter`) rather than class inheritance. PM indexes WordPress's OOP subsystems (Widgets, REST API, Customizer, Admin, Walker) where class hierarchies exist. The results are remarkably uniform: all 5 queries execute in exactly 3ms and land in the 89–92% Full reduction range, with near-zero variation between Full and Slim (PHP docblocks are shorter than Java or Rust). The REST API test (T2) is the clearest completeness win: `wp-includes/rest-api/endpoints/` has 40+ PHP files and grows with each release — PM returns all 43 controllers in a single 3ms call.
 
 ## Reproducing
 
