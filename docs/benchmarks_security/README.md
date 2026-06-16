@@ -33,7 +33,7 @@ Report-writing tokens (generating the markdown) are **not counted** in any phase
 
 | Target | Lang/Stack | Files | Model | Test 1 | Test 2 | Test 3 | Report |
 |:---|:---|---:|:---|---:|---:|---:|:---|
-| OWASP Juice Shop | Node.js/Express + Angular + MongoDB | 632 | Claude Sonnet 4.6 High | 30 findings, ~10,200 tokens, ~8 min | 32 prod findings, ~5,248 tokens, < 5 s | ~47 findings, ~11,724 tokens, < 60 s | [pm-security-benchmark-juice-shop.md](pm-security-benchmark-juice-shop.md) |
+| OWASP Juice Shop | Node.js/Express + Angular + MongoDB | 632 | Claude Sonnet 4.6 High | 30 findings, ~10,200 tokens, ~8 min | 35 prod findings, ~4,401 tokens, < 5 s | ~49 findings, ~11,149 tokens, < 60 s | [pm-security-benchmark-juice-shop.md](pm-security-benchmark-juice-shop.md) |
 
 ---
 
@@ -42,14 +42,15 @@ Report-writing tokens (generating the markdown) are **not counted** in any phase
 | | Test 1 — Manual | Test 2 — pm_security | Test 3 — pm_security + pm |
 |:---|---:|---:|---:|
 | Files covered | 48% | **100%** | **100%** |
-| Research tokens | ~10,200 | **~5,248** | ~11,724 |
-| Unique findings | 30 | 32 (prod) | **~47** |
+| Research tokens | ~10,200 | **~4,401** | ~11,149 |
+| Unique findings | 30 | 35 (prod) | **~49** |
 | Elapsed time | ~8 min | **< 5 s** | **< 60 s** |
 | Angular XSS surface | ✗ | **✓** | **✓** |
+| PEM private keys found | **✓** | **✓** | **✓** |
 | Logic / IDOR flaws | **✓ 13** | ✗ | **✓ 21** |
-| Secrets (RSA key, credentials) | **✓** | ✗ | ⚠ partial |
+| Non-PEM secrets (HMAC, credentials) | **✓** | ✗ | ⚠ partial |
 
-**What no phase found automatically:** hardcoded RSA private key literal, hardcoded credentials, FTP sensitive file contents. These require secret-literal detection patterns or file-system enumeration — documented honestly in each report.
+**What no phase found automatically:** HMAC secret literals, plaintext credential strings, FTP sensitive file contents. These require non-PEM secret-literal detection patterns or file-system enumeration — documented honestly in each report.
 
 ---
 
@@ -61,4 +62,4 @@ Report-writing tokens (generating the markdown) are **not counted** in any phase
 | **pm_context** | Navigating to logic flaw surface without reading all files | Can't read literal values; impact trace misses internal functions |
 | **Manual audit** | Secrets, FTP enumeration, challenge-conditional logic | Coverage gap — 48% of files in 8 min on a medium codebase |
 
-The most efficient path: **pm_security → targeted pm_context → 2–3 file reads for secrets** — roughly 14,000 research tokens, ~3 minutes, ~47 findings.
+The most efficient path: **pm_security → targeted pm_context → 1–2 file reads for HMAC/credential secrets** — roughly 12,600 research tokens, ~3 minutes, ~49 findings.

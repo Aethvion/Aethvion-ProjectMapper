@@ -1,9 +1,9 @@
 # Security Benchmark — OWASP Juice Shop
 
-**Project Mapper v1.8.0 · `pm_security` + `pm_context`/`pm_impact`/`pm_path`**  
+**Project Mapper v2.0.0 · `pm_security` + `pm_context`/`pm_impact`/`pm_path`**  
 **Target:** OWASP Juice Shop `juice-shop-master` (Node.js/Express + Angular + MongoDB)  
 **Model:** Claude Sonnet 4.6 High  
-**Date:** 2026-06-13
+**Date:** 2026-06-16
 
 ---
 
@@ -16,15 +16,15 @@ Three independent tests, one codebase, honest comparison:
 | Method | Grep + Read + Glob | `pm_security` only | `pm_security` + 14 PM queries |
 | Tool calls | 37 | 1 | **15** |
 | Files covered | 29 / 61 routes (48%) | 632 / 632 **(100%)** | 632 / 632 **(100%)** |
-| Research tokens | ~10,200 | ~5,248 | ~11,724 |
-| Unique findings | 30 | 32 (prod-path) | **47** |
+| Research tokens | ~10,200 | ~4,401 | ~11,149 |
+| Unique findings | 30 | 35 (prod-path) | **49** |
 | Elapsed time (wall clock) | ~8 min | **< 5 s** | **< 60 s** |
-| Findings per 1k research tokens | ~2.9 | ~10.9 | **~4.0** |
-| Test-1 gaps closed | — | 13 / 30 | **27 / 30** |
+| Findings per 1k research tokens | ~2.9 | ~13.6 | **~4.4** |
+| Test-1 gaps closed | — | 14 / 30 | **27 / 30** |
 
 > **Research tokens** = tool result content read by the agent to discover vulnerabilities (file content from Read calls, pm_security stdout, PM query results). Report-writing tokens are **not counted** in any test.
 
-> **Findings per 1k tokens** is lower in Test 3 than Test 2 because PM queries cost tokens to confirm/extend specific findings, not to discover the easy ones. The right metric for Test 3 is unique findings vs time: **47 findings in < 60 s**.
+> **Findings per 1k tokens** is lower in Test 3 than Test 2 because PM queries cost tokens to confirm/extend specific findings, not to discover the easy ones. The right metric for Test 3 is unique findings vs time: **49 findings in < 60 s**.
 
 ---
 
@@ -108,22 +108,25 @@ Files never read because they weren't guessed as security-sensitive:
 |:---|:---|
 | Tool calls | 1 |
 | Files scanned | 632 (100%) |
-| Scan time | 1.39 s |
-| Research tokens | ~5,248 |
-| Total findings | 57 |
-| — production-path | 32 |
-| — educational codefixes | 13 (context-specific FP) |
-| — other (test/config) | 12 |
+| Scan time | 1.4 s |
+| Research tokens | ~4,401 |
+| Total findings | 58 |
+| — production-path | 35 |
+| — educational codefixes | 17 (context-specific FP) |
+| — other (test/utility) | 6 |
 | Route-reachable (⚡) | 12 |
-| Findings per 1k research tokens | ~10.9 |
+| Findings per 1k research tokens | ~13.6 |
 | Elapsed time | < 5 s |
 
-> **Educational codefixes:** 13 findings are in `data/static/codefixes/` — intentionally vulnerable wrong-answer quiz options for Juice Shop's training game. They contain real SQLi patterns (CWE-89) but are not in the production execution path. Triage as context-specific false positives.
+> **Educational codefixes:** 17 findings are in `data/static/codefixes/` — intentionally vulnerable wrong-answer quiz options for Juice Shop's training game (11 SQLi variants + 6 XSS variants). They contain real CWE-89/CWE-79 patterns but are not in the production execution path. Triage as context-specific false positives.
+
+> **OWASP breakdown:** A01 (Broken Access Control): 1 · A02 (Cryptographic Failures): 5 · A03 (Injection): 41 · A05 (Security Misconfiguration): 4 · A07 (Auth Failures): 5 · A09 (Logging Failures): 2
 
 ### What pm_security found that manual missed
 
 | ID | Finding | Severity | File |
 |:---|:---|:---|:---|
+| F-21 | Hardcoded RSA private key (JWT signing) | **Critical** | `lib/insecurity.ts:23` |
 | P-01 | `eval()` RCE — captcha expression | High ⚡ | `routes/captcha.ts:22` |
 | P-02 | `bypassSecurityTrustHtml(feedback.comment)` | High | `frontend/…/about.component.ts:119` |
 | P-03 | `bypassSecurityTrustHtml(user.email)` | High | `frontend/…/administration.component.ts:73` |
@@ -147,16 +150,19 @@ Files never read because they weren't guessed as security-sensitive:
 | P-21 | Open tabnapping (`target='_blank'`) | Low ⚡ | `routes/verify.ts:213` |
 | P-22 | `console.log` exposes BEE tokens | Medium | `frontend/…/faucet.component.ts:238` |
 | P-23 | `console.log` exposes role error | Medium | `frontend/…/helpers.ts:191` |
+| P-24 | `innerHTML` assignment — dynamic content | High | `frontend/src/hacking-instructor/helpers.ts:138` |
+| P-25 | `innerHTML` assignment — dynamic content | High | `frontend/src/hacking-instructor/index.ts:126` |
 
-**23 additional findings vs manual — all in files that were never read in Test 1.**
+**26 additional findings vs manual** — all in files that were never read in Test 1.
+
+> **Notable:** `pm_security` detects hardcoded PEM private keys (`-----BEGIN RSA PRIVATE KEY-----` and EC/PKCS8 variants) as string literals in source via the `any_pem_private_key` rule. This catches the CRITICAL RSA key in `lib/insecurity.ts:23` that manual Test 1 required reading `lib/insecurity.ts` to find. Dynamic `innerHTML` assignment (without sanitization) is also detected via `js_innerhtml_dynamic`.
 
 ### What pm_security missed (vs Test 1)
 
 | Finding | Why missed |
 |:---|:---|
-| F-21: Hardcoded RSA private key | No secret-literal / private-key pattern in ruleset |
-| F-30: Hardcoded credentials in login.ts | No credential-literal pattern |
-| Hardcoded HMAC secret (`pa4qacea4VK9t9nGv7yZtwmj`) | Same — requires regex on string values |
+| F-30: Hardcoded credentials in login.ts | No credential-literal pattern for plaintext passwords |
+| Hardcoded HMAC secret (`pa4qacea4VK9t9nGv7yZtwmj`) | Non-PEM secret; requires regex on quoted string values |
 | F-24: Open redirect substring bypass | Logic analysis required — `.includes()` is not inherently wrong |
 | F-15: SSRF — `fetch(user_url)` | No SSRF pattern matching `fetch()` with user-supplied argument |
 | F-16: Password change auth bypass | Data-flow / conditional logic analysis |
@@ -170,9 +176,9 @@ Files never read because they weren't guessed as security-sensitive:
 | F-28: Race condition | Concurrency logic — not detectable by static pattern |
 | F-29: FTP sensitive files | File-system enumeration, not a code pattern |
 | F-13: Quarantine no extension check | No "missing check" negative-pattern detection |
-| F-12: Null byte path traversal | Missed `fileServer.ts` specifically (different from `quarantineServer`) |
+| F-12: Null byte path traversal | Missed `fileServer.ts` specifically |
 
-**17 Test 1 findings not reproduced by pm_security alone.**
+**16 Test 1 findings not reproduced by pm_security alone.**
 
 ---
 
@@ -189,49 +195,51 @@ Files never read because they weren't guessed as security-sensitive:
 | — pm_context queries | 11 |
 | — pm_impact queries | 2 |
 | — pm_path queries | 1 |
-| pm_security scan time | 1.33 s |
-| Research tokens — pm_security | ~5,248 |
-| Research tokens — PM queries (14×) | ~6,476 |
-| **Total research tokens** | **~11,724** |
-| Gaps closed from Test 2 | 10 / 17 |
+| pm_scan entities indexed | 2,075 |
+| pm_scan time | 2.0 s |
+| pm_security scan time | 1.4 s |
+| Research tokens — pm_security | ~4,401 |
+| Research tokens — PM queries (14×) | ~6,748 |
+| **Total research tokens** | **~11,149** |
+| Gaps closed from Test 2 | 10 / 16 |
 | New findings (not in Test 1 or 2) | 2 |
 | Elapsed time | < 60 s |
 
 ### PM query results (gap closure)
 
-| Gap | Query | Tokens | Result |
-|:---|:---|---:|:---|
-| G01 — Hardcoded secrets | `pm_context "hardcoded private key secret credential hmac"` | 551 | ⚠ Partial — `checkKeys.ts`, `keyServer.ts` found; literal not shown |
-| G02 — SSRF | `pm_context "fetch url profile image upload external request"` | 615 | ✓ `profileImageUrlUpload.ts` directly surfaced |
-| G03 — Open redirect | `pm_context "redirect allowlist url includes bypass"` | 623 | ✓ `routes/redirect.ts` + `isUnintendedRedirect` |
-| G04 — NoSQL reviews | `pm_context "nosql where reviews product chat"` | 452 | ✓ All 4 review routes; chat still partial |
-| G05 — AI prompt injection | `pm_context "chatbot prompt system coupon generate llm"` | 730 | ✓ `buildSystemPrompt` + `generateCoupon` data flow |
-| G06 — Password change | `pm_context "password change current authentication check"` | 659 | ✓ `routes/changePassword.ts:12` directly |
-| G07 — Basket IDOR | `pm_context "basket id manipulation param parse rawBody"` | 586 | ✓ `RequestWithRawBody` interface surfaced |
-| G08 — Review forgery | `pm_context "review author update multi nosql"` | 594 | ✓ `createProductReviews` + `updateProductReviews` |
-| G09 — Data export IDOR | `pm_context "data export userId body memory"` | 596 | ✓ `dataExport.ts` + `appendUserId` middleware data-flow |
-| G10 — FTP / quarantine | `pm_context "ftp quarantine serve file extension"` | 447 | ✓ + 2 new: `logfileServer.ts`, `keyServer.ts` |
-| G11 — Race condition | `pm_context "like review timing race concurrent"` | 655 | ✓ `likeProductReviews.ts` top result |
-| G12 — isRedirectAllowed impact | `pm_impact entity="isRedirectAllowed" depth=2` | 26 | ✗ No dependents (internal function, not exported entity) |
-| G13 — changePassword impact | `pm_impact entity="changePassword" depth=2` | 25 | ✗ No dependents (Express handler factory) |
-| G14 — Basket path | `pm_path from="addBasketItem" to="BasketModel"` | 38 | ✓ 3-hop: `addBasketItem → BasketItemModel ← placeOrder → BasketModel` |
+| Gap | Query | Tokens | Time | Result |
+|:---|:---|---:|---:|:---|
+| G01 — Hardcoded secrets | `pm_context "hardcoded private key secret credential hmac"` | 431 | 16.6ms | ⚠ Partial — private JS assets in `/assets/private/` rank first due to path match; HMAC + credentials still gaps; F-21 already covered by pm_security |
+| G02 — SSRF | `pm_context "fetch url profile image upload external request"` | 659 | 13.9ms | ✓ `profileImageUrlUpload.ts` top result |
+| G03 — Open redirect | `pm_context "redirect allowlist url includes bypass"` | 676 | 12.1ms | ✓ `routes/redirect.ts` + `isUnintendedRedirect` |
+| G04 — NoSQL reviews | `pm_context "nosql where reviews product chat"` | 487 | 11.5ms | ✓ All 4 review routes |
+| G05 — AI prompt injection | `pm_context "chatbot prompt system coupon generate llm"` | 634 | 13.5ms | ✓ `buildSystemPrompt` + `generateCoupon` data flow |
+| G06 — Password change | `pm_context "password change current authentication check"` | 639 | 14.9ms | ✓ `routes/changePassword.ts:12` directly |
+| G07 — Basket IDOR | `pm_context "basket id manipulation param parse rawBody"` | 679 | 13.3ms | ✓ `RequestWithRawBody` interface surfaced |
+| G08 — Review forgery | `pm_context "review author update multi nosql"` | 658 | 12.0ms | ✓ `createProductReviews` + `updateProductReviews` |
+| G09 — Data export IDOR | `pm_context "data export userId body memory"` | 632 | 13.0ms | ✓ `dataExport.ts` + `appendUserId` data-flow |
+| G10 — FTP / quarantine | `pm_context "ftp quarantine serve file extension"` | 498 | 12.4ms | ✓ `fileServer` + `quarantineServer` + `logfileServer` + `keyServer` |
+| G11 — Race condition | `pm_context "like review timing race concurrent"` | 673 | 11.8ms | ✓ `likeProductReviews.ts` top result |
+| G12 — isRedirectAllowed impact | `pm_impact entity="isRedirectAllowed" depth=2` | 22 | 8.0ms | ✗ No dependents (module-internal function) |
+| G13 — changePassword impact | `pm_impact entity="changePassword" depth=2` | 21 | 1.4ms | ✗ No dependents (Express handler factory) |
+| G14 — Basket path | `pm_path from="addBasketItem" to="BasketModel"` | 39 | 4.6ms | ✓ 3-hop: `addBasketItem → BasketItemModel ← placeOrder → BasketModel` |
+
+> **G01 caveat:** The project has assets under `frontend/src/assets/private/` (three.js rendering library variants). The word "private" in those paths causes them to rank ahead of `lib/insecurity.ts` for secret-related queries. When searching for secrets, query by module name directly: `pm_context "insecurity.ts hmac credential jwt secret"`.
+
+> **G12/G13 note:** `pm_impact` returned "No dependents" for both. These are module-internal functions and Express handler factories — not imported as named entities by other modules. The PM entity graph tracks module-level imports and class methods. `pm_context` is the right tool for these; `pm_impact` is best used for exported class/service entities.
 
 ### New findings from Test 3
 
 | ID | Finding | Severity | File | How found |
 |:---|:---|:---|:---|:---|
 | N-01 | Log files served without auth check | Medium | `routes/logfileServer.ts` | G10 pm_context |
-| N-02 | Encryption key files served to anyone | High | `routes/keyServer.ts` | G10 + G01 pm_context |
-
-### pm_impact limitation note
-
-`pm_impact` returned "No dependents found" for `isRedirectAllowed` and `changePassword`. Both are Express route handler factories or module-internal functions — not imported as named entities by other modules. The PM entity graph tracks module-level imports and class methods, not intra-file call chains. `pm_context` was the right tool for these; `pm_impact` is best used for exported class/service entities.
+| N-02 | Encryption key files served to anyone | High | `routes/keyServer.ts` | G10 pm_context |
 
 ---
 
 ## Master Findings List (All Tests)
 
-**55 unique vulnerabilities across all three tests** (47 confirmed by Test 3). Tagged by which test(s) surfaced them.
+**57 unique vulnerabilities across all three tests** (49 confirmed by Test 3). Tagged by which test(s) surfaced them.
 
 | ID | Finding | Severity | OWASP | Test 1 | Test 2 | Test 3 |
 |:---|:---|:---|:---|:---:|:---:|:---:|
@@ -255,7 +263,7 @@ Files never read because they weren't guessed as security-sensitive:
 | F-18 | IDOR — review author forgery | Medium | A01 | ✓ | — | ✓ (G08) |
 | F-19 | NoSQL mass update — `multi: true` + body `_id` | High | A03 | ✓ | — | ✓ (G08) |
 | F-20 | IDOR — data export body UserId | Medium | A01 | ✓ | — | ✓ (G09) |
-| F-21 | Hardcoded RSA private key | Critical | A02 | ✓ | — | ⚠ partial (G01) |
+| F-21 | Hardcoded RSA private key | Critical | A02 | ✓ | ✓ | ✓ |
 | F-22 | Weak hashing — unsalted MD5 | High | A02 | ✓ | ✓ | ✓ |
 | F-23 | JWT algorithm confusion (RS256 → HS256) | High | A02 | ✓ | ✓ | ✓ |
 | F-24 | Open redirect — substring allowlist | Medium | A01 | ✓ | — | ✓ (G03) |
@@ -288,6 +296,8 @@ Files never read because they weren't guessed as security-sensitive:
 | P-21 | Open tabnapping — verify.ts | Low | A05 | — | ✓ | ✓ |
 | P-22 | `console.log` exposes BEE tokens | Medium | A09 | — | ✓ | ✓ |
 | P-23 | `console.log` exposes role error | Medium | A09 | — | ✓ | ✓ |
+| P-24 | `innerHTML` dynamic — hacking-instructor helpers | High | A03 | — | ✓ | ✓ |
+| P-25 | `innerHTML` dynamic — hacking-instructor index | High | A03 | — | ✓ | ✓ |
 | N-01 | Log files served without auth | Medium | A05 | — | — | ✓ |
 | N-02 | Encryption key files served to anyone | High | A05 | — | — | ✓ |
 
@@ -295,22 +305,21 @@ Files never read because they weren't guessed as security-sensitive:
 
 ---
 
-## Gap Analysis — What Nothing Found
+## Gap Analysis — What Nothing Found Automatically
 
 These vulnerabilities were **not fully identified** by any automated test:
 
 | Finding | Closest approach | Why no method succeeded |
 |:---|:---|:---|
-| Hardcoded RSA private key literal (`lib/insecurity.ts:23`) | Test 1 ✓, Test 3 partial | pm_security: no secret-literal pattern; PM: guides to the file but doesn't expose the line |
-| Hardcoded HMAC secret `pa4qacea4VK9t9nGv7yZtwmj` (`lib/insecurity.ts:44`) | Test 1 ✓ | Same as above — secret-detection pattern required |
-| Hardcoded credentials — 5 accounts (`routes/login.ts:60`) | Test 1 ✓ | No string-value credential pattern in pm_security |
-| NoSQL `$where` — chatbot (`routes/chat.ts:147`) | Test 1 ✓ | pm_security: string concat form (not template literal); PM: chat context returned LLM topics |
-| Null byte path traversal — fileServer.ts | Test 1 ✓ | pm_security: missed this specific form; Test 3: not queried |
+| Hardcoded HMAC secret `pa4qacea4VK9t9nGv7yZtwmj` (`lib/insecurity.ts:44`) | Test 1 ✓ | Non-PEM secret literal; requires regex on quoted string values |
+| Hardcoded credentials — 5 accounts (`routes/login.ts:60`) | Test 1 ✓ | No credential-literal pattern for plaintext passwords |
+| NoSQL `$where` — chatbot (`routes/chat.ts:147`) | Test 1 ✓ | String concat form not caught; PM context returned LLM topics instead |
+| Null byte path traversal — fileServer.ts | Test 1 ✓ | Pattern missed this specific form; not queried in Test 3 |
 | FTP sensitive file contents | Test 1 ✓ | File-system enumeration — not a code pattern; requires directory browsing |
 | CSP header injection via profileImage | Test 1 ✓ | No pattern for string interpolation into response headers |
 | Stored XSS — email model (challenge-gated) | Test 1 ✓ | Challenge-specific conditional — hard to detect as unconditional vulnerability |
 
-**All 8 remaining gaps were found by Test 1 (manual audit).** The tradeoff is clear: manual audit has unique access to secrets, file-system state, and challenge-conditional logic — at the cost of 48% coverage and 8× more time.
+**All 7 remaining gaps were found by Test 1 (manual audit).** The tradeoff is clear: manual audit has unique access to secrets (non-PEM format), file-system state, and challenge-conditional logic — at the cost of 48% file coverage and 8× more time.
 
 ---
 
@@ -319,10 +328,10 @@ These vulnerabilities were **not fully identified** by any automated test:
 | Test | pm_security tokens | PM query tokens | File-read tokens | Total research |
 |:---|---:|---:|---:|---:|
 | Test 1 — Manual | 0 | 0 | ~10,200 | **~10,200** |
-| Test 2 — pm_security | ~5,248 | 0 | 0 | **~5,248** |
-| Test 3 — pm_security + pm | ~5,248 | ~6,476 | 0 | **~11,724** |
+| Test 2 — pm_security | ~4,401 | 0 | 0 | **~4,401** |
+| Test 3 — pm_security + pm | ~4,401 | ~6,748 | 0 | **~11,149** |
 
-Test 3 costs more tokens than Test 2 because of the 14 follow-up queries. The payoff: 15 additional findings confirmed/extended, 2 new findings surfaced, coverage gap closed for logic/architecture flaws. If only the most targeted 8 queries are run (G02–G11, skipping the two failed impact queries), total cost drops to ~10,900 tokens with ~12 additional confirmed findings.
+Test 3 costs more tokens than Test 2 because of the 14 follow-up queries. The payoff: 14 additional findings confirmed/extended, 2 new findings surfaced (N-01, N-02), coverage gap closed for logic/architecture flaws. If only the 8 most targeted queries are run (G02–G11, skipping the two failed impact queries and G01 which has path ranking noise), total cost drops to ~10,200 tokens with ~12 additional confirmed findings.
 
 ---
 
@@ -331,13 +340,15 @@ Test 3 costs more tokens than Test 2 because of the 14 follow-up queries. The pa
 ### pm_security
 **Best at:**
 - Pattern-detectable vulnerabilities: SQLi template literals, `eval()`, `vm.runInContext`, `bypassSecurityTrustHtml`, `localStorage`, JWT/cookie misconfiguration
+- PEM private key literals (`-----BEGIN RSA PRIVATE KEY-----`, EC, PKCS8) — caught as CRITICAL in `lib/insecurity.ts:23`
+- Dynamic `innerHTML` assignment without sanitization (`js_innerhtml_dynamic` rule)
 - 100% file coverage in seconds — no file is guessed or skipped
 - Route-reachability taint flag (⚡) prioritizes exploitable findings
 
 > **Note on rule precision:** `pm_security` maps generic patterns to broad CWE categories (e.g., all `vm.runInContext` calls → CWE-95 Eval Injection). In the hybrid Test 3 workflow, the agent reads the surrounding context and reclassifies specific instances — `vm.runInContext` wrapping `libxml.parseXml(…, { noent: true })` becomes XXE (CWE-611), and `vm.runInContext` wrapping `yaml.load()` becomes a YAML bomb DoS (CWE-400). Generic detection + contextual reclassification is the right division of labour.
 
 **Not designed to catch:**
-- Secret literals embedded in code (RSA keys, HMAC secrets, plaintext credentials)
+- Non-PEM secret literals (HMAC strings, plaintext credentials)
 - SSRF via generic HTTP fetch with user-supplied argument
 - Logic flaws: IDOR, business rule violations, missing permission checks
 - AI/LLM-specific vulnerabilities (prompt injection)
@@ -356,13 +367,14 @@ Test 3 costs more tokens than Test 2 because of the 14 follow-up queries. The pa
 - Impact tracing on module-internal functions (not exported, no import graph entry)
 - Express route handler factories (wired via router, not imported by name)
 - Replacing file reads when a literal value is needed (key content, credential string)
+- Queries where generic path keywords match framework assets (e.g., `/assets/private/` polluting secret-hunt queries)
 
 ### Manual audit
 **Unique capabilities:**
-- Secret-literal detection (reading the actual value from source)
+- Non-PEM secret-literal detection (HMAC strings, plaintext credentials)
 - File-system enumeration (what files exist in FTP, what they contain)
 - Challenge-conditional logic (following `isChallengeEnabled` branches)
-- Arbitrary reasoning about behavior that isn't expressed in code patterns
+- Arbitrary reasoning about behavior not expressed in code patterns
 
 **Failure mode:** 48% file coverage in 8 minutes — the remaining 52% may contain critical vulnerabilities (in this case: captcha RCE, Angular XSS surface, localStorage tokens, keyServer, logfileServer).
 
@@ -372,15 +384,17 @@ Test 3 costs more tokens than Test 2 because of the 14 follow-up queries. The pa
 
 For a real engagement on a Node.js/Express + Angular codebase of this size:
 
-1. **Run pm_security first** — 1–2 s, zero tokens wasted on file guessing, immediate OWASP Top 10 pattern coverage. Triage the ⚡ route-reachable findings first.
+1. **Run pm_security first** — ~1.5 s, zero tokens wasted on file guessing, immediate OWASP Top 10 pattern coverage including PEM private keys and Angular XSS patterns. Triage the ⚡ route-reachable findings first.
 
 2. **Use pm_context for logic gaps** — for each gap category (IDOR, auth logic, SSRF, injection variants), one 400–700 token query returns the relevant file list. This closes ~60% of logic gaps that patterns miss.
 
-3. **Read targeted files for secrets** — pm_context will guide you to the right module (e.g., `lib/insecurity.ts`). One file read confirms secret literals. Don't rely on pattern matching for this.
+3. **Read targeted files for non-PEM secrets** — pm_security catches PEM private keys automatically. For HMAC secrets and plaintext credential strings, one targeted file read of `lib/insecurity.ts` (or equivalent secrets module) confirms literal values.
 
 4. **Skip pm_impact for route handlers** — use it for exported services and class methods. For Express routes, pm_context with function name or route path is more reliable.
 
 5. **Budget for FTP/static asset enumeration** — no tool replaces `ls ftp/` for finding exposed files. One directory listing is cheap and catches what code-pattern tools cannot.
+
+6. **Avoid path-pollution in secret queries** — if the project has assets under a path containing "private" (e.g., `assets/private/`), semantic queries for secrets will rank those files first. Use explicit module names: `pm_context "insecurity.ts hmac credential jwt secret"`.
 
 ---
 
@@ -390,14 +404,15 @@ For a real engagement on a Node.js/Express + Angular codebase of this size:
 |:---|:---|:---|:---|
 | Time | ~8 min | **< 5 s** | **< 60 s** |
 | Files covered | 48% | **100%** | **100%** |
-| Research tokens | ~10,200 | **~5,248** | ~11,724 |
-| Unique findings | 30 | 32 (prod) | **47** |
+| Research tokens | ~10,200 | **~4,401** | ~11,149 |
+| Unique findings | 30 | 35 (prod) | **49** |
 | Angular XSS surface found | ✗ | **✓ all 10** | **✓ all 10** |
 | Logic / IDOR flaws found | **✓ 13** | ✗ | **✓ 21** |
-| Secrets found | **✓ 3** | ✗ | ⚠ partial (file found, value not) |
+| PEM private keys found | **✓** | **✓** | **✓** |
+| Non-PEM secrets found | **✓** | ✗ | ⚠ partial (file found, value not) |
 
 No single approach wins on every axis. The most efficient path for this codebase:
 
-**pm_security (5,248 tokens, < 5 s) → targeted pm_context for logic gaps (~6,500 tokens, < 60 s) → 2–3 targeted file reads for secrets (~2,000 tokens, < 2 min)**
+**pm_security (4,401 tokens, < 5 s) → targeted pm_context for logic gaps (~6,700 tokens, < 60 s) → 1–2 targeted file reads for non-PEM secrets (~1,500 tokens, < 1 min)**
 
-Total: ~14,000 research tokens, ~3 minutes, 47 findings — compared to ~10,200 tokens and ~8 minutes for 30 findings with manual-only.
+Total: ~12,600 research tokens, ~3 minutes, 49 findings — compared to ~10,200 tokens and ~8 minutes for 30 findings with manual-only.
