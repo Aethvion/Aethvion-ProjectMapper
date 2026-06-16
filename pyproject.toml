@@ -125,6 +125,9 @@ Changelog     = "https://github.com/Aethvion/Aethvion-ProjectMapper/releases"
 [tool.setuptools.packages.find]
 include = ["project_mapper*"]
 
+[tool.setuptools.package-data]
+project_mapper = ["py.typed"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

@@ -139,7 +139,8 @@ It's designed to work alongside `pm_context`: `pm_security` catches pattern-dete
 pip install aethvion-project-mapper
 
 # Start server
-uvicorn server:app --port 7474
+pm-server
+# pm-server --host 127.0.0.1 --port 8080 --workers 2
 
 # Scan your project
 curl -X POST http://localhost:7474/api/project-mapper/scan \
@@ -153,6 +154,8 @@ curl -X POST http://localhost:7474/api/project-mapper/query/context \
 ```
 
 Docs at **http://localhost:7474/docs**
+
+> Developing from a repo clone instead of a pip install? Use `uvicorn server:app --reload --port 7474` from the repo root — `server.py` is a dev shim, not part of the installed package.
 
 ### Docker
 
