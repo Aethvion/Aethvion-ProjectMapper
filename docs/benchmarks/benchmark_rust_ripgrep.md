@@ -1,6 +1,6 @@
 # Benchmark: Rust — ripgrep
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-16 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -11,12 +11,16 @@
 | Repository | `BurntSushi/ripgrep` |
 | Language | Rust |
 | Files scanned | 100 |
-| Total lines | ~47,000 |
-| Entities indexed | 849 |
+| Total lines | ~52,000 |
+| Entities indexed | 845 |
 | Scan time | 0.5 s |
-| Throughput | ~94,000 lines/sec |
+| Throughput | ~104,700 lines/sec |
 
-Geometric mean savings: **−82% token reduction (Full) · −92% token reduction (Slim)** · **~1,500× faster navigation**
+Geometric mean savings: **~46% token reduction (Full) · ~80% token reduction (Slim)** · **~1,700× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -32,10 +36,10 @@ Geometric mean savings: **−82% token reduction (Full) · −92% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 3–4 | 1 | 1 |
 | Entities found | ~2 impls, call-chain propagation invisible | 31 — 6 direct + 25 transitive | 31 — complete |
-| Token Cost | ~3,500 | ~750 | ~615 |
-| Token Reduction | — | **−79%** | **−82%** |
-| Execution Time | ~3.5s | 2ms | <1ms |
-| Speedup | — | **~1,750×** | **~3,500×** |
+| Token Cost | ~3,500 | ~2,802 | ~1,392 |
+| Token Reduction | — | **−20%** | **−60%** |
+| Execution Time | ~3.5s | <1ms | <1ms |
+| Speedup | — | **~3,500×** | **~3,500×** |
 
 ---
 
@@ -50,10 +54,10 @@ Geometric mean savings: **−82% token reduction (Full) · −92% token reductio
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 3–4 | 1 | 1 |
-| Entities found | Partial, misses Box/&mut S blanket impls | 20 — 9 direct + 11 transitive | 20 — complete |
-| Token Cost | ~4,000 | ~540 | ~397 |
-| Token Reduction | — | **−87%** | **−90%** |
-| Execution Time | ~4s | 1ms | <1ms |
+| Entities found | Partial, misses Box/&mut S blanket impls | 19 — direct + transitive | 19 — complete |
+| Token Cost | ~4,000 | ~1,895 | ~899 |
+| Token Reduction | — | **−53%** | **−78%** |
+| Execution Time | ~4s | <1ms | <1ms |
 | Speedup | — | **~4,000×** | **~4,000×** |
 
 ---
@@ -70,8 +74,8 @@ Geometric mean savings: **−82% token reduction (Full) · −92% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 4–6 | 1 | 1 |
 | Entities found | Partial, cross-crate wiring invisible | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~6,000 | ~1,424 | ~326 |
-| Token Reduction | — | **−76%** | **−95%** |
+| Token Cost | ~6,000 | ~2,843 | ~814 |
+| Token Reduction | — | **−53%** | **−86%** |
 | Execution Time | ~5s | 5ms | 5ms |
 | Speedup | — | **~1,000×** | **~1,000×** |
 
@@ -89,8 +93,8 @@ Geometric mean savings: **−82% token reduction (Full) · −92% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 4–5 | 1 | 1 |
 | Entities found | Partial, hyperlink/ sub-module easily missed | 30 ranked — incl. hyperlink and color internals | 30 ranked — complete |
-| Token Cost | ~7,000 | ~1,344 | ~341 |
-| Token Reduction | — | **−81%** | **−95%** |
+| Token Cost | ~7,000 | ~2,911 | ~825 |
+| Token Reduction | — | **−58%** | **−88%** |
 | Execution Time | ~5s | 5ms | 5ms |
 | Speedup | — | **~1,000×** | **~1,000×** |
 
@@ -108,8 +112,8 @@ Geometric mean savings: **−82% token reduction (Full) · −92% token reductio
 |:---|---:|---:|---:|
 | Tool calls | 3+ | 1 | 1 |
 | Entities found | Buried in 2,000-line file; globset link invisible | 30 ranked — complete, cross-crate | 30 ranked — complete |
-| Token Cost | ~8,000 | ~1,070 | ~299 |
-| Token Reduction | — | **−87%** | **−96%** |
+| Token Cost | ~8,000 | ~2,689 | ~774 |
+| Token Reduction | — | **−66%** | **−90%** |
 | Execution Time | ~5s | 5ms | 5ms |
 | Speedup | — | **~1,000×** | **~1,000×** |
 
@@ -119,17 +123,17 @@ Geometric mean savings: **−82% token reduction (Full) · −92% token reductio
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Matcher trait implementations | ~3,500 tok | ~750 tok | ~615 tok | **−79%** | **−82%** | ~1,750× |
-| Test 2 | Sink trait implementations | ~4,000 tok | ~540 tok | ~397 tok | **−87%** | **−90%** | ~4,000× |
-| Test 3 | Search engine components | ~6,000 tok | ~1,424 tok | ~326 tok | **−76%** | **−95%** | ~1,000× |
-| Test 4 | Output formatting & color | ~7,000 tok | ~1,344 tok | ~341 tok | **−81%** | **−95%** | ~1,000× |
-| Test 5 | Directory walking & ignore | ~8,000 tok | ~1,070 tok | ~299 tok | **−87%** | **−96%** | ~1,000× |
+| Test 1 | Matcher trait implementations | ~3,500 tok | ~2,802 tok | ~1,392 tok | **−20%** | **−60%** | ~3,500× |
+| Test 2 | Sink trait implementations | ~4,000 tok | ~1,895 tok | ~899 tok | **−53%** | **−78%** | ~4,000× |
+| Test 3 | Search engine components | ~6,000 tok | ~2,843 tok | ~814 tok | **−53%** | **−86%** | ~1,000× |
+| Test 4 | Output formatting & color | ~7,000 tok | ~2,911 tok | ~825 tok | **−58%** | **−88%** | ~1,000× |
+| Test 5 | Directory walking & ignore | ~8,000 tok | ~2,689 tok | ~774 tok | **−66%** | **−90%** | ~1,000× |
 
 ---
 
-Geometric mean savings: **−82% token reduction (Full) · −92% token reduction (Slim)** · **~1,500× faster navigation**
+Geometric mean savings: **~46% token reduction (Full) · ~80% token reduction (Slim)** · **~1,700× faster navigation**
 
-> Rust is where Slim mode pays off most: entity summaries are verbose doc comments, so Full vs Slim is a 4×–5× difference in token cost (e.g., T3: 1,424 Full → 326 Slim). The ripgrep multi-crate workspace amplifies this further — a normal grep + read workflow requires jumping between `crates/core/`, `crates/searcher/`, `crates/printer/`, `crates/ignore/`, and `crates/regex/` to trace any relationship. PM indexes all five crates into one graph and answers cross-crate queries in a single call. T5 is the clearest example: `walk.rs` is a 2,000-line file — PM returns 30 ranked entities across `ignore/` and `globset/` in 5ms and 299 tokens.
+> Rust is where **Slim mode matters most**: Rust doc comments are long and structured, so Full output is 3–4× more verbose than Slim for the same entity set (e.g., T3: 2,843 Full → 814 Slim). Use Slim for orientation and navigation; switch to Full only when you need the docstring detail. The multi-crate workspace is where PM's cross-crate graph pays off regardless — a normal grep + read workflow requires jumping between `crates/core/`, `crates/searcher/`, `crates/printer/`, `crates/ignore/`, and `crates/regex/` to trace any relationship. PM answers cross-crate queries in a single call in under 5ms. T5 is the clearest example: `walk.rs` is a 2,000-line file — PM returns 30 ranked entities across `ignore/` and `globset/` in 774 tokens (Slim).
 
 ## Reproducing
 
