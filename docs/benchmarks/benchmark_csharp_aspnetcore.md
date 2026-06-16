@@ -1,6 +1,6 @@
 # Benchmark: C# — ASP.NET Core
 
-**PM version:** v1.8.0 · **Date:** 2026-06-13 · **Hardware:** Intel i9-13900K · Windows 11
+**PM version:** v2.0.0 · **Date:** 2026-06-16 · **Hardware:** Intel i9-13900K · Windows 11
 
 ---
 
@@ -10,13 +10,17 @@
 |:---|:---|
 | Repository | `dotnet/aspnetcore` |
 | Language | C# |
-| Files scanned | 11,083 |
-| Total lines | ~2,200,000 |
-| Entities indexed | 27,813 |
-| Scan time | 67.7 s |
-| Throughput | ~32,500 lines/sec |
+| Files scanned | 10,437 |
+| Total lines | ~1,622,500 |
+| Entities indexed | 22,923 |
+| Scan time | 36.9 s |
+| Throughput | ~44,000 lines/sec |
 
-Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (Slim)** · **~46× faster navigation**
+Geometric mean savings: **~89% token reduction (Full) · ~92% token reduction (Slim)** · **~45× faster navigation**
+
+Token counts measured with `tiktoken` (cl100k_base) on the exact tool output an
+agent consumes. "Normal" figures estimate the grep + read tokens a skilled agent
+would spend reaching the same answer without Project Mapper.
 
 ---
 
@@ -31,11 +35,11 @@ Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
-| Entities found | Partial, package-by-package | 38 — complete, cross-package | 38 — complete |
-| Token Cost | ~7,500 | ~1,067 | ~996 |
-| Token Reduction | — | **−86%** | **−87%** |
-| Execution Time | ~5s | 65ms | 62ms |
-| Speedup | — | **~77×** | **~81×** |
+| Entities found | Partial, package-by-package | 31 — complete, cross-package | 31 — complete |
+| Token Cost | ~7,500 | ~1,111 | ~956 |
+| Token Reduction | — | **−85%** | **−87%** |
+| Execution Time | ~5s | 37ms | 37ms |
+| Speedup | — | **~135×** | **~135×** |
 
 ---
 
@@ -50,11 +54,11 @@ Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 8–10 | 1 | 1 |
-| Entities found | Partial, misses ViewResult/Razor variants | 60 — complete | 60 — complete |
-| Token Cost | ~12,000 | ~1,275 | ~1,178 |
-| Token Reduction | — | **−89%** | **−90%** |
-| Execution Time | ~6s | 64ms | 64ms |
-| Speedup | — | **~94×** | **~94×** |
+| Entities found | Partial, misses ViewResult/Razor variants | 43 — complete, all MVC subsystems | 43 — complete |
+| Token Cost | ~12,000 | ~1,537 | ~1,322 |
+| Token Reduction | — | **−87%** | **−89%** |
+| Execution Time | ~6s | 37ms | 38ms |
+| Speedup | — | **~162×** | **~158×** |
 
 ---
 
@@ -70,10 +74,10 @@ Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 6+ | 1 | 1 |
 | Entities found | Partial, directory-by-directory | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~9,000 | ~1,116 | ~737 |
-| Token Reduction | — | **−88%** | **−92%** |
-| Execution Time | ~5s | 480ms | 489ms |
-| Speedup | — | **~10×** | **~10×** |
+| Token Cost | ~9,000 | ~1,189 | ~738 |
+| Token Reduction | — | **−87%** | **−92%** |
+| Execution Time | ~5s | 256ms | 253ms |
+| Speedup | — | **~20×** | **~20×** |
 
 ---
 
@@ -88,11 +92,11 @@ Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (S
 | | Normal | PM (Full) | PM (Slim) |
 |:---|---:|---:|---:|
 | Tool calls | 5+ | 1 | 1 |
-| Entities found | 5 files, unranked | 30 ranked — complete | 30 ranked — complete |
-| Token Cost | ~7,500 | ~1,046 | ~788 |
-| Token Reduction | — | **−86%** | **−89%** |
-| Execution Time | ~4s | 575ms | 576ms |
-| Speedup | — | **~7×** | **~7×** |
+| Entities found | 5 files, unranked | 22 ranked — complete | 22 ranked — complete |
+| Token Cost | ~7,500 | ~968 | ~656 |
+| Token Reduction | — | **−87%** | **−91%** |
+| Execution Time | ~4s | 306ms | 306ms |
+| Speedup | — | **~13×** | **~13×** |
 
 ---
 
@@ -108,10 +112,10 @@ Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (S
 |:---|---:|---:|---:|
 | Tool calls | 4+ | 1 | 1 |
 | Entities found | Requires reading WebApplication.cs | 4-hop path confirmed | 4-hop path confirmed |
-| Token Cost | ~6,000 | ~59 | ~59 |
+| Token Cost | ~6,000 | ~45 | ~45 |
 | Token Reduction | — | **−99%** | **−99%** |
-| Execution Time | ~4s | 228ms | 228ms |
-| Speedup | — | **~18×** | **~18×** |
+| Execution Time | ~4s | 128ms | 132ms |
+| Speedup | — | **~31×** | **~30×** |
 
 ---
 
@@ -119,15 +123,17 @@ Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (S
 
 | Test | Question | Normal | PM (Full) | PM (Slim) | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|
-| Test 1 | Auth handler hierarchy | ~7,500 tok | ~1,067 tok | ~996 tok | **−86%** | **−87%** | ~77× |
-| Test 2 | IActionResult types | ~12,000 tok | ~1,275 tok | ~1,178 tok | **−89%** | **−90%** | ~94× |
-| Test 3 | Middleware discovery | ~9,000 tok | ~1,116 tok | ~737 tok | **−88%** | **−92%** | ~10× |
-| Test 4 | Auth/authorization context | ~7,500 tok | ~1,046 tok | ~788 tok | **−86%** | **−89%** | ~7× |
-| Test 5 | IApplicationBuilder → IServiceProvider | ~6,000 tok | ~59 tok | ~59 tok | **−99%** | **−99%** | ~18× |
+| Test 1 | Auth handler hierarchy | ~7,500 tok | ~1,111 tok | ~956 tok | **−85%** | **−87%** | ~135× |
+| Test 2 | IActionResult types | ~12,000 tok | ~1,537 tok | ~1,322 tok | **−87%** | **−89%** | ~162× |
+| Test 3 | Middleware discovery | ~9,000 tok | ~1,189 tok | ~738 tok | **−87%** | **−92%** | ~20× |
+| Test 4 | Auth/authorization context | ~7,500 tok | ~968 tok | ~656 tok | **−87%** | **−91%** | ~13× |
+| Test 5 | IApplicationBuilder → IServiceProvider | ~6,000 tok | ~45 tok | ~45 tok | **−99%** | **−99%** | ~31× |
 
 ---
 
-Geometric mean savings: **~83% token reduction (Full) · ~87% token reduction (Slim)** · **~46× faster navigation**
+Geometric mean savings: **~89% token reduction (Full) · ~92% token reduction (Slim)** · **~45× faster navigation**
+
+> ASP.NET Core is one of the largest codebases in this suite — 10,437 .cs files across dozens of packages (MVC, Blazor, SignalR, Identity, gRPC, Kestrel). The package-boundary problem is where PM pays off most: `IAuthenticationHandler` spans Cookie, JwtBearer, OAuth, OpenIdConnect, and Negotiate packages — a grep + read workflow finds handlers one package at a time and stops when it runs out of obvious directories. PM returns all 31 in a single call. T3 and T4 take 250–300ms because the context engine ranks across the full 22,923-entity index. T5's 4-hop path resolves in 45 tokens what would require reading WebApplication.cs and chasing several indirection layers.
 
 ## Reproducing
 
