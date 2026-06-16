@@ -2,27 +2,24 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Any
 
 from ._common import (
-    _resolve_entity,
-    _entity_stub,
-    _SEMANTIC_EDGE_KINDS,
     _EXCEPTION_NAME_PAT,
+    _SEMANTIC_EDGE_KINDS,
+    _entity_stub,
+    _resolve_entity,
 )
 
+logger = logging.getLogger(__name__)
 
 _HUB_CALLS_THRESHOLD = 20
 
 
 def _build_adjacency(
     entity_map: dict[str, dict],
-    allowed_kinds: Optional[frozenset[str]],
+    allowed_kinds: frozenset[str] | None,
 ) -> tuple[dict[str, list[tuple[str, str, str]]], dict[str, list[tuple[str, str, str]]]]:
     """
     Build forward and reverse adjacency dicts from the entity graph.
@@ -100,7 +97,7 @@ def _bfs_path(
     max_hops:   int,
     skip_ids:   frozenset[str] = frozenset(),
     slim:       bool = False,
-) -> Optional[list[dict]]:
+) -> list[dict] | None:
     """
     BFS from *from_id* to *to_id* using the given adjacency dicts.
     Returns the path as a list of entity stubs, or None if no path is found.

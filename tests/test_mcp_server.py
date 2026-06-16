@@ -7,20 +7,14 @@ paths the client sees.
 """
 import io
 import json
-import threading
-from pathlib import Path
-
-import pytest
 
 from project_mapper.mcp.server import (
-    MCPServer,
-    SERVER_VERSION,
-    SERVER_NAME,
-    PROTOCOL_VERSION,
-    PARSE_ERROR,
     METHOD_NOT_FOUND,
+    PROTOCOL_VERSION,
+    SERVER_NAME,
+    SERVER_VERSION,
+    MCPServer,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +27,7 @@ def _make_server(tmp_db, ctx) -> MCPServer:
 
 def _last(srv: MCPServer) -> dict:
     """Parse the last JSON-RPC line written to the server's output buffer."""
-    lines = [l for l in srv._out.getvalue().strip().splitlines() if l.strip()]
+    lines = [line for line in srv._out.getvalue().strip().splitlines() if line.strip()]
     assert lines, "Server wrote no output"
     return json.loads(lines[-1])
 

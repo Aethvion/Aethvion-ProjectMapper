@@ -1,5 +1,5 @@
 """
-project_mapper/mcp_server.py
+project_mapper/mcp/server.py
 Minimal MCP (Model Context Protocol) stdio server for ProjectMapper.
 
 Protocol: JSON-RPC 2.0, newline-delimited, over stdin/stdout.
@@ -73,7 +73,7 @@ import sys
 import threading
 import traceback
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # JSON-RPC constants
@@ -148,7 +148,7 @@ class MCPServer:
         self,
         db_root:       Path,
         db_name:       str,
-        project_root:  Optional[str] = None,
+        project_root:  str | None = None,
         watch:         bool = False,
         watch_interval: float = 10.0,
     ) -> None:
@@ -171,9 +171,9 @@ class MCPServer:
         if self._ctx is not None:
             return self._ctx
 
-        from ..db.pm_store import PMEntityStore, PMNameIndex
-        from ..db.file_manifest import FileManifest
         from ..db import snapshot as _snap
+        from ..db.file_manifest import FileManifest
+        from ..db.pm_store import PMEntityStore, PMNameIndex
         from .tools import MCPContext
 
         self._db_root.mkdir(parents=True, exist_ok=True)
@@ -386,7 +386,7 @@ class MCPServer:
 # Entry point
 # ---------------------------------------------------------------------------
 
-def _resolve_db_root(db_name: str, db_path: Optional[str]) -> tuple[Path, str]:
+def _resolve_db_root(db_name: str, db_path: str | None) -> tuple[Path, str]:
     """Return (db_root, db_name) from CLI args / env vars."""
     if db_path:
         return Path(db_path), db_name or Path(db_path).name

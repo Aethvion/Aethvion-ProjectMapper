@@ -18,15 +18,19 @@ from __future__ import annotations
 import re
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_c as _tsc
+    from tree_sitter import Language, Parser
     _C_LANGUAGE = Language(_tsc.language())
     _AVAILABLE = True
 except Exception:
     _AVAILABLE = False
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ArgInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
 )
 
 # ---------------------------------------------------------------------------

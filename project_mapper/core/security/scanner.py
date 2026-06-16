@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .patterns import SecurityFinding, _BY_LANGUAGE, _CWE_FIX
-
+from .patterns import _BY_LANGUAGE, _CWE_FIX, SecurityFinding
 
 _TEST_PATH_FRAGMENTS = frozenset({
     "test", "tests", "spec", "specs", "__tests__", "mock", "mocks",

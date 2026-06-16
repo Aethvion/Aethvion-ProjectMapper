@@ -24,11 +24,13 @@ Dependencies (optional — falls back to stub if not installed):
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ArgInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -39,8 +41,8 @@ _TREESITTER_AVAILABLE = False
 _GO_LANGUAGE = None
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_go as _tsgo
+    from tree_sitter import Language, Parser
 
     _GO_LANGUAGE = Language(_tsgo.language())
     _TREESITTER_AVAILABLE = True
@@ -217,9 +219,9 @@ def _extract_constants(root, src: bytes) -> list[str]:
     for node in root.children:
         if node.type == "const_declaration":
             spec_list = _first(node, "const_spec")
-            specs = _all(node, "const_spec") if not spec_list else []
+            _all(node, "const_spec") if not spec_list else []
             if spec_list:
-                specs = [spec_list]
+                pass
             # group or single
             for spec in _all(node, "const_spec"):
                 name_node = _first(spec, "identifier")

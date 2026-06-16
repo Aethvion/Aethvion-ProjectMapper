@@ -27,12 +27,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .scanner import SUPPORTED_EXTENSIONS, _EXCLUDED_DIRS
+from .scanner import _EXCLUDED_DIRS, SUPPORTED_EXTENSIONS
 
 if TYPE_CHECKING:
-    from ..db.pm_store import PMEntityStore
-    from ..db.name_index import NameIndex
     from ..db.file_manifest import FileManifest
+    from ..db.name_index import NameIndex
+    from ..db.pm_store import PMEntityStore
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def _now_iso() -> str:
 def retire_entity(
     entity_id: str,
     reason:    str,
-    writer:    "PMEntityStore",
+    writer:    PMEntityStore,
 ) -> bool:
     """
     Soft-delete *entity_id*: mark status='deleted' and append a timeline event.
@@ -92,8 +92,8 @@ class RetireFileResult:
 
 def retire_file_entities(
     path:          str,
-    file_manifest: "FileManifest",
-    writer:        "PMEntityStore",
+    file_manifest: FileManifest,
+    writer:        PMEntityStore,
 ) -> RetireFileResult:
     """
     Retire all entities associated with *path* (a deleted source file).
@@ -147,7 +147,7 @@ def retire_file_entities(
 def prune_removed_symbols(
     module_entity_id: str,
     new_child_ids:    list[str],
-    writer:           "PMEntityStore",
+    writer:           PMEntityStore,
 ) -> int:
     """
     After re-scanning a modified module, retire child entities (classes /
@@ -251,11 +251,11 @@ class CleanupResult:
 
 
 def run_deletion_cleanup(
-    project_root:  "str | Path",
-    file_manifest: "FileManifest",
-    writer:        "PMEntityStore",
-    index:         "NameIndex",       # reserved for future use (symbol index update)
-    existing_paths: Optional[set[str]] = None,
+    project_root:  str | Path,
+    file_manifest: FileManifest,
+    writer:        PMEntityStore,
+    index:         NameIndex,       # reserved for future use (symbol index update)
+    existing_paths: set[str] | None = None,
 ) -> CleanupResult:
     """
     Walk the manifest and retire entities for every file that no longer exists
@@ -341,8 +341,8 @@ class StubResolveResult:
 
 
 def resolve_stubs(
-    writer: "PMEntityStore",
-    index:  "NameIndex",
+    writer: PMEntityStore,
+    index:  NameIndex,
 ) -> StubResolveResult:
     """
     Post-scan pass: find stub entities whose name can now be matched to a
@@ -487,7 +487,7 @@ def resolve_stubs(
 # 6. Orphan stub pruning
 # ---------------------------------------------------------------------------
 
-def prune_orphan_stubs(writer: "PMEntityStore") -> int:
+def prune_orphan_stubs(writer: PMEntityStore) -> int:
     """
     Delete stub entities that no active entity references.
 

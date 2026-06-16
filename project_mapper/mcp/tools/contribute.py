@@ -1,10 +1,9 @@
 """contribute MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_contribute',
  'description': 'Record agent-discovered knowledge back into the project graph. Accepts '
@@ -42,7 +41,7 @@ SCHEMA = {'name': 'pm_contribute',
 
 
 def handle_pm_contribute(args: dict[str, Any], ctx: MCPContext) -> str:
-    from ...core.query import build_entity_map, apply_contribution, _resolve_entity
+    from ...core.query import _resolve_entity, apply_contribution, build_entity_map
 
     entity_name = args.get("entity_name", "").strip()
     properties  = args.get("properties", {}) or {}

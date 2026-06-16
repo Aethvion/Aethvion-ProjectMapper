@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .scanner import SUPPORTED_EXTENSIONS, _EXCLUDED_DIRS
+from .scanner import _EXCLUDED_DIRS, SUPPORTED_EXTENSIONS
 
 if TYPE_CHECKING:
     from ..db.file_manifest import FileManifest
@@ -102,8 +102,8 @@ def _file_hash(fp: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def compute_delta(
-    project_root:   "str | Path",
-    file_manifest:  "FileManifest",
+    project_root:   str | Path,
+    file_manifest:  FileManifest,
     *,
     compute_hashes: bool = True,
 ) -> DeltaResult:

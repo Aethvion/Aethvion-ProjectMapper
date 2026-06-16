@@ -2,26 +2,23 @@
 from __future__ import annotations
 
 import logging
-import re
-from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Any
 
 from ._common import (
-    _is_test_entity,
-    IMPACT_INCOMING_KINDS,
+    _DUNDER_PAT,
     _ORPHAN_ENTRY_NAMES,
     _ORPHAN_SKIP_FILES,
     _ORPHAN_VENDOR_DIRS,
-    _DUNDER_PAT,
+    IMPACT_INCOMING_KINDS,
+    _is_test_entity,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def orphan_query(
     entity_map:      dict[str, dict],
-    types:           Optional[list[str]] = None,
+    types:           list[str] | None = None,
     include_modules: bool = False,
     max_results:     int  = 100,
 ) -> dict[str, Any]:

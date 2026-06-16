@@ -9,10 +9,9 @@ import threading
 
 import pytest
 
-from project_mapper.db.pm_store import PMEntityStore, PMNameIndex
 from project_mapper.db.file_manifest import FileManifest
+from project_mapper.db.pm_store import PMEntityStore, PMNameIndex
 from project_mapper.mcp.tools.base import MCPContext
-
 
 # ── Storage fixtures ──────────────────────────────────────────────────────────
 

@@ -30,12 +30,12 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from .entity_schema import make_empty, _new_id, _now_iso, VALID_STATUSES
-from .name_index import NameIndex
-from .utils import get_logger, atomic_json_write
 from . import snapshot as _snapshot
+from .entity_schema import VALID_STATUSES, _new_id, _now_iso, make_empty
+from .name_index import NameIndex
+from .utils import atomic_json_write, get_logger
 
 logger = get_logger(__name__)
 
@@ -98,7 +98,7 @@ class PMEntityStore:
         self._lock:    threading.Lock = threading.Lock()  # guards create()
 
     @classmethod
-    def from_snapshot(cls, db_root: Path, index: PMNameIndex) -> "PMEntityStore":
+    def from_snapshot(cls, db_root: Path, index: PMNameIndex) -> PMEntityStore:
         """Create a PMEntityStore pre-populated from an existing snapshot.
 
         Used for incremental scans so that entities belonging to unchanged
@@ -116,10 +116,10 @@ class PMEntityStore:
     def exists(self, entity_id: str) -> bool:
         return entity_id in self._store
 
-    def get(self, entity_id: str) -> Optional[dict[str, Any]]:
+    def get(self, entity_id: str) -> dict[str, Any] | None:
         return self._store.get(entity_id)
 
-    def get_by_name(self, name: str) -> Optional[dict[str, Any]]:
+    def get_by_name(self, name: str) -> dict[str, Any] | None:
         eid = self._index.get(name)
         if not eid:
             return None
@@ -130,9 +130,9 @@ class PMEntityStore:
         name: str,
         entity_type:       str = "other",
         source:            str = "manual",
-        sections_override: Optional[dict[str, Any]]  = None,
-        extra_aliases:     Optional[list[str]]        = None,
-        kind:              "str | list[str] | None"   = None,
+        sections_override: dict[str, Any] | None  = None,
+        extra_aliases:     list[str] | None        = None,
+        kind:              str | list[str] | None   = None,
         status:            str = "active",
     ) -> tuple[dict[str, Any], bool]:
         """Create a new entity in memory, or return the existing one.

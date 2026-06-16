@@ -5,7 +5,6 @@ from typing import Any
 
 from .base import MCPContext
 
-
 SCHEMA = {'name': 'pm_visualize',
  'description': 'Generate a Mermaid or DOT subgraph diagram centred on a named entity. Shows '
                 "the entity's call/import/dependency neighbourhood up to a configurable depth. "

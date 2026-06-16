@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +78,7 @@ def _resolve_entity(
     name_or_id: str,
     entity_map: dict[str, dict],
     index: Any,
-) -> Optional[dict]:
+) -> dict | None:
     """Resolve a name or ID to an entity dict."""
     # Try direct ID lookup first
     if name_or_id in entity_map:

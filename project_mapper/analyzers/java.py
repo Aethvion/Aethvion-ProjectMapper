@@ -23,10 +23,13 @@ Dependencies (optional — falls back to stub if not installed):
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -37,8 +40,8 @@ _TREESITTER_AVAILABLE = False
 _JAVA_LANGUAGE = None
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_java as _tsj
+    from tree_sitter import Language, Parser
 
     _JAVA_LANGUAGE = Language(_tsj.language())
     _TREESITTER_AVAILABLE = True
@@ -132,7 +135,7 @@ def _extract_imports(root, src: bytes) -> list[ImportInfo]:
     for node in root.children:
         if node.type != "import_declaration":
             continue
-        is_static = any(c.type == "static" for c in node.children)
+        any(c.type == "static" for c in node.children)
         # Find the scoped_identifier or identifier
         module_node = _first(node, "scoped_identifier", "identifier", "asterisk")
         if not module_node:
@@ -484,7 +487,7 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
 
     modifiers = _first(node, "modifiers")
     is_static   = _has_modifier(modifiers, "static")
-    is_abstract = _has_modifier(modifiers, "abstract")
+    _has_modifier(modifiers, "abstract")
 
     params_node = _first(node, "formal_parameters")
     args = _parse_params(params_node, src) if params_node else []
@@ -518,11 +521,11 @@ def _parse_constructor(node, src: bytes) -> MethodInfo | None:
     name_node = _first(node, "identifier")
     if not name_node:
         return None
-    name = _text(name_node, src)
+    _text(name_node, src)
     params_node = _first(node, "formal_parameters")
     args = _parse_params(params_node, src) if params_node else []
     return MethodInfo(
-        name=f"<init>",   # Java convention for constructors
+        name="<init>",   # Java convention for constructors
         args=args,
         return_type="",
         decorators=[],

@@ -8,8 +8,7 @@ formatting, but that it doesn't crash and carries the expected semantics
 """
 import pytest
 
-from project_mapper.mcp.tools import TOOL_SCHEMAS, HANDLERS
-
+from project_mapper.mcp.tools import HANDLERS, TOOL_SCHEMAS
 
 # ── Schema / registry smoke tests ────────────────────────────────────────────
 

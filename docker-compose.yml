@@ -4,9 +4,8 @@ version: "3.9"
 # -----------------------------------------
 # Quick start:  docker compose up
 # Docs:         http://localhost:7474/docs
-#
 # Mount your projects directory under /projects so the scanner can reach it:
-#   docker compose run --rm pm python -m project_mapper.mcp_server \
+#   docker compose run --rm pm python -m project_mapper.mcp.server \
 #       --db myproject --project-root /projects/myproject
 
 services:

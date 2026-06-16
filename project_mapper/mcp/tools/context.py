@@ -1,10 +1,9 @@
 """context MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext, _entity_block
-
 
 SCHEMA = {'name': 'pm_context',
  'description': 'Retrieve a focused context package relevant to a coding task. Keyword-scores '

@@ -24,15 +24,20 @@ from __future__ import annotations
 import re
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_cpp as _tscpp
+    from tree_sitter import Language, Parser
     _CPP_LANGUAGE = Language(_tscpp.language())
     _AVAILABLE = True
 except Exception:
     _AVAILABLE = False
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ArgInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------

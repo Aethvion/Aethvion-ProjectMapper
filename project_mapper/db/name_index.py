@@ -20,10 +20,9 @@ import json
 import re
 import threading
 from pathlib import Path
-from typing import Optional
 
-from .utils import get_logger, atomic_json_write
 from ..config import DATA_DIR
+from .utils import atomic_json_write, get_logger
 
 logger = get_logger(__name__)
 
@@ -49,7 +48,7 @@ class NameIndex:
     idx.register_aliases("ws_abc123", ["Einstein", "AE"])
     """
 
-    def __init__(self, index_path: Optional[Path] = None) -> None:
+    def __init__(self, index_path: Path | None = None) -> None:
         self._path = index_path or _DEFAULT_INDEX_PATH
         self._lock = threading.Lock()
         self._data: dict[str, str] = {}
@@ -80,7 +79,7 @@ class NameIndex:
 
     # Public API
 
-    def get(self, name: str) -> Optional[str]:
+    def get(self, name: str) -> str | None:
         """Return the entity ID for *name*, or None if not indexed."""
         self._ensure_loaded()
         return self._data.get(_normalize(name))
@@ -147,7 +146,7 @@ class NameIndex:
 
 
 # Module-level singleton — import and share this across the package
-_default_index: Optional[NameIndex] = None
+_default_index: NameIndex | None = None
 
 
 def get_index() -> NameIndex:

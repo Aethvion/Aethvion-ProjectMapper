@@ -14,11 +14,10 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ...config import DATA_DIR
-from .scanner import scan_file_security, is_route_handler_file
-
+from .scanner import is_route_handler_file, scan_file_security
 
 # Old snapshot status names → current lifecycle vocabulary (backward compat on load)
 _STATUS_NORM = {
@@ -77,9 +76,9 @@ def snapshot_path_for(project_root: Path) -> Path:
 def scan_project(
     project_root: str,
     severity: str = "medium",
-    language: Optional[str] = None,
-    owasp: Optional[str] = None,
-    file: Optional[str] = None,
+    language: str | None = None,
+    owasp: str | None = None,
+    file: str | None = None,
     max_results: int = 50,
     include_false_positives: bool = False,
     pm_version: str = "",
@@ -299,9 +298,9 @@ def scan_project(
 def triage_findings(
     project_root: str,
     status: str,
-    finding_id_arg: Optional[str] = None,
-    file: Optional[str] = None,
-    notes: Optional[str] = None,
+    finding_id_arg: str | None = None,
+    file: str | None = None,
+    notes: str | None = None,
 ) -> dict[str, Any]:
     """Update the review status of one or more findings in the snapshot.
 

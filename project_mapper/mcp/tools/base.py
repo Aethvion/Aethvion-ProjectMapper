@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -17,9 +17,9 @@ class MCPContext:
     writer:         Any    # PMEntityStore
     index:          Any    # NameIndex
     file_manifest:  Any    # FileManifest
-    project_root:   Optional[str] = None   # default project dir for scan/delta
-    scan_lock:      Optional[Any] = None   # threading.Lock — shared with AutoScanner
-    auto_scanner:   Optional[Any] = None   # AutoScanner instance (when --watch active)
+    project_root:   str | None = None   # default project dir for scan/delta
+    scan_lock:      Any | None = None   # threading.Lock — shared with AutoScanner
+    auto_scanner:   Any | None = None   # AutoScanner instance (when --watch active)
 
 
 def _prop_line(entity: dict[str, Any]) -> str:

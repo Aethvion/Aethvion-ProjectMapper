@@ -27,10 +27,13 @@ Dependencies (optional — falls back to stub if not installed):
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -41,8 +44,8 @@ _TREESITTER_AVAILABLE = False
 _CS_LANGUAGE = None
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_c_sharp as _tscs
+    from tree_sitter import Language, Parser
 
     _CS_LANGUAGE = Language(_tscs.language())
     _TREESITTER_AVAILABLE = True
@@ -207,7 +210,7 @@ def _extract_imports(root, src: bytes) -> list[ImportInfo]:
 
 
 def _parse_using(node, src: bytes, out: list[ImportInfo]) -> None:
-    is_static = any(c.type == "static" for c in node.children)
+    any(c.type == "static" for c in node.children)
     name_node = _first(node, "qualified_name", "identifier", "generic_name")
     if not name_node:
         return
@@ -509,8 +512,6 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
     mods = _collect_modifiers(node)
     is_static   = "static" in mods
     is_async    = "async" in mods
-    is_abstract = "abstract" in mods
-    is_override = "override" in mods
     attrs       = _collect_attributes(node, src)
 
     params_node = _first(node, "parameter_list")

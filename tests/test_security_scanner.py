@@ -4,10 +4,8 @@ Tests for the security scanner (project_mapper.core.security.scanner).
 Verifies pattern detection, comment-line suppression, test-file severity
 downgrade, and that the function never raises on unexpected input.
 """
-import pytest
 
 from project_mapper.core.security.scanner import scan_file_security
-
 
 # ── Baseline / no-op cases ────────────────────────────────────────────────────
 

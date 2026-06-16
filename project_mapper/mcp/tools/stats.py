@@ -1,10 +1,9 @@
 """stats MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_stats',
  'description': 'Return a quick overview of the ProjectMapper database: entity counts by type, '
@@ -14,7 +13,7 @@ SCHEMA = {'name': 'pm_stats',
 
 
 def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
-    from ...core.scanner import scan_status, SCANINFO
+    from ...core.scanner import scan_status
 
     scan = scan_status(ctx.db_root)
     fm   = ctx.file_manifest.stats()

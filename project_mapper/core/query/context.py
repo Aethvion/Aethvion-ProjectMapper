@@ -3,17 +3,14 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Any
 
 from ._common import (
-    _resolve_entity,
     _entity_stub,
+    _resolve_entity,
 )
 
+logger = logging.getLogger(__name__)
 
 _DETAIL_LEVELS: dict[str, frozenset[str]] = {
     "high":   frozenset({"module", "service", "decision", "goal", "constraint", "workflow"}),
@@ -185,7 +182,7 @@ def context_query(
     q:            str,
     entity_map:   dict[str, dict],
     index:        Any,
-    anchor_names: Optional[list[str]] = None,
+    anchor_names: list[str] | None = None,
     max_seeds:    int = 8,
     expansion_hops: int = 1,
     detail_level: str = "medium",

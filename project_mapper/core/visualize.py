@@ -9,8 +9,7 @@ neither contains diagram logic itself.
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Optional
-
+from typing import Any
 
 _VIZ_DEFAULT_KINDS: frozenset[str] = frozenset({
     "calls", "imports", "uses", "extends", "implements", "depends_on",
@@ -95,7 +94,7 @@ def build_diagram(
     entity: str,
     depth: int = 2,
     direction: str = "both",
-    relations: Optional[list[str]] = None,
+    relations: list[str] | None = None,
     fmt: str = "mermaid",
     max_nodes: int = 40,
 ) -> dict[str, Any]:
@@ -119,7 +118,7 @@ def build_diagram(
         return {"status": "empty"}
 
     # Name resolution — exact via index, then substring fallback
-    center: Optional[dict] = None
+    center: dict | None = None
     eid = index.get(entity)
     if eid and eid in entity_map:
         center = entity_map[eid]

@@ -2,7 +2,7 @@
 # -----------------------------------------
 # Build:   docker build -t aethvion-pm .
 # Run:     docker run -p 7474:7474 aethvion-pm
-# MCP:     docker run --rm -i aethvion-pm python -m project_mapper.mcp_server \
+# MCP:     docker run --rm -i aethvion-pm python -m project_mapper.mcp.server \
 #              --db my_project --project-root /projects/my_project
 
 FROM python:3.12-slim

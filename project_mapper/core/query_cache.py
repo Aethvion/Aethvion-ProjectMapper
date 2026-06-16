@@ -41,7 +41,7 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ..db import snapshot as _snapshot
 from ..db.name_index import NameIndex

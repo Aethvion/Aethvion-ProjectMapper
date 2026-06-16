@@ -17,7 +17,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +53,14 @@ class AutoScanner:
         self.poll_interval = poll_interval
         self.debounce      = debounce
 
-        self._thread:     Optional[threading.Thread] = None
+        self._thread:     threading.Thread | None = None
         self._stop_event: threading.Event = threading.Event()
 
         # Status fields — read by handle_pm_stats
         self.active:          bool            = False
         self.scan_count:      int             = 0
-        self.last_check_at:   Optional[float] = None
-        self.last_scan_at:    Optional[float] = None
+        self.last_check_at:   float | None = None
+        self.last_scan_at:    float | None = None
         self.last_scan_files: int             = 0
 
     # ------------------------------------------------------------------
@@ -184,7 +184,7 @@ class AutoScanner:
     def status_dict(self) -> dict[str, Any]:
         import datetime
 
-        def _fmt(ts: Optional[float]) -> str:
+        def _fmt(ts: float | None) -> str:
             if ts is None:
                 return "never"
             return datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S")

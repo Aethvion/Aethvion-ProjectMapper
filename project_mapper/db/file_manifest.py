@@ -18,7 +18,7 @@ import json
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .utils import get_logger
 
@@ -146,7 +146,7 @@ class FileManifest:
             if save:
                 self._save()
 
-    def get(self, path: str) -> Optional[dict[str, Any]]:
+    def get(self, path: str) -> dict[str, Any] | None:
         """Return the manifest entry for *path*, or None if not known."""
         with self._lock:
             return self._data["files"].get(path)

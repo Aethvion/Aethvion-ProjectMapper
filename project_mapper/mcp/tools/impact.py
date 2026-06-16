@@ -1,10 +1,9 @@
 """impact MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_impact',
  'description': 'Find all entities that would be affected if the named entity changes. '

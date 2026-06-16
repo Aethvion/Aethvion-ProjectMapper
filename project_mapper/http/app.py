@@ -35,7 +35,7 @@ try:
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("aethvion-project-mapper")
 except Exception:
-    __version__ = "1.1.0"
+    __version__ = "2.0.0"
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -112,6 +112,7 @@ async def root():
 def serve() -> None:
     """Start the HTTP API server. Installed as the ``pm-server`` CLI command."""
     import argparse
+
     import uvicorn
 
     parser = argparse.ArgumentParser(

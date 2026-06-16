@@ -19,15 +19,20 @@ Dependencies (optional — falls back to stub if not installed):
 from __future__ import annotations
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_rust as _tsrust
+    from tree_sitter import Language, Parser
     _RUST_LANGUAGE = Language(_tsrust.language())
     _AVAILABLE = True
 except Exception:
     _AVAILABLE = False
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ArgInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------

@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_delta',
  'description': 'Show what has changed in the project since the last scan — new files, '

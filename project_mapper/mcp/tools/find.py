@@ -1,10 +1,9 @@
 """find MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_find',
  'description': 'Look up a symbol by name and return its definition location, callers, and '
@@ -125,7 +124,7 @@ def _format_method_find(queried: str, result: dict[str, Any]) -> str:
 
 
 def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
-    from ...core.query import build_entity_map, find_query, find_by_method
+    from ...core.query import build_entity_map, find_by_method, find_query
 
     name = args.get("name", "").strip()
     if not name:

@@ -1,10 +1,9 @@
 """security MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_security',
  'description': 'Standalone security scanner: walks the project files and runs OWASP Top 10 '
@@ -141,7 +140,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     ) or "0"
 
     lines = [
-        f"╔══ ProjectMapper Security Report ══════════════════════════════════╗",
+        "╔══ ProjectMapper Security Report ══════════════════════════════════╗",
         f"  Project : {r['project']}",
         f"  Files   : {files_scanned} scanned",
         f"  Risk    : {risk_level}  ({count_str})",
@@ -154,7 +153,7 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
             " (pass include_false_positives=true to show)"
         )
     lines += [
-        f"╚════════════════════════════════════════════════════════════════════╝",
+        "╚════════════════════════════════════════════════════════════════════╝",
         "",
     ]
 
@@ -187,9 +186,12 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
 
     if total_displayed == 0:
         filter_desc = f"severity≥{severity_filter}"
-        if lang_filter:  filter_desc += f", language={lang_filter}"
-        if owasp_filter: filter_desc += f", owasp={owasp_filter}"
-        if file_filter:  filter_desc += f", file={file_filter}"
+        if lang_filter:
+            filter_desc += f", language={lang_filter}"
+        if owasp_filter:
+            filter_desc += f", owasp={owasp_filter}"
+        if file_filter:
+            filter_desc += f", file={file_filter}"
         lines.append(f"No findings matching filters ({filter_desc}).")
         if summary["total"]:
             lines.append(f"There are {summary['total']} finding(s) at other severity levels.")

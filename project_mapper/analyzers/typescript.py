@@ -22,7 +22,12 @@ import re
 from pathlib import Path
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ArgInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -35,9 +40,9 @@ _TSX_LANGUAGE = None
 _JS_LANGUAGE  = None
 
 try:
-    from tree_sitter import Language, Parser
-    import tree_sitter_typescript as _tsts
     import tree_sitter_javascript as _tsjs
+    import tree_sitter_typescript as _tsts
+    from tree_sitter import Language, Parser
 
     _TS_LANGUAGE  = Language(_tsts.language_typescript())
     _TSX_LANGUAGE = Language(_tsts.language_tsx())
@@ -132,7 +137,7 @@ def _preceding_jsdoc(node, src: bytes) -> str:
     if inner.endswith("*/"):
         inner = inner[:-2]            # strip trailing */
     lines = inner.split("\n")
-    text = " ".join(l.strip().lstrip("*").strip() for l in lines if l.strip().lstrip("*").strip())
+    text = " ".join(line.strip().lstrip("*").strip() for line in lines if line.strip().lstrip("*").strip())
     return text[:200]
 
 

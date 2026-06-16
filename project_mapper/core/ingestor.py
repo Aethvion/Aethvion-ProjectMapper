@@ -12,11 +12,10 @@ Static ingestion (instant, no AI):
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ..analyzers import CodeAnalysis, ImportInfo
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class IngestResult:
-    module_entity_id:    Optional[str] = None
+    module_entity_id:    str | None = None
     class_entity_ids:    list[str] = field(default_factory=list)
     function_entity_ids: list[str] = field(default_factory=list)
     relations_created:   int = 0
@@ -287,7 +286,7 @@ class ProjectIngestor:
         for imp in internal_imports:
             # Try to resolve the import to an already-scanned file entity
             # before falling back to a dotted-name stub.
-            target_id: Optional[str] = None
+            target_id: str | None = None
             for candidate in _import_to_file_candidates(
                 imp.module, imp.level, analysis.path
             ):

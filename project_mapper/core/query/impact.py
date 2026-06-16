@@ -2,19 +2,17 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Any
 
 from ._common import (
-    _resolve_entity,
     _entity_stub,
     _is_test_entity,
+    _resolve_entity,
     build_reverse_impact_adj,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def impact_query(
@@ -22,7 +20,7 @@ def impact_query(
     entity_map:    dict[str, dict],
     index:         Any,
     max_depth:     int = 2,
-    via_kinds:     Optional[list[str]] = None,
+    via_kinds:     list[str] | None = None,
     exclude_tests: bool = True,
     slim:          bool = False,
     summary_depth: int = 1,

@@ -1,10 +1,9 @@
 """orphans MCP tool."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_orphans',
  'description': 'Find entities that have no inbound calls, imports, or dependencies — '

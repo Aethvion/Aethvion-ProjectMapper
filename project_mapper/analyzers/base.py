@@ -20,8 +20,6 @@ import ast
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -129,7 +127,7 @@ def _decorator_name(dec: ast.expr) -> str:
     return _safe_unparse(dec)
 
 
-def _arg_info(arg: ast.arg, default_val: Optional[ast.expr] = None) -> ArgInfo:
+def _arg_info(arg: ast.arg, default_val: ast.expr | None = None) -> ArgInfo:
     ann = _safe_unparse(arg.annotation) if arg.annotation else ""
     dflt = _safe_unparse(default_val) if default_val else ""
     return ArgInfo(name=arg.arg, annotation=ann, default=dflt)
@@ -330,7 +328,6 @@ class _CallExtractor(ast.NodeVisitor):
 
         elif isinstance(func, ast.Attribute):
             obj  = func.value
-            attr = func.attr
 
             # self.X.method(...) — X is a stored object attribute
             if (isinstance(obj, ast.Attribute)

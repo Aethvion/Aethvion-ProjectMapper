@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .base import MCPContext
-
 
 SCHEMA = {'name': 'pm_scan',
  'description': 'Scan a project directory and populate the knowledge graph via static AST '
@@ -39,7 +38,10 @@ SCHEMA = {'name': 'pm_scan',
 
 
 def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
-    import asyncio, threading, time
+    import asyncio
+    import threading
+    import time
+
     from ...core.scanner import run_scan
 
     project_root = args.get("project_root") or ctx.project_root

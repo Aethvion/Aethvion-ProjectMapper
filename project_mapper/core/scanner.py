@@ -69,8 +69,10 @@ def _now_iso() -> str:
 
 
 def _fmt_size(b: int) -> str:
-    if b < 1024:      return f"{b} B"
-    if b < 1024 ** 2: return f"{b / 1024:.1f} KB"
+    if b < 1024:
+        return f"{b} B"
+    if b < 1024 ** 2:
+        return f"{b / 1024:.1f} KB"
     return f"{b / 1024 ** 2:.1f} MB"
 
 

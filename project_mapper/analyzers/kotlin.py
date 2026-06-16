@@ -25,15 +25,20 @@ Dependencies (optional — falls back to stub if not installed):
 from __future__ import annotations
 
 try:
-    from tree_sitter import Language, Parser
     import tree_sitter_kotlin as _tskotlin
+    from tree_sitter import Language, Parser
     _KOTLIN_LANGUAGE = Language(_tskotlin.language())
     _AVAILABLE = True
 except Exception:
     _AVAILABLE = False
 
 from .base import (
-    ArgInfo, ClassInfo, CodeAnalysis, FunctionInfo, ImportInfo, MethodInfo,
+    ArgInfo,
+    ClassInfo,
+    CodeAnalysis,
+    FunctionInfo,
+    ImportInfo,
+    MethodInfo,
 )
 
 # ---------------------------------------------------------------------------
@@ -75,7 +80,7 @@ def _kotlin_class_kind(node, src: bytes) -> str:
 
     for c in node.children:
         ct = c.type
-        raw = _t(c, src)
+        _t(c, src)
         if ct == "interface":
             has_interface = True
         elif ct == "modifiers":

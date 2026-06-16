@@ -46,9 +46,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
 from typing import Any
-
 
 VALID_STATUSES = {
     # Core lifecycle
@@ -129,7 +127,7 @@ def make_empty(
     entity_type: str = "other",
     source: str = "manual",
     entity_id: str | None = None,
-    kind: "str | list[str] | None" = None,
+    kind: str | list[str] | None = None,
     status: str = "active",
 ) -> dict[str, Any]:
     """

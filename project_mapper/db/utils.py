@@ -14,7 +14,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Union
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -23,8 +22,8 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def atomic_json_write(
-    path: Union[str, Path],
-    data: Union[dict, list],
+    path: str | Path,
+    data: dict | list,
     *,
     indent: int = 2,
     ensure_ascii: bool = False,
@@ -53,9 +52,9 @@ def atomic_json_write(
 
 
 def load_json(
-    path: Union[str, Path],
+    path: str | Path,
     default=None,
-) -> Union[dict, list, None]:
+) -> dict | list | None:
     """Load JSON from *path*, returning *default* on missing file or parse error."""
     path = Path(path)
     if not path.exists():

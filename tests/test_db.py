@@ -3,12 +3,10 @@ Tests for the DB layer: PMEntityStore, PMNameIndex, FileManifest, and snapshot
 persistence. These verify the in-memory store works correctly and that a
 flush() + from_snapshot() round-trip preserves all entities faithfully.
 """
-import pytest
 
-from project_mapper.db.pm_store import PMEntityStore, PMNameIndex
-from project_mapper.db.file_manifest import FileManifest
 from project_mapper.db import snapshot as _snap
-
+from project_mapper.db.file_manifest import FileManifest
+from project_mapper.db.pm_store import PMEntityStore, PMNameIndex
 
 # ── PMEntityStore ─────────────────────────────────────────────────────────────
 
