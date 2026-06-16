@@ -1,7 +1,7 @@
 # Aethvion Project Mapper
 
 > **Give your AI coding agent a living map of your codebase.**  
-> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **87–92% fewer tokens** than reading raw files.  
+> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **87–91% fewer tokens** than reading raw files.  
 > **Runs entirely on your machine.** No data leaves your computer.
 
 ---
@@ -43,22 +43,22 @@ New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what 
 
 AI coding agents (Claude Code, Cursor, Copilot, etc.) search through your files on every task — reading source files, following imports, grepping for context. That's expensive and slow, and context windows fill up with semi-relevant content before the agent sees what actually matters.
 
-Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, reducing token costs by **87–92% on average**.
+Project Mapper scans your codebase once, builds a structured knowledge graph of every module, class, function, and their relationships, and lets agents query *only what they need* — in milliseconds, reducing token costs by **87–91% on average**.
 
 ---
 
 ## Benchmark numbers
 
-Measured across [11 real-world codebases](docs/benchmarks/README.md) — Python, Java/Kotlin, C#, PHP, C, Go, Ruby, TypeScript/JS, Rust, C++, Swift — ranging from 57 to 11,083 files.
+Measured across [11 real-world codebases](docs/benchmarks/README.md) — Python, Java/Kotlin, C#, PHP, C, Go, Ruby, TypeScript/JS, Rust, C++, Swift — ranging from 57 to 10,437 files.
 
 ### Summary (Geometric Mean across all 11 projects)
 
 | Mode | Token Reduction | Speedup vs Normal |
 |:---|:---|:---|
 | **PM Full** | **~87%** | **~380×** faster |
-| **PM Slim** | **~92%** | **~380×** faster |
+| **PM Slim** | **~91%** | **~380×** faster |
 
-At 100,000 input tokens, PM typically uses **~13,000** (Full) or **~8,000** (Slim) tokens.
+At 100,000 input tokens, PM typically uses **~13,000** (Full) or **~9,000** (Slim) tokens.
 
 PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. See the [full benchmark suite](docs/benchmarks/README.md) for per-codebase numbers and the [security benchmark](docs/benchmarks_security/README.md) for a 3-test audit comparison.
 
