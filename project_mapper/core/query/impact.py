@@ -1,4 +1,5 @@
 """project_mapper.core.query.impact — impact query."""
+
 from __future__ import annotations
 
 import logging
@@ -16,13 +17,13 @@ logger = logging.getLogger(__name__)
 
 
 def impact_query(
-    subject:       str,
-    entity_map:    dict[str, dict],
-    index:         Any,
-    max_depth:     int = 2,
-    via_kinds:     list[str] | None = None,
+    subject: str,
+    entity_map: dict[str, dict],
+    index: Any,
+    max_depth: int = 2,
+    via_kinds: list[str] | None = None,
     exclude_tests: bool = True,
-    slim:          bool = False,
+    slim: bool = False,
     summary_depth: int = 1,
 ) -> dict[str, Any]:
     """
@@ -51,19 +52,19 @@ def impact_query(
     subject_entity = _resolve_entity(subject, entity_map, index)
     if subject_entity is None:
         return {
-            "subject":   None,
-            "affected":  [],
-            "total":     0,
+            "subject": None,
+            "affected": [],
+            "total": 0,
             "depth_used": 0,
             "not_found": True,
         }
 
-    max_depth  = max(1, min(max_depth, 4))
-    rev_adj    = build_reverse_impact_adj(entity_map)
+    max_depth = max(1, min(max_depth, 4))
+    rev_adj = build_reverse_impact_adj(entity_map)
     subject_id = subject_entity["id"]
 
-    visited: dict[str, tuple[int, str]] = {}   # entity_id → (hop, via_path)
-    queue:   deque[tuple[str, int, str]] = deque()
+    visited: dict[str, tuple[int, str]] = {}  # entity_id → (hop, via_path)
+    queue: deque[tuple[str, int, str]] = deque()
     queue.append((subject_id, 0, ""))
 
     while queue:
@@ -94,9 +95,9 @@ def impact_query(
             affected.append(_entity_stub(e, hop=hop, via=via, slim=slim, max_summary=ms))
 
     return {
-        "subject":    _entity_stub(subject_entity),   # subject always full
-        "affected":   affected,
-        "total":      len(affected),
+        "subject": _entity_stub(subject_entity),  # subject always full
+        "affected": affected,
+        "total": len(affected),
         "depth_used": max_depth,
-        "not_found":  False,
+        "not_found": False,
     }

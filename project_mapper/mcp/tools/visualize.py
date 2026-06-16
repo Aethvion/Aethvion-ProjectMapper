@@ -1,56 +1,72 @@
 """visualize MCP tool."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from .base import MCPContext
 
-SCHEMA = {'name': 'pm_visualize',
- 'description': 'Generate a Mermaid or DOT subgraph diagram centred on a named entity. Shows '
-                "the entity's call/import/dependency neighbourhood up to a configurable depth. "
-                'Useful for understanding blast radius, explaining a subsystem visually, or '
-                'producing architecture diagrams for docs and PRs. Output is a fenced Mermaid '
-                'code block by default — renders natively in GitHub/GitLab markdown, VS Code '
-                'Mermaid extension, and Obsidian.',
- 'inputSchema': {'type': 'object',
-                 'properties': {'entity': {'type': 'string',
-                                           'description': 'Name of the entity to centre the '
-                                                          "diagram on (e.g. 'UserService', "
-                                                          "'auth.py')."},
-                                'depth': {'type': 'integer',
-                                          'description': 'Traversal hops from the centre '
-                                                         'entity (1–4, default 2).',
-                                          'default': 2},
-                                'direction': {'type': 'string',
-                                              'enum': ['out', 'in', 'both'],
-                                              'description': 'out = what this entity '
-                                                             'calls/imports; in = who '
-                                                             'calls/imports this entity; both '
-                                                             '= full neighbourhood (default).',
-                                              'default': 'both'},
-                                'relations': {'type': 'array',
-                                              'items': {'type': 'string'},
-                                              'description': 'Relation kinds to include. '
-                                                             'Default: calls, imports, uses, '
-                                                             'extends, implements, depends_on. '
-                                                             "Pass ['calls'] for a pure call "
-                                                             "graph or ['imports'] for "
-                                                             'dependencies only.',
-                                              'default': []},
-                                'format': {'type': 'string',
-                                           'enum': ['mermaid', 'dot'],
-                                           'description': "Output format: 'mermaid' (default) "
-                                                          "or 'dot' (Graphviz).",
-                                           'default': 'mermaid'},
-                                'max_nodes': {'type': 'integer',
-                                              'description': 'Maximum nodes to include in the '
-                                                             'diagram (default 40).',
-                                              'default': 40},
-                                'project_root': {'type': 'string',
-                                                 'description': 'Absolute path to the project '
-                                                                'root (needed if not set '
-                                                                'globally).'}},
-                 'required': ['entity']}}
+SCHEMA = {
+    "name": "pm_visualize",
+    "description": "Generate a Mermaid or DOT subgraph diagram centred on a named entity. Shows "
+    "the entity's call/import/dependency neighbourhood up to a configurable depth. "
+    "Useful for understanding blast radius, explaining a subsystem visually, or "
+    "producing architecture diagrams for docs and PRs. Output is a fenced Mermaid "
+    "code block by default — renders natively in GitHub/GitLab markdown, VS Code "
+    "Mermaid extension, and Obsidian.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "entity": {
+                "type": "string",
+                "description": "Name of the entity to centre the "
+                "diagram on (e.g. 'UserService', "
+                "'auth.py').",
+            },
+            "depth": {
+                "type": "integer",
+                "description": "Traversal hops from the centre entity (1–4, default 2).",
+                "default": 2,
+            },
+            "direction": {
+                "type": "string",
+                "enum": ["out", "in", "both"],
+                "description": "out = what this entity "
+                "calls/imports; in = who "
+                "calls/imports this entity; both "
+                "= full neighbourhood (default).",
+                "default": "both",
+            },
+            "relations": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Relation kinds to include. "
+                "Default: calls, imports, uses, "
+                "extends, implements, depends_on. "
+                "Pass ['calls'] for a pure call "
+                "graph or ['imports'] for "
+                "dependencies only.",
+                "default": [],
+            },
+            "format": {
+                "type": "string",
+                "enum": ["mermaid", "dot"],
+                "description": "Output format: 'mermaid' (default) or 'dot' (Graphviz).",
+                "default": "mermaid",
+            },
+            "max_nodes": {
+                "type": "integer",
+                "description": "Maximum nodes to include in the diagram (default 40).",
+                "default": 40,
+            },
+            "project_root": {
+                "type": "string",
+                "description": "Absolute path to the project root (needed if not set globally).",
+            },
+        },
+        "required": ["entity"],
+    },
+}
 
 
 def handle_pm_visualize(args: dict[str, Any], ctx: MCPContext) -> str:
@@ -63,7 +79,9 @@ def handle_pm_visualize(args: dict[str, Any], ctx: MCPContext) -> str:
 
     entity_map = build_entity_map(ctx.writer)
     res = build_diagram(
-        entity_map, ctx.index, entity_name,
+        entity_map,
+        ctx.index,
+        entity_name,
         depth=args.get("depth", 2),
         direction=args.get("direction", "both"),
         relations=args.get("relations") or None,
@@ -98,6 +116,7 @@ def handle_pm_visualize(args: dict[str, Any], ctx: MCPContext) -> str:
     )
     trailer = (
         f"\nGraph capped at {res['max_nodes']} nodes — pass max_nodes={res['max_nodes'] * 2} to expand."
-        if res["truncated"] else ""
+        if res["truncated"]
+        else ""
     )
     return header + res["diagram"] + trailer

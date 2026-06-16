@@ -1,4 +1,5 @@
 """scan MCP tool."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,35 +7,46 @@ from typing import Any
 
 from .base import MCPContext
 
-SCHEMA = {'name': 'pm_scan',
- 'description': 'Scan a project directory and populate the knowledge graph via static AST '
-                'analysis. Creates module/class/function entities and wires their relations. '
-                'With incremental=true (default) only changed files are reprocessed. By '
-                'default this call BLOCKS until the scan completes. Pass background=true to '
-                'return immediately and poll pm_stats for progress — recommended for large '
-                'projects (500+ files) over MCP to avoid timeouts.',
- 'inputSchema': {'type': 'object',
-                 'properties': {'project_root': {'type': 'string',
-                                                 'description': 'Absolute path to the project '
-                                                                'directory to scan.'},
-                                'incremental': {'type': 'boolean',
-                                                'description': "Skip files whose hash hasn't "
-                                                               'changed (default true).',
-                                                'default': True},
-                                'concurrency': {'type': 'integer',
-                                                'description': 'Parallel file processing limit '
-                                                               '(default 4).',
-                                                'default': 4},
-                                'background': {'type': 'boolean',
-                                               'description': 'Start scan in a background '
-                                                              'thread and return immediately '
-                                                              '(default false). Use '
-                                                              'background=true for large '
-                                                              'projects to avoid MCP client '
-                                                              'timeouts; then call pm_stats to '
-                                                              'check when the scan completes.',
-                                               'default': False}},
-                 'required': ['project_root']}}
+SCHEMA = {
+    "name": "pm_scan",
+    "description": "Scan a project directory and populate the knowledge graph via static AST "
+    "analysis. Creates module/class/function entities and wires their relations. "
+    "With incremental=true (default) only changed files are reprocessed. By "
+    "default this call BLOCKS until the scan completes. Pass background=true to "
+    "return immediately and poll pm_stats for progress — recommended for large "
+    "projects (500+ files) over MCP to avoid timeouts.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "project_root": {
+                "type": "string",
+                "description": "Absolute path to the project directory to scan.",
+            },
+            "incremental": {
+                "type": "boolean",
+                "description": "Skip files whose hash hasn't changed (default true).",
+                "default": True,
+            },
+            "concurrency": {
+                "type": "integer",
+                "description": "Parallel file processing limit (default 4).",
+                "default": 4,
+            },
+            "background": {
+                "type": "boolean",
+                "description": "Start scan in a background "
+                "thread and return immediately "
+                "(default false). Use "
+                "background=true for large "
+                "projects to avoid MCP client "
+                "timeouts; then call pm_stats to "
+                "check when the scan completes.",
+                "default": False,
+            },
+        },
+        "required": ["project_root"],
+    },
+}
 
 
 def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
@@ -45,14 +57,12 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     from ...core.scanner import run_scan
 
     project_root = args.get("project_root") or ctx.project_root
-    incremental  = bool(args.get("incremental", True))
-    concurrency  = max(1, min(int(args.get("concurrency", 4)), 8))
-    background   = bool(args.get("background", False))
+    incremental = bool(args.get("incremental", True))
+    concurrency = max(1, min(int(args.get("concurrency", 4)), 8))
+    background = bool(args.get("background", False))
 
     if not project_root:
-        raise ValueError(
-            "project_root is required (or start the server with --project-root)"
-        )
+        raise ValueError("project_root is required (or start the server with --project-root)")
 
     project_path = Path(project_root).resolve()
     project_root = str(project_path)
@@ -67,6 +77,7 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
     project_mismatch_warning = ""
     try:
         from ...core.scanner import _read_scaninfo
+
         prev_info = _read_scaninfo(ctx.db_root)
         prev_root = prev_info.get("project_root", "")
         if prev_root and str(Path(prev_root).resolve()) != project_root:
@@ -140,8 +151,9 @@ def handle_pm_scan(args: dict[str, Any], ctx: MCPContext) -> str:
 
     # Read the final scan stats
     from ...core.scanner import scan_status
+
     status = scan_status(ctx.db_root)
-    stats  = status.get("stats", {})
+    stats = status.get("stats", {})
 
     lines = [
         f"Scan {'completed' if status.get('status') == 'completed' else status.get('status', '?')}: "

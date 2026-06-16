@@ -56,6 +56,7 @@ MAX_CACHED_DBS: int = 5
 # Cache entry
 # ---------------------------------------------------------------------------
 
+
 class _CacheEntry:
     """Holds the cached state for one database."""
 
@@ -64,18 +65,19 @@ class _CacheEntry:
     def __init__(
         self,
         entity_map: dict[str, Any],
-        index:      NameIndex,
+        index: NameIndex,
         snap_mtime: float,
     ) -> None:
         self.entity_map: dict[str, Any] = entity_map
-        self.index:      NameIndex      = index
-        self.snap_mtime: float          = snap_mtime
-        self.last_used:  float          = time.monotonic()
+        self.index: NameIndex = index
+        self.snap_mtime: float = snap_mtime
+        self.last_used: float = time.monotonic()
 
 
 # ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------
+
 
 class QueryCache:
     """
@@ -89,12 +91,12 @@ class QueryCache:
     """
 
     def __init__(self, max_dbs: int = MAX_CACHED_DBS) -> None:
-        self._cache:     dict[str, _CacheEntry]  = {}
-        self._db_locks:  dict[str, asyncio.Lock] = {}
-        self._max_dbs:   int                     = max_dbs
+        self._cache: dict[str, _CacheEntry] = {}
+        self._db_locks: dict[str, asyncio.Lock] = {}
+        self._max_dbs: int = max_dbs
         # _meta_lock guards mutations to _cache and _db_locks dicts themselves.
         # Lock ordering: always acquire _meta_lock BEFORE a db_lock, never inside one.
-        self._meta_lock: asyncio.Lock            = asyncio.Lock()
+        self._meta_lock: asyncio.Lock = asyncio.Lock()
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
@@ -131,9 +133,9 @@ class QueryCache:
     def _build(self, db_root: Path) -> tuple[dict[str, Any], NameIndex, float]:
         """Synchronous helper — load snapshot and build objects.  Runs in a thread."""
         snap_mtime = self._snap_mtime(db_root)
-        entities   = _snapshot.load(db_root)
+        entities = _snapshot.load(db_root)
         entity_map = {e["id"]: e for e in entities}
-        index      = NameIndex(index_path=db_root / "name_index.json")
+        index = NameIndex(index_path=db_root / "name_index.json")
         # Force-load now (in this thread) so the first query doesn't block.
         index._ensure_loaded()
         return entity_map, index, snap_mtime
@@ -173,12 +175,8 @@ class QueryCache:
                 return entry.entity_map, entry.index
 
             # Confirmed miss — we do the rebuild.
-            logger.info(
-                f"[QueryCache] Cache miss — loading snapshot for '{db_root.name}'"
-            )
-            entity_map, index, snap_mtime = await asyncio.to_thread(
-                self._build, db_root
-            )
+            logger.info(f"[QueryCache] Cache miss — loading snapshot for '{db_root.name}'")
+            entity_map, index, snap_mtime = await asyncio.to_thread(self._build, db_root)
 
             await self._evict_lru(key)
 
@@ -195,13 +193,13 @@ class QueryCache:
         """Diagnostic snapshot of the current cache state."""
         now = time.monotonic()
         return {
-            "cached_dbs":  len(self._cache),
-            "max_dbs":     self._max_dbs,
+            "cached_dbs": len(self._cache),
+            "max_dbs": self._max_dbs,
             "entries": [
                 {
-                    "db":           k,
+                    "db": k,
                     "entity_count": len(v.entity_map),
-                    "last_used_s":  round(now - v.last_used, 1),
+                    "last_used_s": round(now - v.last_used, 1),
                 }
                 for k, v in sorted(
                     self._cache.items(),

@@ -57,34 +57,82 @@ except Exception:
 # C# standard-library types to skip in call graphs
 # ---------------------------------------------------------------------------
 
-_CS_IGNORE: frozenset[str] = frozenset({
-    # System
-    "Object", "String", "Int32", "Int64", "Double", "Boolean", "Char",
-    "Byte", "Decimal", "DateTime", "DateTimeOffset", "TimeSpan", "Guid",
-    "Array", "List", "Dictionary", "HashSet", "Queue", "Stack",
-    "IEnumerable", "IList", "ICollection", "IReadOnlyList", "IReadOnlyCollection",
-    "IReadOnlyDictionary", "IDictionary", "ISet",
-    "Task", "ValueTask", "CancellationToken", "CancellationTokenSource",
-    "Exception", "InvalidOperationException", "ArgumentException",
-    "ArgumentNullException", "ArgumentOutOfRangeException",
-    "NotImplementedException", "NotSupportedException",
-    "StringBuilder", "Stream", "MemoryStream", "StreamReader", "StreamWriter",
-    "Nullable", "Lazy", "Tuple", "ValueTuple",
-    # ASP.NET Core common base types
-    "Controller", "ControllerBase", "PageModel", "Hub", "BackgroundService",
-    "Middleware", "FilterAttribute",
-    # Microsoft.Extensions
-    "ILogger", "IConfiguration", "IServiceCollection", "IServiceProvider",
-    "IOptions", "IHostedService",
-})
+_CS_IGNORE: frozenset[str] = frozenset(
+    {
+        # System
+        "Object",
+        "String",
+        "Int32",
+        "Int64",
+        "Double",
+        "Boolean",
+        "Char",
+        "Byte",
+        "Decimal",
+        "DateTime",
+        "DateTimeOffset",
+        "TimeSpan",
+        "Guid",
+        "Array",
+        "List",
+        "Dictionary",
+        "HashSet",
+        "Queue",
+        "Stack",
+        "IEnumerable",
+        "IList",
+        "ICollection",
+        "IReadOnlyList",
+        "IReadOnlyCollection",
+        "IReadOnlyDictionary",
+        "IDictionary",
+        "ISet",
+        "Task",
+        "ValueTask",
+        "CancellationToken",
+        "CancellationTokenSource",
+        "Exception",
+        "InvalidOperationException",
+        "ArgumentException",
+        "ArgumentNullException",
+        "ArgumentOutOfRangeException",
+        "NotImplementedException",
+        "NotSupportedException",
+        "StringBuilder",
+        "Stream",
+        "MemoryStream",
+        "StreamReader",
+        "StreamWriter",
+        "Nullable",
+        "Lazy",
+        "Tuple",
+        "ValueTuple",
+        # ASP.NET Core common base types
+        "Controller",
+        "ControllerBase",
+        "PageModel",
+        "Hub",
+        "BackgroundService",
+        "Middleware",
+        "FilterAttribute",
+        # Microsoft.Extensions
+        "ILogger",
+        "IConfiguration",
+        "IServiceCollection",
+        "IServiceProvider",
+        "IOptions",
+        "IHostedService",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Tree-sitter node helpers
 # ---------------------------------------------------------------------------
 
+
 def _text(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _first(node, *types: str):
@@ -143,8 +191,14 @@ def _collect_attributes(node, src: bytes) -> list[str]:
 # ---------------------------------------------------------------------------
 
 _RETURN_TYPE_NODES = {
-    "predefined_type", "identifier", "generic_name", "qualified_name",
-    "nullable_type", "array_type", "tuple_type", "void_keyword",
+    "predefined_type",
+    "identifier",
+    "generic_name",
+    "qualified_name",
+    "nullable_type",
+    "array_type",
+    "tuple_type",
+    "void_keyword",
 }
 
 
@@ -179,6 +233,7 @@ def _base_list_names(node, src: bytes) -> list[str]:
 # Namespace extraction
 # ---------------------------------------------------------------------------
 
+
 def _extract_namespace(root, src: bytes) -> str:
     """Return the namespace name (file-scoped or block-style)."""
     for child in root.children:
@@ -192,6 +247,7 @@ def _extract_namespace(root, src: bytes) -> str:
 # ---------------------------------------------------------------------------
 # Import (using directive) extraction
 # ---------------------------------------------------------------------------
+
 
 def _extract_imports(root, src: bytes) -> list[ImportInfo]:
     imports: list[ImportInfo] = []
@@ -218,10 +274,15 @@ def _parse_using(node, src: bytes, out: list[ImportInfo]) -> None:
     parts = full.split(".")
     module = ".".join(parts[:-1]) if len(parts) > 1 else full
     name = parts[-1] if parts else full
-    out.append(ImportInfo(
-        module=module, names=[name], is_from=True,
-        is_relative=False, level=0,
-    ))
+    out.append(
+        ImportInfo(
+            module=module,
+            names=[name],
+            is_from=True,
+            is_relative=False,
+            level=0,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +290,12 @@ def _parse_using(node, src: bytes, out: list[ImportInfo]) -> None:
 # ---------------------------------------------------------------------------
 
 _TYPE_DECL_TYPES = {
-    "class_declaration", "interface_declaration", "struct_declaration",
-    "enum_declaration", "record_declaration", "delegate_declaration",
+    "class_declaration",
+    "interface_declaration",
+    "struct_declaration",
+    "enum_declaration",
+    "record_declaration",
+    "delegate_declaration",
 }
 
 
@@ -256,14 +321,18 @@ def _walk_decls(node, src: bytes, out: list[ClassInfo]) -> None:
             _parse_record(child, src, out)
         elif ntype == "delegate_declaration":
             _parse_delegate(child, src, out)
-        elif ntype in ("declaration_list", "namespace_declaration",
-                       "file_scoped_namespace_declaration"):
+        elif ntype in (
+            "declaration_list",
+            "namespace_declaration",
+            "file_scoped_namespace_declaration",
+        ):
             _walk_decls(child, src, out)
 
 
 # ---------------------------------------------------------------------------
 # Class
 # ---------------------------------------------------------------------------
+
 
 def _parse_class(node, src: bytes, out: list[ClassInfo]) -> None:
     name_node = _first(node, "identifier")
@@ -286,12 +355,20 @@ def _parse_class(node, src: bytes, out: list[ClassInfo]) -> None:
     body = _first(node, "declaration_list")
     methods, class_vars, calls = _parse_declaration_list(body, src, name) if body else ([], [], [])
 
-    out.append(ClassInfo(
-        name=name, bases=bases, methods=methods, class_vars=class_vars,
-        decorators=attrs, docstring="",
-        line_start=_line(node), line_end=_end_line(node),
-        calls=calls, kind=kind,
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=class_vars,
+            decorators=attrs,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=calls,
+            kind=kind,
+        )
+    )
 
     # Recurse into nested types
     if body:
@@ -301,6 +378,7 @@ def _parse_class(node, src: bytes, out: list[ClassInfo]) -> None:
 # ---------------------------------------------------------------------------
 # Interface
 # ---------------------------------------------------------------------------
+
 
 def _parse_interface(node, src: bytes, out: list[ClassInfo]) -> None:
     name_node = _first(node, "identifier")
@@ -323,12 +401,20 @@ def _parse_interface(node, src: bytes, out: list[ClassInfo]) -> None:
                 if p:
                     methods.append(p)
 
-    out.append(ClassInfo(
-        name=name, bases=bases, methods=methods, class_vars=[],
-        decorators=attrs, docstring="",
-        line_start=_line(node), line_end=_end_line(node),
-        calls=[], kind="interface",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=[],
+            decorators=attrs,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="interface",
+        )
+    )
 
     if body:
         _walk_decls(body, src, out)
@@ -337,6 +423,7 @@ def _parse_interface(node, src: bytes, out: list[ClassInfo]) -> None:
 # ---------------------------------------------------------------------------
 # Struct
 # ---------------------------------------------------------------------------
+
 
 def _parse_struct(node, src: bytes, out: list[ClassInfo]) -> None:
     name_node = _first(node, "identifier")
@@ -349,12 +436,20 @@ def _parse_struct(node, src: bytes, out: list[ClassInfo]) -> None:
     body = _first(node, "declaration_list")
     methods, class_vars, calls = _parse_declaration_list(body, src, name) if body else ([], [], [])
 
-    out.append(ClassInfo(
-        name=name, bases=bases, methods=methods, class_vars=class_vars,
-        decorators=attrs, docstring="",
-        line_start=_line(node), line_end=_end_line(node),
-        calls=calls, kind="struct",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=class_vars,
+            decorators=attrs,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=calls,
+            kind="struct",
+        )
+    )
 
     if body:
         _walk_decls(body, src, out)
@@ -363,6 +458,7 @@ def _parse_struct(node, src: bytes, out: list[ClassInfo]) -> None:
 # ---------------------------------------------------------------------------
 # Enum
 # ---------------------------------------------------------------------------
+
 
 def _parse_enum(node, src: bytes, out: list[ClassInfo]) -> None:
     name_node = _first(node, "identifier")
@@ -379,17 +475,26 @@ def _parse_enum(node, src: bytes, out: list[ClassInfo]) -> None:
                 members.append(_text(id_node, src))
 
     attrs = _collect_attributes(node, src)
-    out.append(ClassInfo(
-        name=name, bases=[], methods=[], class_vars=members,
-        decorators=attrs, docstring="",
-        line_start=_line(node), line_end=_end_line(node),
-        calls=[], kind="enum",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=[],
+            methods=[],
+            class_vars=members,
+            decorators=attrs,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="enum",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Record (class and struct variants)
 # ---------------------------------------------------------------------------
+
 
 def _parse_record(node, src: bytes, out: list[ClassInfo]) -> None:
     name_node = _first(node, "identifier")
@@ -423,17 +528,26 @@ def _parse_record(node, src: bytes, out: list[ClassInfo]) -> None:
                     methods.append(m)
         _walk_decls(body, src, out)
 
-    out.append(ClassInfo(
-        name=name, bases=bases, methods=methods, class_vars=components,
-        decorators=attrs, docstring="",
-        line_start=_line(node), line_end=_end_line(node),
-        calls=[], kind=kind,
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=components,
+            decorators=attrs,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind=kind,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Delegate
 # ---------------------------------------------------------------------------
+
 
 def _parse_delegate(node, src: bytes, out: list[ClassInfo]) -> None:
     name_node = _first(node, "identifier")
@@ -449,17 +563,26 @@ def _parse_delegate(node, src: bytes, out: list[ClassInfo]) -> None:
             if id_node:
                 components.append(_text(id_node, src))
 
-    out.append(ClassInfo(
-        name=name, bases=[], methods=[], class_vars=components,
-        decorators=[], docstring="",
-        line_start=_line(node), line_end=_end_line(node),
-        calls=[], kind="delegate",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=[],
+            methods=[],
+            class_vars=components,
+            decorators=[],
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="delegate",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Declaration list (shared body parser for classes, structs)
 # ---------------------------------------------------------------------------
+
 
 def _parse_declaration_list(body, src: bytes, own_name: str):
     methods: list[MethodInfo] = []
@@ -501,6 +624,7 @@ def _parse_declaration_list(body, src: bytes, own_name: str):
 # Method / property / constructor parsing
 # ---------------------------------------------------------------------------
 
+
 def _parse_method(node, src: bytes) -> MethodInfo | None:
     # Use named field to avoid confusing the return-type identifier with the name.
     # e.g. "Dog Create(...)" — field "name" is "Create", not "Dog"
@@ -510,9 +634,9 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
     name = _text(name_node, src)
 
     mods = _collect_modifiers(node)
-    is_static   = "static" in mods
-    is_async    = "async" in mods
-    attrs       = _collect_attributes(node, src)
+    is_static = "static" in mods
+    is_async = "async" in mods
+    attrs = _collect_attributes(node, src)
 
     params_node = _first(node, "parameter_list")
     args = _parse_params(params_node, src) if params_node else []
@@ -526,10 +650,14 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
             return_type = _type_text(child, src)
 
     return MethodInfo(
-        name=name, args=args, return_type=return_type,
-        decorators=attrs, is_async=is_async,
+        name=name,
+        args=args,
+        return_type=return_type,
+        decorators=attrs,
+        is_async=is_async,
         is_property=False,
-        is_classmethod=is_static, is_staticmethod=is_static,
+        is_classmethod=is_static,
+        is_staticmethod=is_static,
     )
 
 
@@ -543,9 +671,14 @@ def _parse_property(node, src: bytes) -> MethodInfo | None:
     return_type = _type_text(type_node, src) if type_node else ""
 
     return MethodInfo(
-        name=name, args=[], return_type=return_type,
-        decorators=[], is_async=False,
-        is_property=True, is_classmethod=False, is_staticmethod=False,
+        name=name,
+        args=[],
+        return_type=return_type,
+        decorators=[],
+        is_async=False,
+        is_property=True,
+        is_classmethod=False,
+        is_staticmethod=False,
     )
 
 
@@ -556,9 +689,14 @@ def _parse_constructor(node, src: bytes) -> MethodInfo | None:
     params_node = _first(node, "parameter_list")
     args = _parse_params(params_node, src) if params_node else []
     return MethodInfo(
-        name="<ctor>", args=args, return_type="",
-        decorators=[], is_async=False,
-        is_property=False, is_classmethod=False, is_staticmethod=False,
+        name="<ctor>",
+        args=args,
+        return_type="",
+        decorators=[],
+        is_async=False,
+        is_property=False,
+        is_classmethod=False,
+        is_staticmethod=False,
     )
 
 
@@ -578,17 +716,28 @@ def _parse_params(params_node, src: bytes) -> list[str]:
 # Call graph
 # ---------------------------------------------------------------------------
 
-def _collect_method_calls(method_node, src: bytes, method_name: str,
-                          out: list[tuple[str, str]], seen: set[tuple[str, str]],
-                          own_name: str) -> None:
+
+def _collect_method_calls(
+    method_node,
+    src: bytes,
+    method_name: str,
+    out: list[tuple[str, str]],
+    seen: set[tuple[str, str]],
+    own_name: str,
+) -> None:
     body = _first(method_node, "block", "arrow_expression_clause")
     if body:
         _scan_calls(body, src, method_name, out, seen, own_name)
 
 
-def _scan_calls(node, src: bytes, ctx: str,
-                out: list[tuple[str, str]], seen: set[tuple[str, str]],
-                own_name: str) -> None:
+def _scan_calls(
+    node,
+    src: bytes,
+    ctx: str,
+    out: list[tuple[str, str]],
+    seen: set[tuple[str, str]],
+    own_name: str,
+) -> None:
     stack = [node]
     while stack:
         current = stack.pop()
@@ -596,8 +745,7 @@ def _scan_calls(node, src: bytes, ctx: str,
             type_node = _first(current, "identifier", "generic_name", "qualified_name")
             if type_node:
                 cname = _type_text(type_node, src).split(".")[0]
-                if (cname and cname[0].isupper() and cname not in _CS_IGNORE
-                        and cname != own_name):
+                if cname and cname[0].isupper() and cname not in _CS_IGNORE and cname != own_name:
                     pair = (cname, ctx)
                     if pair not in seen:
                         seen.add(pair)
@@ -610,6 +758,7 @@ def _scan_calls(node, src: bytes, ctx: str,
 # Top-level functions — C# has none (all methods are in types)
 # ---------------------------------------------------------------------------
 
+
 def _extract_functions(root, src: bytes) -> list[FunctionInfo]:
     return []
 
@@ -617,6 +766,7 @@ def _extract_functions(root, src: bytes) -> list[FunctionInfo]:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def analyze_csharp(path: str, content: str) -> CodeAnalysis:
     """
@@ -628,12 +778,18 @@ def analyze_csharp(path: str, content: str) -> CodeAnalysis:
 
     if not _TREESITTER_AVAILABLE:
         return CodeAnalysis(
-            path=path, language="csharp", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="csharp",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
                 "tree-sitter-c-sharp not installed — run: "
-                "pip install \"tree-sitter>=0.23.0\" tree-sitter-c-sharp"
+                'pip install "tree-sitter>=0.23.0" tree-sitter-c-sharp'
             ],
         )
 
@@ -647,10 +803,10 @@ def analyze_csharp(path: str, content: str) -> CodeAnalysis:
         if root.has_error:
             parse_errors.append("File contains syntax errors (partial extraction attempted)")
 
-        namespace  = _extract_namespace(root, src)
-        imports    = _extract_imports(root, src)
-        classes    = _extract_type_declarations(root, src)
-        functions  = _extract_functions(root, src)
+        namespace = _extract_namespace(root, src)
+        imports = _extract_imports(root, src)
+        classes = _extract_type_declarations(root, src)
+        functions = _extract_functions(root, src)
 
         return CodeAnalysis(
             path=path,
@@ -667,8 +823,14 @@ def analyze_csharp(path: str, content: str) -> CodeAnalysis:
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="csharp", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="csharp",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"AnalysisError: {exc}"],
         )

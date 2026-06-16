@@ -23,6 +23,7 @@ Format (v2)
   }
 }
 """
+
 from __future__ import annotations
 
 import json
@@ -37,7 +38,7 @@ from .utils import get_logger, load_json
 logger = get_logger(__name__)
 
 _REGISTRY_FILE = DATA_DIR / "_db_registry.json"
-_SAFE_RE       = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+_SAFE_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 
 
 def _now_iso() -> str:
@@ -46,18 +47,19 @@ def _now_iso() -> str:
 
 def _default_db_entry(name: str, path: str) -> dict:
     return {
-        "name":        name,
-        "path":        path,
+        "name": name,
+        "path": path,
         "description": "",
-        "created":     _now_iso(),
+        "created": _now_iso(),
         "backup": {
-            "enabled":    False,
+            "enabled": False,
             "keep_count": 5,
         },
     }
 
 
 # Internal helpers
+
 
 def _read_raw() -> dict:
     """Read the registry file; returns {} on any error."""
@@ -87,7 +89,7 @@ def _migrate(raw: dict) -> dict:
 
 def _read() -> dict:
     """Read, migrate if needed, and return the v2 registry dict."""
-    raw      = _read_raw()
+    raw = _read_raw()
     migrated = _migrate(raw)
     if migrated is not raw:
         _write(migrated)
@@ -108,12 +110,13 @@ def _write(registry: dict) -> None:
 
 # Public API
 
+
 def register_db(
-    name:        str,
-    path:        str | Path,
+    name: str,
+    path: str | Path,
     description: str = "",
     *,
-    overwrite:   bool = True,
+    overwrite: bool = True,
 ) -> dict:
     """Add or update a database entry in the registry.
 
@@ -122,8 +125,8 @@ def register_db(
 
     Returns the (possibly updated) entry dict.
     """
-    reg      = _read()
-    dbs      = reg.setdefault("databases", {})
+    reg = _read()
+    dbs = reg.setdefault("databases", {})
     path_str = str(path)
 
     if name in dbs:
@@ -205,7 +208,7 @@ def resolve_db_root(db: str) -> Path:
 def register_path_db(path: str | Path) -> None:
     """Register a path-based database by its folder name (legacy shim)."""
     try:
-        p    = Path(path)
+        p = Path(path)
         name = p.name
         if not name or not _SAFE_RE.match(name):
             return

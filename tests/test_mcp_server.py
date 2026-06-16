@@ -5,6 +5,7 @@ Exercises _dispatch() directly (injecting a StringIO output) rather than the
 full stdin loop — fast and deterministic while still covering all the protocol
 paths the client sees.
 """
+
 import io
 import json
 
@@ -18,10 +19,11 @@ from project_mapper.mcp.server import (
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _make_server(tmp_db, ctx) -> MCPServer:
     srv = MCPServer(db_root=tmp_db, db_name="test")
     srv._out = io.StringIO()
-    srv._ctx = ctx          # inject pre-built context; skips lazy init
+    srv._ctx = ctx  # inject pre-built context; skips lazy init
     return srv
 
 
@@ -39,6 +41,7 @@ def _dispatch(srv: MCPServer, msg: dict) -> dict:
 
 # ── Version / constants ───────────────────────────────────────────────────────
 
+
 def test_server_version_is_2_0_0():
     assert SERVER_VERSION == "2.0.0"
 
@@ -52,6 +55,7 @@ def test_protocol_version():
 
 
 # ── initialize ────────────────────────────────────────────────────────────────
+
 
 class TestInitialize:
     def test_returns_protocol_version(self, tmp_db, ctx):
@@ -80,6 +84,7 @@ class TestInitialize:
 
 # ── tools/list ────────────────────────────────────────────────────────────────
 
+
 class TestToolsList:
     def test_returns_twelve_tools(self, tmp_db, ctx):
         srv = _make_server(tmp_db, ctx)
@@ -97,14 +102,19 @@ class TestToolsList:
 
 # ── tools/call ────────────────────────────────────────────────────────────────
 
+
 class TestToolsCall:
     def test_known_tool_returns_text(self, tmp_db, ctx):
         srv = _make_server(tmp_db, ctx)
-        resp = _dispatch(srv, {
-            "jsonrpc": "2.0", "id": 3,
-            "method": "tools/call",
-            "params": {"name": "pm_stats", "arguments": {}},
-        })
+        resp = _dispatch(
+            srv,
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "pm_stats", "arguments": {}},
+            },
+        )
         content = resp["result"]["content"]
         assert len(content) == 1
         assert content[0]["type"] == "text"
@@ -113,27 +123,36 @@ class TestToolsCall:
 
     def test_unknown_tool_returns_error(self, tmp_db, ctx):
         srv = _make_server(tmp_db, ctx)
-        resp = _dispatch(srv, {
-            "jsonrpc": "2.0", "id": 4,
-            "method": "tools/call",
-            "params": {"name": "pm_nonexistent", "arguments": {}},
-        })
+        resp = _dispatch(
+            srv,
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {"name": "pm_nonexistent", "arguments": {}},
+            },
+        )
         assert "error" in resp
         assert resp["error"]["code"] == METHOD_NOT_FOUND
 
     def test_invalid_args_returns_tool_error(self, tmp_db, ctx):
         srv = _make_server(tmp_db, ctx)
         # pm_find with no 'name' argument should raise ValueError → isError=True
-        resp = _dispatch(srv, {
-            "jsonrpc": "2.0", "id": 5,
-            "method": "tools/call",
-            "params": {"name": "pm_find", "arguments": {}},
-        })
+        resp = _dispatch(
+            srv,
+            {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {"name": "pm_find", "arguments": {}},
+            },
+        )
         assert resp["result"]["isError"] is True
         assert "error" in resp["result"]["content"][0]["text"].lower()
 
 
 # ── ping ──────────────────────────────────────────────────────────────────────
+
 
 def test_ping_returns_empty_result(tmp_db, ctx):
     srv = _make_server(tmp_db, ctx)
@@ -143,6 +162,7 @@ def test_ping_returns_empty_result(tmp_db, ctx):
 
 # ── unknown method ────────────────────────────────────────────────────────────
 
+
 def test_unknown_method_returns_method_not_found(tmp_db, ctx):
     srv = _make_server(tmp_db, ctx)
     resp = _dispatch(srv, {"jsonrpc": "2.0", "id": 10, "method": "no_such_method", "params": {}})
@@ -151,6 +171,7 @@ def test_unknown_method_returns_method_not_found(tmp_db, ctx):
 
 
 # ── notifications (no response expected) ─────────────────────────────────────
+
 
 def test_notification_produces_no_output(tmp_db, ctx):
     srv = _make_server(tmp_db, ctx)

@@ -6,6 +6,7 @@ Language extractors for the scanner.
 dispatcher (analyze_file), and language detection (detect_language_for_path).
 Every other module is a single-language extractor (one file per language).
 """
+
 from .base import (
     CodeAnalysis,
     ImportInfo,

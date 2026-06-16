@@ -41,12 +41,13 @@ def _db_root(db: str = "default", path: str | None = None) -> Path:
     if not _SAFE_RE.match(db):
         raise HTTPException(400, f"Invalid database name {db!r}")
     from ..db.db_registry import resolve_db_root
+
     return resolve_db_root(db)
 
 
 def _get_scan_writer(
-    db:          str  = "default",
-    path:        str | None = None,
+    db: str = "default",
+    path: str | None = None,
     incremental: bool = False,
 ) -> tuple:
     """Return (PMEntityStore, PMNameIndex) for scan operations.
@@ -61,7 +62,8 @@ def _get_scan_writer(
     """
     from ..db import snapshot as _snap
     from ..db.pm_store import PMEntityStore, PMNameIndex
-    root  = _db_root(db, path)
+
+    root = _db_root(db, path)
     index = PMNameIndex(index_path=root / "name_index.json")
     if incremental and _snap.snapshot_path(root).exists():
         writer = PMEntityStore.from_snapshot(root, index)
@@ -77,7 +79,8 @@ def _get_mutation_writer(db: str = "default", path: str | None = None) -> tuple:
     writer.flush() to persist changes back to the snapshot file.
     """
     from ..db.pm_store import PMEntityStore, PMNameIndex
-    root  = _db_root(db, path)
+
+    root = _db_root(db, path)
     index = PMNameIndex(index_path=root / "name_index.json")
     writer = PMEntityStore.from_snapshot(root, index)
     return writer, index
@@ -85,6 +88,7 @@ def _get_mutation_writer(db: str = "default", path: str | None = None) -> tuple:
 
 def _get_file_manifest(db: str = "default", path: str | None = None):
     from ..db.file_manifest import FileManifest
+
     return FileManifest(_db_root(db, path))
 
 
@@ -97,17 +101,19 @@ def _ensure_db(root: Path) -> None:
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+
 class ScanRequest(BaseModel):
-    project_root: str                    # absolute path to the project directory
-    db:           str = "default"        # target database name
-    db_path:      str | None = None   # custom db path (overrides db name)
-    concurrency:  int = 3                # parallel file processing
-    incremental:  bool = True            # skip files with unchanged hashes
+    project_root: str  # absolute path to the project directory
+    db: str = "default"  # target database name
+    db_path: str | None = None  # custom db path (overrides db name)
+    concurrency: int = 3  # parallel file processing
+    incremental: bool = True  # skip files with unchanged hashes
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/preview")
 async def preview_project(
@@ -162,7 +168,7 @@ async def start_project_scan(req: ScanRequest):
             f"Scanning a different project into the same database would mix their "
             f"entities and produce incorrect results. "
             f"Use a different db name — e.g. db='{suggest}'. "
-            f"To start fresh, delete or rename the existing database directory first."
+            f"To start fresh, delete or rename the existing database directory first.",
         )
 
     # Use PMEntityStore for scan operations — eliminates per-entity disk I/O.
@@ -182,19 +188,21 @@ async def start_project_scan(req: ScanRequest):
     )
 
     if not started:
-        raise HTTPException(409, "Could not start scan — another task may have started concurrently.")
+        raise HTTPException(
+            409, "Could not start scan — another task may have started concurrently."
+        )
 
     return {
-        "status":       "started",
+        "status": "started",
         "project_root": req.project_root,
-        "db":           req.db,
-        "incremental":  req.incremental,
+        "db": req.db,
+        "incremental": req.incremental,
     }
 
 
 @router.get("/scan/status")
 async def get_scan_status(
-    db:   str = Query("default"),
+    db: str = Query("default"),
     path: str | None = Query(None),
 ):
     """Return the current (or most recent) scan status and progress stats."""
@@ -204,7 +212,7 @@ async def get_scan_status(
 
 @router.post("/scan/cancel")
 async def cancel_project_scan(
-    db:   str = Query("default"),
+    db: str = Query("default"),
     path: str | None = Query(None),
 ):
     """Cancel the running scan for this database."""
@@ -214,21 +222,33 @@ async def cancel_project_scan(
 
 @router.get("/stats")
 async def project_mapper_stats(
-    db:   str = Query("default"),
+    db: str = Query("default"),
     path: str | None = Query(None),
 ):
     """
     Return a combined view: last scan info + file manifest stats +
     entity count breakdown by ProjectMapper-created types.
     """
-    root   = _db_root(db, path)
+    root = _db_root(db, path)
     status = scan_status(root)
 
     fm_stats = _get_file_manifest(db, path).stats()
 
     writer, _ = _get_mutation_writer(db, path)
-    pm_types = {"module", "class", "function", "service", "endpoint", "model",
-                "workflow", "config", "dependency", "decision", "goal", "constraint"}
+    pm_types = {
+        "module",
+        "class",
+        "function",
+        "service",
+        "endpoint",
+        "model",
+        "workflow",
+        "config",
+        "dependency",
+        "decision",
+        "goal",
+        "constraint",
+    }
     type_counts: dict[str, int] = {}
     total_pm_entities = 0
     try:
@@ -241,10 +261,10 @@ async def project_mapper_stats(
         pass
 
     return {
-        "last_scan":          status,
-        "file_manifest":      fm_stats,
-        "entity_counts":      type_counts,
-        "total_pm_entities":  total_pm_entities,
+        "last_scan": status,
+        "file_manifest": fm_stats,
+        "entity_counts": type_counts,
+        "total_pm_entities": total_pm_entities,
     }
 
 
@@ -252,83 +272,85 @@ async def project_mapper_stats(
 # Query endpoints
 # ---------------------------------------------------------------------------
 
+
 class ImpactRequest(BaseModel):
-    entity:        str                         # entity name or ID to analyse
-    db:            str = "default"
-    path:          str | None = None
-    depth:         int = 2                     # 1–4 hops
-    via_kinds:     list[str] | None = None  # restrict to these relation kinds
-    exclude_tests:  bool = True                # filter test-file entities from results
-    slim:           bool = False               # return name+file_path only (~16 tok/entity)
-    summary_depth:  int  = 1                   # include summaries only for hop <= this value
+    entity: str  # entity name or ID to analyse
+    db: str = "default"
+    path: str | None = None
+    depth: int = 2  # 1–4 hops
+    via_kinds: list[str] | None = None  # restrict to these relation kinds
+    exclude_tests: bool = True  # filter test-file entities from results
+    slim: bool = False  # return name+file_path only (~16 tok/entity)
+    summary_depth: int = 1  # include summaries only for hop <= this value
 
 
 class ContextRequest(BaseModel):
-    q:            str                                # natural language task description
-    db:           str = "default"
-    path:         str | None = None
-    entities:     list[str] | None = None        # explicit anchor entity names
-    depth:        int = 1                           # expansion hops (0–2)
-    detail_level: str = "medium"                    # "high" | "medium" | "low"
-    max_results:  int = 40
-    slim:         bool = False                       # return name+file_path only (~16 tok/entity)
+    q: str  # natural language task description
+    db: str = "default"
+    path: str | None = None
+    entities: list[str] | None = None  # explicit anchor entity names
+    depth: int = 1  # expansion hops (0–2)
+    detail_level: str = "medium"  # "high" | "medium" | "low"
+    max_results: int = 40
+    slim: bool = False  # return name+file_path only (~16 tok/entity)
 
 
 class PathRequest(BaseModel):
-    from_entity: str                  # name or ID of starting entity
-    to_entity:   str                  # name or ID of destination entity
-    db:          str = "default"
-    path:        str | None = None
-    max_hops:    int = 6
-    slim:        bool = False          # return name+file_path only per path node
+    from_entity: str  # name or ID of starting entity
+    to_entity: str  # name or ID of destination entity
+    db: str = "default"
+    path: str | None = None
+    max_hops: int = 6
+    slim: bool = False  # return name+file_path only per path node
 
 
 class ContributeRequest(BaseModel):
-    entity_name: str                              # name of the entity to update
-    db:          str = "default"
-    path:        str | None = None
-    properties:  dict[str, str] = {}              # key-value property updates
-    relations:   list[dict[str, str]] = []         # [{ kind, target_name, note }]
-    rationale:   str = ""                          # free-text explanation (stored as timeline event)
-    source:      str = "agent"                     # caller identifier
+    entity_name: str  # name of the entity to update
+    db: str = "default"
+    path: str | None = None
+    properties: dict[str, str] = {}  # key-value property updates
+    relations: list[dict[str, str]] = []  # [{ kind, target_name, note }]
+    rationale: str = ""  # free-text explanation (stored as timeline event)
+    source: str = "agent"  # caller identifier
 
 
 class VisualizeRequest(BaseModel):
-    entity:    str                                 # entity to centre the diagram on
-    db:        str = "default"
-    path:      str | None = None
-    depth:     int = 2                             # traversal hops (1–4)
-    direction: str = "both"                        # out | in | both
-    relations: list[str] = []                      # relation kinds (default: calls/imports/uses/…)
-    format:    str = "mermaid"                     # mermaid | dot
+    entity: str  # entity to centre the diagram on
+    db: str = "default"
+    path: str | None = None
+    depth: int = 2  # traversal hops (1–4)
+    direction: str = "both"  # out | in | both
+    relations: list[str] = []  # relation kinds (default: calls/imports/uses/…)
+    format: str = "mermaid"  # mermaid | dot
     max_nodes: int = 40
 
 
 class SecurityScanRequest(BaseModel):
-    project_root:            str                    # absolute path to the project to scan
-    severity:                str = "medium"         # critical | high | medium | low | all
-    language:                str | None = None   # filter to one language
-    owasp:                   str | None = None   # filter by OWASP category prefix (e.g. A03)
-    file:                    str | None = None   # filter by file-path substring
-    max_results:             int = 50
+    project_root: str  # absolute path to the project to scan
+    severity: str = "medium"  # critical | high | medium | low | all
+    language: str | None = None  # filter to one language
+    owasp: str | None = None  # filter by OWASP category prefix (e.g. A03)
+    file: str | None = None  # filter by file-path substring
+    max_results: int = 50
     include_false_positives: bool = False
 
 
 class SecurityTriageRequest(BaseModel):
-    project_root: str                               # project whose snapshot to update
-    status:       str                               # false_positive | verified_vulnerability | resolved | unreviewed
-    id:           str | None = None              # stable finding ID (single)
-    file:         str | None = None              # file-path substring (bulk)
-    notes:        str | None = None
+    project_root: str  # project whose snapshot to update
+    status: str  # false_positive | verified_vulnerability | resolved | unreviewed
+    id: str | None = None  # stable finding ID (single)
+    file: str | None = None  # file-path substring (bulk)
+    notes: str | None = None
 
 
 @router.get("/query/cache")
 async def query_cache_stats(
-    db:   str = Query("default"),
+    db: str = Query("default"),
     path: str | None = Query(None),
 ):
     """Return the current state of the in-memory query cache."""
     from ..core.query_cache import get_query_cache
+
     return get_query_cache().stats()
 
 
@@ -348,13 +370,20 @@ async def query_impact(req: ImpactRequest):
     from ..core.query import impact_query
     from ..core.query_cache import get_query_cache
 
-    depth      = max(1, min(req.depth, 4))
-    root       = _db_root(req.db, req.path)
+    depth = max(1, min(req.depth, 4))
+    root = _db_root(req.db, req.path)
     entity_map, index = await get_query_cache().get(root)
 
     result = await asyncio.to_thread(
-        impact_query, req.entity, entity_map, index, depth,
-        req.via_kinds, req.exclude_tests, req.slim, req.summary_depth,
+        impact_query,
+        req.entity,
+        entity_map,
+        index,
+        depth,
+        req.via_kinds,
+        req.exclude_tests,
+        req.slim,
+        req.summary_depth,
     )
 
     if result.get("not_found"):
@@ -379,8 +408,8 @@ async def query_context(req: ContextRequest):
     from ..core.query import context_query
     from ..core.query_cache import get_query_cache
 
-    depth      = max(0, min(req.depth, 2))
-    root       = _db_root(req.db, req.path)
+    depth = max(0, min(req.depth, 2))
+    root = _db_root(req.db, req.path)
     entity_map, index = await get_query_cache().get(root)
 
     result = await asyncio.to_thread(
@@ -389,7 +418,7 @@ async def query_context(req: ContextRequest):
         entity_map,
         index,
         req.entities,
-        8,            # max_seeds
+        8,  # max_seeds
         depth,
         req.detail_level,
         req.max_results,
@@ -409,7 +438,7 @@ async def query_path(req: PathRequest):
     from ..core.query import shortest_path
     from ..core.query_cache import get_query_cache
 
-    root       = _db_root(req.db, req.path)
+    root = _db_root(req.db, req.path)
     entity_map, index = await get_query_cache().get(root)
 
     result = await asyncio.to_thread(
@@ -426,9 +455,9 @@ async def query_path(req: PathRequest):
 
 @router.get("/query/find")
 async def query_find(
-    name:        str = Query(..., description="Symbol name to look up (function, class, or module)"),
-    db:          str = Query("default"),
-    path:        str | None = Query(None),
+    name: str = Query(..., description="Symbol name to look up (function, class, or module)"),
+    db: str = Query("default"),
+    path: str | None = Query(None),
     max_results: int = Query(10, description="Max matches when several symbols share the name"),
 ):
     """
@@ -443,12 +472,18 @@ async def query_find(
     root = _db_root(db, path)
     entity_map, index = await get_query_cache().get(root)
     if not entity_map:
-        raise HTTPException(404, f"Knowledge graph for database {db!r} is empty — run a scan first.")
+        raise HTTPException(
+            404, f"Knowledge graph for database {db!r} is empty — run a scan first."
+        )
 
     result = await asyncio.to_thread(find_query, name, entity_map, index, max_results=max_results)
     if result.get("not_found"):
         method_result = await asyncio.to_thread(
-            find_by_method, name, entity_map, index, max_results=max_results,
+            find_by_method,
+            name,
+            entity_map,
+            index,
+            max_results=max_results,
         )
         if not method_result.get("not_found"):
             return method_result
@@ -458,11 +493,13 @@ async def query_find(
 
 @router.get("/query/orphans")
 async def query_orphans(
-    db:              str = Query("default"),
-    path:            str | None = Query(None),
-    types:           list[str] = Query(default=[], description="Limit to entity types, e.g. function, class"),
-    include_modules: bool = Query(False, description="Include module-level entities (often entry points)"),
-    max_results:     int = Query(100),
+    db: str = Query("default"),
+    path: str | None = Query(None),
+    types: list[str] = Query(default=[], description="Limit to entity types, e.g. function, class"),
+    include_modules: bool = Query(
+        False, description="Include module-level entities (often entry points)"
+    ),
+    max_results: int = Query(100),
 ):
     """
     Find entities with no inbound calls/imports/dependencies — dead-code candidates.
@@ -476,11 +513,16 @@ async def query_orphans(
     root = _db_root(db, path)
     entity_map, index = await get_query_cache().get(root)
     if not entity_map:
-        raise HTTPException(404, f"Knowledge graph for database {db!r} is empty — run a scan first.")
+        raise HTTPException(
+            404, f"Knowledge graph for database {db!r} is empty — run a scan first."
+        )
 
     result = await asyncio.to_thread(
-        orphan_query, entity_map,
-        types=types or None, include_modules=include_modules, max_results=max_results,
+        orphan_query,
+        entity_map,
+        types=types or None,
+        include_modules=include_modules,
+        max_results=max_results,
     )
     return result
 
@@ -500,11 +542,20 @@ async def query_visualize(req: VisualizeRequest):
     entity_map, index = await get_query_cache().get(root)
 
     res = await asyncio.to_thread(
-        build_diagram, entity_map, index, req.entity,
-        req.depth, req.direction, req.relations or None, req.format, req.max_nodes,
+        build_diagram,
+        entity_map,
+        index,
+        req.entity,
+        req.depth,
+        req.direction,
+        req.relations or None,
+        req.format,
+        req.max_nodes,
     )
     if res["status"] == "empty":
-        raise HTTPException(404, f"Knowledge graph for database {req.db!r} is empty — run a scan first.")
+        raise HTTPException(
+            404, f"Knowledge graph for database {req.db!r} is empty — run a scan first."
+        )
     if res["status"] == "not_found":
         raise HTTPException(404, f"Entity {req.entity!r} not found in database {req.db!r}")
     return res
@@ -522,14 +573,20 @@ async def security_scan(req: SecurityScanRequest):
     from ..core.security import scan_project
 
     r = await asyncio.to_thread(
-        scan_project, req.project_root, req.severity, req.language, req.owasp,
-        req.file, req.max_results, req.include_false_positives,
+        scan_project,
+        req.project_root,
+        req.severity,
+        req.language,
+        req.owasp,
+        req.file,
+        req.max_results,
+        req.include_false_positives,
     )
     if r["status"] == "no_project_root":
         raise HTTPException(400, "project_root is required")
     if r["status"] == "bad_root":
         raise HTTPException(400, f"project_root does not exist or is not a directory: {r['root']}")
-    r.pop("all_findings", None)   # the displayed `findings` are returned; full set omitted for size
+    r.pop("all_findings", None)  # the displayed `findings` are returned; full set omitted for size
     return r
 
 
@@ -544,7 +601,12 @@ async def security_triage(req: SecurityTriageRequest):
     from ..core.security import triage_findings
 
     r = await asyncio.to_thread(
-        triage_findings, req.project_root, req.status, req.id, req.file, req.notes,
+        triage_findings,
+        req.project_root,
+        req.status,
+        req.id,
+        req.file,
+        req.notes,
     )
     st = r["status"]
     if st == "invalid_status":
@@ -564,11 +626,15 @@ async def security_triage(req: SecurityTriageRequest):
 
 @router.get("/delta")
 async def project_delta(
-    project_root:   str  = Query(..., description="Absolute path to the project directory"),
-    db:             str  = Query("default"),
-    path:           str | None = Query(None),
-    compute_hashes: bool = Query(True,  description="Compute file hashes to detect modifications (slower)"),
-    include_lists:  bool = Query(False, description="Include full file lists in response (can be large)"),
+    project_root: str = Query(..., description="Absolute path to the project directory"),
+    db: str = Query("default"),
+    path: str | None = Query(None),
+    compute_hashes: bool = Query(
+        True, description="Compute file hashes to detect modifications (slower)"
+    ),
+    include_lists: bool = Query(
+        False, description="Include full file lists in response (can be large)"
+    ),
 ):
     """
     Compare the project directory against the FileManifest and return a
@@ -599,12 +665,12 @@ async def project_delta(
     response = delta.summary()
 
     if include_lists:
-        response["new_file_paths"]      = [f.path for f in delta.new_files]
+        response["new_file_paths"] = [f.path for f in delta.new_files]
         response["modified_file_paths"] = [
             {"path": f.path, "old_hash": f.old_hash[:16] + "…", "entity_ids": f.entity_ids}
             for f in delta.modified_files
         ]
-        response["deleted_file_paths"]  = delta.deleted_files
+        response["deleted_file_paths"] = delta.deleted_files
 
     return response
 
@@ -612,8 +678,8 @@ async def project_delta(
 @router.post("/cleanup")
 async def run_cleanup(
     project_root: str = Query(..., description="Absolute path to the project directory"),
-    db:           str = Query("default"),
-    path:         str | None = Query(None),
+    db: str = Query("default"),
+    path: str | None = Query(None),
 ):
     """
     Retire entities whose source files have been deleted from the project.
@@ -656,12 +722,12 @@ async def run_cleanup(
         raise HTTPException(500, f"Cleanup failed: {exc}")
 
     return {
-        "project_root":       project_root,
-        "db":                 db,
+        "project_root": project_root,
+        "db": db,
         "deleted_file_count": result.deleted_file_count,
-        "retired_count":      result.retired_count,
-        "deleted_files":      result.deleted_files,
-        "errors":             result.errors,
+        "retired_count": result.retired_count,
+        "deleted_files": result.deleted_files,
+        "errors": result.errors,
     }
 
 
@@ -675,12 +741,13 @@ async def list_mcp_tools():
     Useful for Cursor, Antigravity, and other HTTP-based MCP hosts.
     """
     from ..mcp.tools import TOOL_SCHEMAS
+
     return {
         "schema_version": "2024-11-05",
-        "server":         "project-mapper",
-        "tools":          TOOL_SCHEMAS,
-        "tool_count":     len(TOOL_SCHEMAS),
-        "stdio_command":  "pm-mcp --db <db_name>",
+        "server": "project-mapper",
+        "tools": TOOL_SCHEMAS,
+        "tool_count": len(TOOL_SCHEMAS),
+        "stdio_command": "pm-mcp --db <db_name>",
     }
 
 

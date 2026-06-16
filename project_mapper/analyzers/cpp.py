@@ -26,6 +26,7 @@ import re
 try:
     import tree_sitter_cpp as _tscpp
     from tree_sitter import Language, Parser
+
     _CPP_LANGUAGE = Language(_tscpp.language())
     _AVAILABLE = True
 except Exception:
@@ -51,39 +52,40 @@ from .base import (
 # This pattern appears in virtually every cross-platform C++ library
 # (leveldb, Qt, WebKit, WxWidgets, Chromium, etc.) and causes tree-sitter
 # to fail the entire class_specifier node, yielding 0 extracted entities.
-_RE_CPP_EXPORT = re.compile(r'\b[A-Z][A-Z0-9_]+_EXPORT\b')
+_RE_CPP_EXPORT = re.compile(r"\b[A-Z][A-Z0-9_]+_EXPORT\b")
 
 # Clang Thread-Safety Analysis (TSA) annotations, used by leveldb, Abseil,
 # Chromium, and others.  Covers both class-level qualifiers (LOCKABLE) and
 # method/member-level annotations (GUARDED_BY, EXCLUSIVE_LOCKS_REQUIRED, etc.)
 _RE_THREAD_ANNOT = re.compile(
-    r'\b(?:GUARDED_BY|PT_GUARDED_BY|'
-    r'LOCKS_EXCLUDED|LOCKS_REQUIRED|EXCLUSIVE_LOCKS_REQUIRED|SHARED_LOCKS_REQUIRED|'
-    r'EXCLUSIVE_LOCK_FUNCTION|SHARED_LOCK_FUNCTION|UNLOCK_FUNCTION|'
-    r'ASSERT_EXCLUSIVE_LOCK|ASSERT_SHARED_LOCK|'
-    r'ACQUIRED_BEFORE|ACQUIRED_AFTER|NO_THREAD_SAFETY_ANALYSIS|'
-    r'LOCKABLE|SCOPED_LOCKABLE)'
-    r'(?:\s*\([^)]*\))?'
+    r"\b(?:GUARDED_BY|PT_GUARDED_BY|"
+    r"LOCKS_EXCLUDED|LOCKS_REQUIRED|EXCLUSIVE_LOCKS_REQUIRED|SHARED_LOCKS_REQUIRED|"
+    r"EXCLUSIVE_LOCK_FUNCTION|SHARED_LOCK_FUNCTION|UNLOCK_FUNCTION|"
+    r"ASSERT_EXCLUSIVE_LOCK|ASSERT_SHARED_LOCK|"
+    r"ACQUIRED_BEFORE|ACQUIRED_AFTER|NO_THREAD_SAFETY_ANALYSIS|"
+    r"LOCKABLE|SCOPED_LOCKABLE)"
+    r"(?:\s*\([^)]*\))?"
 )
 
 # Misc GCC/GLib per-parameter or per-function attribute macros
-_RE_CPP_ATTRS = re.compile(r'\b(?:G_GNUC_UNUSED|ATTRIBUTE_TARGET_\w+)\b')
+_RE_CPP_ATTRS = re.compile(r"\b(?:G_GNUC_UNUSED|ATTRIBUTE_TARGET_\w+)\b")
 
 # Raw GCC __attribute__((...)) with up to 3 levels of paren nesting.
 # Handles: __attribute__((__format__(__printf__, 2, 3)))
 _RE_GNU_ATTR = re.compile(
-    r'__attribute__\s*'
-    r'\((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*\)'
+    r"__attribute__\s*"
+    r"\((?:[^()]*|\((?:[^()]*|\([^()]*\))*\))*\)"
 )
 
 
 def _strip_macros_cpp(content: str) -> str:
     """Remove known attribute macros before handing content to tree-sitter."""
-    content = _RE_CPP_EXPORT.sub('', content)
-    content = _RE_THREAD_ANNOT.sub('', content)
-    content = _RE_CPP_ATTRS.sub('', content)
-    content = _RE_GNU_ATTR.sub('', content)
+    content = _RE_CPP_EXPORT.sub("", content)
+    content = _RE_THREAD_ANNOT.sub("", content)
+    content = _RE_CPP_ATTRS.sub("", content)
+    content = _RE_GNU_ATTR.sub("", content)
     return content
+
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -93,7 +95,7 @@ _CPP_SKIP_NAMESPACES: frozenset[str] = frozenset({"std", "boost", "Eigen", "cv",
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -110,7 +112,7 @@ def _end_line(node) -> int:
 
 
 def _preceding_cpp_doc(node, src: bytes) -> str:
-    before = src[:node.start_byte].decode("utf-8", errors="replace").rstrip()
+    before = src[: node.start_byte].decode("utf-8", errors="replace").rstrip()
     lines = before.split("\n")
     doc_lines = []
     for line in reversed(lines):
@@ -123,7 +125,11 @@ def _preceding_cpp_doc(node, src: bytes) -> str:
             doc_lines.append(line_stripped.removeprefix("//").strip())
         elif not line_stripped:
             break
-        elif line_stripped.startswith("/**") or line_stripped.startswith("/*!") or line_stripped.startswith("/*"):
+        elif (
+            line_stripped.startswith("/**")
+            or line_stripped.startswith("/*!")
+            or line_stripped.startswith("/*")
+        ):
             inner = line_stripped
             if inner.startswith("/**"):
                 inner = inner.removeprefix("/**")
@@ -137,7 +143,11 @@ def _preceding_cpp_doc(node, src: bytes) -> str:
             break
         elif line_stripped.startswith("template"):
             continue
-        elif line_stripped.startswith("public:") or line_stripped.startswith("private:") or line_stripped.startswith("protected:"):
+        elif (
+            line_stripped.startswith("public:")
+            or line_stripped.startswith("private:")
+            or line_stripped.startswith("protected:")
+        ):
             continue
         else:
             break
@@ -210,9 +220,13 @@ def _resolve_func_decl(node):
 def _func_decl_name(func_decl, src: bytes) -> str:
     """Extract the function / method name from a function_declarator."""
     for c in func_decl.children:
-        if c.type in ("identifier", "field_identifier",
-                      "destructor_name", "operator_name",
-                      "qualified_identifier"):
+        if c.type in (
+            "identifier",
+            "field_identifier",
+            "destructor_name",
+            "operator_name",
+            "qualified_identifier",
+        ):
             return _t(c, src)
     return ""
 
@@ -227,8 +241,12 @@ def _find_param_name(node, src: bytes) -> str:
     for c in reversed(node.children):
         if c.type == "identifier":
             return _t(c, src)
-        if c.type in ("pointer_declarator", "reference_declarator",
-                      "array_declarator", "abstract_declarator"):
+        if c.type in (
+            "pointer_declarator",
+            "reference_declarator",
+            "array_declarator",
+            "abstract_declarator",
+        ):
             name = _find_param_name(c, src)
             if name:
                 return name
@@ -353,9 +371,14 @@ def _parse_class_or_struct(node, src: bytes, kind: str) -> ClassInfo | None:
             calls.extend(_collect_calls_cpp(child.child_by_field_name("body"), src))
 
     return ClassInfo(
-        name=name, kind=kind, bases=bases, methods=methods, class_vars=[],
+        name=name,
+        kind=kind,
+        bases=bases,
+        methods=methods,
+        class_vars=[],
         calls=calls,
-        line_start=_line(node), line_end=_end_line(node),
+        line_start=_line(node),
+        line_end=_end_line(node),
         docstring=_preceding_cpp_doc(node, src),
     )
 
@@ -377,8 +400,13 @@ def _parse_enum(node, src: bytes) -> ClassInfo | None:
                     class_vars.append(_t(en, src))
 
     return ClassInfo(
-        name=name, kind="enum", bases=[], methods=[], class_vars=class_vars,
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind="enum",
+        bases=[],
+        methods=[],
+        class_vars=class_vars,
+        line_start=_line(node),
+        line_end=_end_line(node),
         docstring=_preceding_cpp_doc(node, src),
     )
 
@@ -418,10 +446,13 @@ def _parse_function(node, src: bytes) -> FunctionInfo | None:
 # ---------------------------------------------------------------------------
 
 
-def _walk_scope(node, src: bytes,
-                classes: list[ClassInfo],
-                functions: list[FunctionInfo],
-                top_level: bool = True) -> None:
+def _walk_scope(
+    node,
+    src: bytes,
+    classes: list[ClassInfo],
+    functions: list[FunctionInfo],
+    top_level: bool = True,
+) -> None:
     """Recursively walk a translation unit, namespace body, or preproc block."""
     for child in node.children:
         nt = child.type
@@ -450,7 +481,7 @@ def _walk_scope(node, src: bytes,
             alias = None
             for c in child.children:
                 if c.type == "type_identifier":
-                    alias = _t(c, src)   # last one wins = typedef alias
+                    alias = _t(c, src)  # last one wins = typedef alias
             for c in child.children:
                 if c.type in ("struct_specifier", "class_specifier"):
                     cls = _parse_class_or_struct(c, src, kind="struct")
@@ -458,35 +489,61 @@ def _walk_scope(node, src: bytes,
                         # typedef struct Foo { body } Bar — use alias as name
                         ename = alias or cls.name
                         if ename:
-                            classes.append(ClassInfo(
-                                name=ename, kind="struct",
-                                bases=cls.bases, methods=cls.methods,
-                                class_vars=cls.class_vars, calls=cls.calls,
-                                line_start=cls.line_start, line_end=cls.line_end,
-                                docstring=cls.docstring,
-                            ))
+                            classes.append(
+                                ClassInfo(
+                                    name=ename,
+                                    kind="struct",
+                                    bases=cls.bases,
+                                    methods=cls.methods,
+                                    class_vars=cls.class_vars,
+                                    calls=cls.calls,
+                                    line_start=cls.line_start,
+                                    line_end=cls.line_end,
+                                    docstring=cls.docstring,
+                                )
+                            )
                     elif alias:
                         # typedef struct Foo Bar; (forward reference, no body)
                         # Register alias so pm_find works even without body.
-                        classes.append(ClassInfo(
-                            name=alias, kind="struct",
-                            bases=[], methods=[], class_vars=[], calls=[],
-                            line_start=_line(child), line_end=_end_line(child),
-                            docstring="",
-                        ))
+                        classes.append(
+                            ClassInfo(
+                                name=alias,
+                                kind="struct",
+                                bases=[],
+                                methods=[],
+                                class_vars=[],
+                                calls=[],
+                                line_start=_line(child),
+                                line_end=_end_line(child),
+                                docstring="",
+                            )
+                        )
                 elif c.type == "enum_specifier":
                     cls = _parse_enum(c, src)
                     if cls:
                         ename = alias or cls.name
                         if ename:
-                            classes.append(ClassInfo(
-                                name=ename, kind="enum",
-                                bases=[], methods=[], class_vars=cls.class_vars,
-                                calls=[], line_start=cls.line_start,
-                                line_end=cls.line_end, docstring=cls.docstring,
-                            ))
-        elif nt in ("preproc_ifdef", "preproc_ifndef", "preproc_if",
-                    "preproc_else", "preproc_elif", "preproc_elifdef"):
+                            classes.append(
+                                ClassInfo(
+                                    name=ename,
+                                    kind="enum",
+                                    bases=[],
+                                    methods=[],
+                                    class_vars=cls.class_vars,
+                                    calls=[],
+                                    line_start=cls.line_start,
+                                    line_end=cls.line_end,
+                                    docstring=cls.docstring,
+                                )
+                            )
+        elif nt in (
+            "preproc_ifdef",
+            "preproc_ifndef",
+            "preproc_if",
+            "preproc_else",
+            "preproc_elif",
+            "preproc_elifdef",
+        ):
             # Recurse into preprocessor conditional blocks.
             # This handles the extremely common #ifndef / #define header guard
             # pattern — without this, ALL header files return 0 classes.
@@ -519,11 +576,17 @@ def analyze_cpp(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="cpp", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="cpp",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-cpp not installed — run: '
+                "tree-sitter-cpp not installed — run: "
                 'pip install "tree-sitter>=0.23.0" tree-sitter-cpp'
             ],
         )
@@ -552,31 +615,53 @@ def analyze_cpp(path: str, content: str) -> CodeAnalysis:
                     raw = _t(path_node, src)
                     is_rel = raw.startswith('"')
                     module = raw.strip('"<>')
-                    imports.append(ImportInfo(
-                        module=module, names=[], is_from=False, is_relative=is_rel,
-                    ))
+                    imports.append(
+                        ImportInfo(
+                            module=module,
+                            names=[],
+                            is_from=False,
+                            is_relative=is_rel,
+                        )
+                    )
             elif nt == "using_declaration":
                 # using namespace std; or using std::string;
                 text = _t(node, src)
                 module = text.replace("using", "").replace("namespace", "").rstrip(";").strip()
                 if module:
-                    imports.append(ImportInfo(
-                        module=module, names=[], is_from=False, is_relative=False,
-                    ))
+                    imports.append(
+                        ImportInfo(
+                            module=module,
+                            names=[],
+                            is_from=False,
+                            is_relative=False,
+                        )
+                    )
 
         _walk_scope(root, src, classes, functions, top_level=True)
 
         return CodeAnalysis(
-            path=path, language="cpp", line_count=line_count,
-            module_docstring="", classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="cpp",
+            line_count=line_count,
+            module_docstring="",
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="cpp", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="cpp",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"cpp_analyzer internal error: {exc}"],
         )

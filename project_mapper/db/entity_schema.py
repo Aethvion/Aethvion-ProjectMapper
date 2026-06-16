@@ -50,66 +50,101 @@ from typing import Any
 
 VALID_STATUSES = {
     # Core lifecycle
-    "active", "stub", "deleted",
+    "active",
+    "stub",
+    "deleted",
     # Extended lifecycle (ProjectMapper / software domains)
-    "planned",       # intended but not yet implemented
-    "deprecated",    # exists but being phased out
+    "planned",  # intended but not yet implemented
+    "deprecated",  # exists but being phased out
     "experimental",  # in development / unstable
 }
 
 VALID_TYPES = {
     # General / worldbuilding
-    "person", "place", "event", "concept", "organization",
-    "artifact", "creature", "substance", "process", "phenomenon",
-    "work",       # book, film, song, game …
+    "person",
+    "place",
+    "event",
+    "concept",
+    "organization",
+    "artifact",
+    "creature",
+    "substance",
+    "process",
+    "phenomenon",
+    "work",  # book, film, song, game …
     "species",
-    "universe",   # fictional or cosmological containers
+    "universe",  # fictional or cosmological containers
     "other",
     # Software / project domain
-    "module",       # file, package, or logical code grouping
-    "service",      # deployable service, microservice, or external integration
-    "component",    # UI, architectural, or functional unit
-    "class",        # code class, interface, or abstract type
-    "function",     # function, method, procedure, or callable
-    "endpoint",     # API endpoint, route, or RPC method
-    "model",        # data model, schema, database table, or type definition
-    "workflow",     # process, pipeline, job, or sequence of steps
-    "config",       # configuration, environment settings, or feature flags
-    "dependency",   # external library, package, framework, or tool
-    "decision",     # architectural decision record (ADR), tech decision
-    "goal",         # roadmap item, planned feature, milestone, or objective
-    "constraint",   # technical constraint, performance requirement, limitation
+    "module",  # file, package, or logical code grouping
+    "service",  # deployable service, microservice, or external integration
+    "component",  # UI, architectural, or functional unit
+    "class",  # code class, interface, or abstract type
+    "function",  # function, method, procedure, or callable
+    "endpoint",  # API endpoint, route, or RPC method
+    "model",  # data model, schema, database table, or type definition
+    "workflow",  # process, pipeline, job, or sequence of steps
+    "config",  # configuration, environment settings, or feature flags
+    "dependency",  # external library, package, framework, or tool
+    "decision",  # architectural decision record (ADR), tech decision
+    "goal",  # roadmap item, planned feature, milestone, or objective
+    "constraint",  # technical constraint, performance requirement, limitation
 }
 
 RELATION_KINDS = {
     # General / narrative
-    "parent_of", "child_of",
-    "member_of", "contains",
-    "created_by", "created",
-    "located_in", "location_of",
-    "part_of", "has_part",
-    "preceded_by", "followed_by",
+    "parent_of",
+    "child_of",
+    "member_of",
+    "contains",
+    "created_by",
+    "created",
+    "located_in",
+    "location_of",
+    "part_of",
+    "has_part",
+    "preceded_by",
+    "followed_by",
     "related_to",
-    "instance_of", "has_instance",
-    "influenced_by", "influenced",
-    "participated_in", "has_participant",
+    "instance_of",
+    "has_instance",
+    "influenced_by",
+    "influenced",
+    "participated_in",
+    "has_participant",
     # Software / structural
-    "calls", "called_by",
-    "imports", "imported_by",
-    "depends_on", "dependency_of",
-    "implements", "implemented_by",
-    "extends", "extended_by",
-    "uses", "used_by",
-    "exposes", "exposed_by",
-    "configures", "configured_by",
-    "tests", "tested_by",
-    "documents", "documented_by",
-    "replaced_by", "replaces",
-    "deprecated_by", "deprecates",
-    "owns", "owned_by",
-    "reads_from", "read_by",
-    "writes_to", "written_by",
-    "triggers", "triggered_by",
+    "calls",
+    "called_by",
+    "imports",
+    "imported_by",
+    "depends_on",
+    "dependency_of",
+    "implements",
+    "implemented_by",
+    "extends",
+    "extended_by",
+    "uses",
+    "used_by",
+    "exposes",
+    "exposed_by",
+    "configures",
+    "configured_by",
+    "tests",
+    "tested_by",
+    "documents",
+    "documented_by",
+    "replaced_by",
+    "replaces",
+    "deprecated_by",
+    "deprecates",
+    "owns",
+    "owned_by",
+    "reads_from",
+    "read_by",
+    "writes_to",
+    "written_by",
+    "triggers",
+    "triggered_by",
 }
 
 
@@ -136,27 +171,27 @@ def make_empty(
     """
     now = _now_iso()
     entity: dict[str, Any] = {
-        "id":      entity_id or _new_id(),
-        "type":    entity_type if entity_type in VALID_TYPES else "other",
-        "name":    name,
-        "status":  status if status in VALID_STATUSES else "active",
+        "id": entity_id or _new_id(),
+        "type": entity_type if entity_type in VALID_TYPES else "other",
+        "name": name,
+        "status": status if status in VALID_STATUSES else "active",
         "version": 1,
         "created": now,
         "updated": now,
-        "source":  source,
+        "source": source,
         "sections": {
             "core": {
-                "summary":    "",
-                "aliases":    [],
+                "summary": "",
+                "aliases": [],
                 "categories": [],
-                "tags":       [],
+                "tags": [],
             },
-            "timeline":     [],
-            "relations":    [],
-            "properties":   {},
-            "stubs":        [],
-            "vectors":      {},
-            "source_files": [],   # [{ path, hash, lines, language, size, scanned_at }]
+            "timeline": [],
+            "relations": [],
+            "properties": {},
+            "stubs": [],
+            "vectors": {},
+            "source_files": [],  # [{ path, hash, lines, language, size, scanned_at }]
         },
     }
     if kind is not None:
@@ -171,7 +206,17 @@ def validate(entity: dict[str, Any]) -> list[str]:
     """
     errors: list[str] = []
 
-    for key in ("id", "type", "name", "status", "version", "created", "updated", "source", "sections"):
+    for key in (
+        "id",
+        "type",
+        "name",
+        "status",
+        "version",
+        "created",
+        "updated",
+        "source",
+        "sections",
+    ):
         if key not in entity:
             errors.append(f"Missing required key: {key!r}")
 

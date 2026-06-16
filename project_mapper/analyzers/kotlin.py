@@ -27,6 +27,7 @@ from __future__ import annotations
 try:
     import tree_sitter_kotlin as _tskotlin
     from tree_sitter import Language, Parser
+
     _KOTLIN_LANGUAGE = Language(_tskotlin.language())
     _AVAILABLE = True
 except Exception:
@@ -47,7 +48,7 @@ from .base import (
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -256,8 +257,13 @@ def _parse_class(node, src: bytes) -> ClassInfo | None:
     class_vars = ctor_params + enum_vars
 
     return ClassInfo(
-        name=name, kind=kind, bases=bases, methods=methods, class_vars=class_vars,
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind=kind,
+        bases=bases,
+        methods=methods,
+        class_vars=class_vars,
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 
@@ -299,10 +305,13 @@ def _parse_import(node, src: bytes) -> ImportInfo | None:
 # ---------------------------------------------------------------------------
 
 
-def _walk(node, src: bytes,
-          classes: list[ClassInfo],
-          functions: list[FunctionInfo],
-          imports: list[ImportInfo]) -> None:
+def _walk(
+    node,
+    src: bytes,
+    classes: list[ClassInfo],
+    functions: list[FunctionInfo],
+    imports: list[ImportInfo],
+) -> None:
     for child in node.children:
         nt = child.type
         if nt in ("class_declaration", "object_declaration"):
@@ -312,14 +321,16 @@ def _walk(node, src: bytes,
         elif nt == "function_declaration":
             m = _parse_function_decl(child, src)
             if m:
-                functions.append(FunctionInfo(
-                    name=m.name,
-                    args=[ArgInfo(name=a) for a in m.args],
-                    return_type=m.return_type,
-                    is_async=m.is_async,
-                    line_start=_line(child),
-                    line_end=_end_line(child),
-                ))
+                functions.append(
+                    FunctionInfo(
+                        name=m.name,
+                        args=[ArgInfo(name=a) for a in m.args],
+                        return_type=m.return_type,
+                        is_async=m.is_async,
+                        line_start=_line(child),
+                        line_end=_end_line(child),
+                    )
+                )
         elif nt == "import":
             imp = _parse_import(child, src)
             if imp:
@@ -337,11 +348,17 @@ def analyze_kotlin(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="kotlin", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="kotlin",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-kotlin not installed — run: '
+                "tree-sitter-kotlin not installed — run: "
                 'pip install "tree-sitter>=0.23.0" tree-sitter-kotlin'
             ],
         )
@@ -363,16 +380,28 @@ def analyze_kotlin(path: str, content: str) -> CodeAnalysis:
         _walk(root, src, classes, functions, imports)
 
         return CodeAnalysis(
-            path=path, language="kotlin", line_count=line_count,
-            module_docstring="", classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="kotlin",
+            line_count=line_count,
+            module_docstring="",
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="kotlin", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="kotlin",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"kotlin_analyzer internal error: {exc}"],
         )

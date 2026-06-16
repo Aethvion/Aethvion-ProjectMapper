@@ -35,18 +35,18 @@ from .base import (
 # ---------------------------------------------------------------------------
 
 _TREESITTER_AVAILABLE = False
-_TS_LANGUAGE  = None
+_TS_LANGUAGE = None
 _TSX_LANGUAGE = None
-_JS_LANGUAGE  = None
+_JS_LANGUAGE = None
 
 try:
     import tree_sitter_javascript as _tsjs
     import tree_sitter_typescript as _tsts
     from tree_sitter import Language, Parser
 
-    _TS_LANGUAGE  = Language(_tsts.language_typescript())
+    _TS_LANGUAGE = Language(_tsts.language_typescript())
     _TSX_LANGUAGE = Language(_tsts.language_tsx())
-    _JS_LANGUAGE  = Language(_tsjs.language())
+    _JS_LANGUAGE = Language(_tsjs.language())
     _TREESITTER_AVAILABLE = True
 except Exception:
     pass  # tree-sitter not installed — analyze_typescript() returns stubs
@@ -56,35 +56,97 @@ except Exception:
 # JS/TS built-ins and common globals to skip in call-graph extraction
 # ---------------------------------------------------------------------------
 
-_JS_IGNORE: frozenset[str] = frozenset({
-    # Built-ins
-    "Array", "Object", "String", "Number", "Boolean", "Symbol", "BigInt",
-    "Math", "Date", "RegExp", "Error", "Map", "Set", "WeakMap", "WeakSet",
-    "Promise", "Proxy", "Reflect", "JSON", "console", "process",
-    "setTimeout", "setInterval", "clearTimeout", "clearInterval",
-    "fetch", "URL", "URLSearchParams", "FormData", "Headers", "Request", "Response",
-    "Event", "EventTarget", "CustomEvent", "AbortController", "AbortSignal",
-    "ReadableStream", "WritableStream", "TransformStream",
-    "Buffer", "Uint8Array", "Int32Array", "Float64Array", "ArrayBuffer",
-    "parseInt", "parseFloat", "isNaN", "isFinite", "encodeURIComponent",
-    "decodeURIComponent", "encodeURI", "decodeURI",
-    # React
-    "React", "Component", "PureComponent", "Fragment",
-    "useState", "useEffect", "useContext", "useRef", "useMemo",
-    "useCallback", "useReducer", "useLayoutEffect",
-    # Common framework base classes
-    "Controller", "Injectable", "Module", "Guard", "Pipe", "Interceptor",
-    "Exception", "HttpException", "BaseEntity",
-})
+_JS_IGNORE: frozenset[str] = frozenset(
+    {
+        # Built-ins
+        "Array",
+        "Object",
+        "String",
+        "Number",
+        "Boolean",
+        "Symbol",
+        "BigInt",
+        "Math",
+        "Date",
+        "RegExp",
+        "Error",
+        "Map",
+        "Set",
+        "WeakMap",
+        "WeakSet",
+        "Promise",
+        "Proxy",
+        "Reflect",
+        "JSON",
+        "console",
+        "process",
+        "setTimeout",
+        "setInterval",
+        "clearTimeout",
+        "clearInterval",
+        "fetch",
+        "URL",
+        "URLSearchParams",
+        "FormData",
+        "Headers",
+        "Request",
+        "Response",
+        "Event",
+        "EventTarget",
+        "CustomEvent",
+        "AbortController",
+        "AbortSignal",
+        "ReadableStream",
+        "WritableStream",
+        "TransformStream",
+        "Buffer",
+        "Uint8Array",
+        "Int32Array",
+        "Float64Array",
+        "ArrayBuffer",
+        "parseInt",
+        "parseFloat",
+        "isNaN",
+        "isFinite",
+        "encodeURIComponent",
+        "decodeURIComponent",
+        "encodeURI",
+        "decodeURI",
+        # React
+        "React",
+        "Component",
+        "PureComponent",
+        "Fragment",
+        "useState",
+        "useEffect",
+        "useContext",
+        "useRef",
+        "useMemo",
+        "useCallback",
+        "useReducer",
+        "useLayoutEffect",
+        # Common framework base classes
+        "Controller",
+        "Injectable",
+        "Module",
+        "Guard",
+        "Pipe",
+        "Interceptor",
+        "Exception",
+        "HttpException",
+        "BaseEntity",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Tree-sitter node helpers
 # ---------------------------------------------------------------------------
 
+
 def _text(node, src: bytes) -> str:
     """Extract UTF-8 text for a node."""
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _field(node, name: str):
@@ -124,26 +186,31 @@ def _preceding_jsdoc(node, src: bytes) -> str:
     Strips trailing JS wrapper keywords (export, default, async, declare,
     abstract) so that exported declarations find their JSDoc correctly.
     """
-    before = src[:node.start_byte].decode("utf-8", errors="replace")
+    before = src[: node.start_byte].decode("utf-8", errors="replace")
     # Strip keyword tokens that may appear between the JSDoc and this node
-    before = re.sub(r"\s*\b(export|default|async|declare|abstract)\b\s*$", "", before.rstrip(), count=3)
+    before = re.sub(
+        r"\s*\b(export|default|async|declare|abstract)\b\s*$", "", before.rstrip(), count=3
+    )
     before = before.rstrip()
     if not before.endswith("*/"):
         return ""
     start = before.rfind("/**")
     if start < 0:
         return ""
-    inner = before[start + 3:]       # skip leading /**
+    inner = before[start + 3 :]  # skip leading /**
     if inner.endswith("*/"):
-        inner = inner[:-2]            # strip trailing */
+        inner = inner[:-2]  # strip trailing */
     lines = inner.split("\n")
-    text = " ".join(line.strip().lstrip("*").strip() for line in lines if line.strip().lstrip("*").strip())
+    text = " ".join(
+        line.strip().lstrip("*").strip() for line in lines if line.strip().lstrip("*").strip()
+    )
     return text[:200]
 
 
 # ---------------------------------------------------------------------------
 # Import extraction
 # ---------------------------------------------------------------------------
+
 
 def _extract_imports(root, src: bytes) -> list[ImportInfo]:
     imports: list[ImportInfo] = []
@@ -170,8 +237,11 @@ def _parse_import(node, src: bytes, out: list[ImportInfo]) -> None:
 
     clause = _first(node, "import_clause")
     if not clause:
-        out.append(ImportInfo(module=module_path, names=[], is_from=True,
-                              is_relative=is_relative, level=level))
+        out.append(
+            ImportInfo(
+                module=module_path, names=[], is_from=True, is_relative=is_relative, level=level
+            )
+        )
         return
 
     names: list[str] = []
@@ -188,8 +258,11 @@ def _parse_import(node, src: bytes, out: list[ImportInfo]) -> None:
             if id_node:
                 names.append(f"* as {_text(id_node, src)}")
 
-    out.append(ImportInfo(module=module_path, names=names, is_from=True,
-                          is_relative=is_relative, level=level))
+    out.append(
+        ImportInfo(
+            module=module_path, names=names, is_from=True, is_relative=is_relative, level=level
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +281,9 @@ def _extract_classes(root, src: bytes) -> list[ClassInfo]:
         if ntype == "export_statement":
             for child in node.children:
                 if child.type in _CLASS_TYPES:
-                    _parse_class(child, src, classes, is_abstract="abstract" in _text(child, src)[:10])
+                    _parse_class(
+                        child, src, classes, is_abstract="abstract" in _text(child, src)[:10]
+                    )
                 else:
                     _walk(child, in_class)
             return
@@ -252,8 +327,9 @@ def _parse_class(node, src: bytes, out: list[ClassInfo], is_abstract: bool = Fal
                 if m:
                     methods.append(m)
             elif child.type in ("public_field_definition", "field_definition"):
-                fname_node = (_field(child, "name")
-                              or _first(child, "property_identifier", "identifier"))
+                fname_node = _field(child, "name") or _first(
+                    child, "property_identifier", "identifier"
+                )
                 if fname_node:
                     fname = _text(fname_node, src)
                     if re.match(r"^[A-Z][A-Z0-9_]*$", fname):
@@ -262,29 +338,31 @@ def _parse_class(node, src: bytes, out: list[ClassInfo], is_abstract: bool = Fal
     # Call graph — new_expression nodes inside the class body
     calls = _extract_class_calls(body, src, name) if body else []
 
-    out.append(ClassInfo(
-        name=name,
-        bases=bases,
-        methods=methods,
-        class_vars=class_vars,
-        decorators=[],
-        docstring=_preceding_jsdoc(node, src),
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=calls,
-        kind="abstract" if is_abstract else "",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=class_vars,
+            decorators=[],
+            docstring=_preceding_jsdoc(node, src),
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=calls,
+            kind="abstract" if is_abstract else "",
+        )
+    )
 
 
 def _parse_method(node, src: bytes):
-    name_node = (_field(node, "name")
-                 or _first(node, "property_identifier", "identifier",
-                            "private_property_identifier"))
+    name_node = _field(node, "name") or _first(
+        node, "property_identifier", "identifier", "private_property_identifier"
+    )
     if not name_node:
         return None
     name = _text(name_node, src)
 
-    is_async  = any(c.type == "async" for c in node.children)
+    is_async = any(c.type == "async" for c in node.children)
     is_static = any(c.type == "static" for c in node.children)
     is_getter = any(c.type == "get" for c in node.children)
     is_setter = any(c.type == "set" for c in node.children)
@@ -295,8 +373,15 @@ def _parse_method(node, src: bytes):
     ret_node = _field(node, "return_type")
     return_type = ""
     if ret_node:
-        inner = _first(ret_node, "type_identifier", "predefined_type",
-                       "union_type", "array_type", "generic_type", "void_type")
+        inner = _first(
+            ret_node,
+            "type_identifier",
+            "predefined_type",
+            "union_type",
+            "array_type",
+            "generic_type",
+            "void_type",
+        )
         return_type = _text(inner, src) if inner else _text(ret_node, src).lstrip(":").strip()
 
     return MethodInfo(
@@ -317,8 +402,12 @@ def _parse_params(params_node, src: bytes) -> list[str]:
     for child in params_node.children:
         if child.type == "identifier":
             args.append(_text(child, src))
-        elif child.type in ("required_parameter", "optional_parameter",
-                            "rest_parameter", "assignment_pattern"):
+        elif child.type in (
+            "required_parameter",
+            "optional_parameter",
+            "rest_parameter",
+            "assignment_pattern",
+        ):
             name_node = _first(child, "identifier", "object_pattern", "array_pattern")
             if name_node:
                 suffix = "?" if child.type == "optional_parameter" else ""
@@ -334,7 +423,9 @@ def _extract_class_calls(body, src: bytes, own_name: str) -> list[tuple[str, str
     def _scan(node, method_name: str = ""):
         for child in node.children:
             if child.type == "method_definition":
-                mname_node = _field(child, "name") or _first(child, "property_identifier", "identifier")
+                mname_node = _field(child, "name") or _first(
+                    child, "property_identifier", "identifier"
+                )
                 mname = _text(mname_node, src) if mname_node else ""
                 _scan(child, mname)
                 continue
@@ -343,8 +434,12 @@ def _extract_class_calls(body, src: bytes, own_name: str) -> list[tuple[str, str
                 callee = _first(child, "identifier", "member_expression")
                 if callee:
                     cname = _text(callee, src).split(".")[0]
-                    if (cname and cname[0].isupper() and cname not in _JS_IGNORE
-                            and cname != own_name):
+                    if (
+                        cname
+                        and cname[0].isupper()
+                        and cname not in _JS_IGNORE
+                        and cname != own_name
+                    ):
                         pair = (cname, method_name)
                         if pair not in seen:
                             seen.add(pair)
@@ -354,16 +449,24 @@ def _extract_class_calls(body, src: bytes, own_name: str) -> list[tuple[str, str
                 func = _field(child, "function") or _first(child, "identifier", "member_expression")
                 if func and func.type == "identifier":
                     cname = _text(func, src)
-                    if (cname and cname[0].isupper() and cname not in _JS_IGNORE
-                            and cname != own_name):
+                    if (
+                        cname
+                        and cname[0].isupper()
+                        and cname not in _JS_IGNORE
+                        and cname != own_name
+                    ):
                         pair = (cname, method_name)
                         if pair not in seen:
                             seen.add(pair)
                             results.append(pair)
                 elif func and func.type == "member_expression":
                     cname = _text(func, src).split(".")[0]
-                    if (cname and cname[0].isupper() and cname not in _JS_IGNORE
-                            and cname != own_name):
+                    if (
+                        cname
+                        and cname[0].isupper()
+                        and cname not in _JS_IGNORE
+                        and cname != own_name
+                    ):
                         pair = (cname, method_name)
                         if pair not in seen:
                             seen.add(pair)
@@ -378,6 +481,7 @@ def _extract_class_calls(body, src: bytes, own_name: str) -> list[tuple[str, str
 # ---------------------------------------------------------------------------
 # Interface extraction (TypeScript only)
 # ---------------------------------------------------------------------------
+
 
 def _extract_interfaces(root, src: bytes) -> list[ClassInfo]:
     interfaces: list[ClassInfo] = []
@@ -420,28 +524,28 @@ def _parse_interface(node, src: bytes, out: list[ClassInfo]) -> None:
             if child.type in ("method_signature", "call_signature"):
                 n = _field(child, "name") or _first(child, "property_identifier", "identifier")
                 if n:
-                    params_node = (_field(child, "parameters")
-                                   or _first(child, "formal_parameters"))
+                    params_node = _field(child, "parameters") or _first(child, "formal_parameters")
                     args = _parse_params(params_node, src) if params_node else []
                     is_async = any(c.type == "async" for c in child.children)
-                    methods.append(MethodInfo(name=_text(n, src), args=args,
-                                              is_async=is_async))
+                    methods.append(MethodInfo(name=_text(n, src), args=args, is_async=is_async))
             elif child.type == "property_signature":
                 # Interface properties (not methods) — record as class vars equivalent
                 pass
 
-    out.append(ClassInfo(
-        name=name,
-        bases=bases,
-        methods=methods,
-        class_vars=[],
-        decorators=[],
-        docstring=_preceding_jsdoc(node, src),
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=[],
-        kind="interface",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=[],
+            decorators=[],
+            docstring=_preceding_jsdoc(node, src),
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="interface",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -499,12 +603,19 @@ def _parse_named_function(node, src: bytes, out: list[FunctionInfo]) -> None:
     ret_node = _field(node, "return_type")
     return_type = _text(ret_node, src).lstrip(":").strip() if ret_node else ""
 
-    out.append(FunctionInfo(
-        name=name, args=args, return_type=return_type, decorators=[],
-        docstring=_preceding_jsdoc(node, src), is_async=is_async,
-        line_start=_line(node), line_end=_end_line(node),
-        calls=_extract_function_calls(node, src, name),
-    ))
+    out.append(
+        FunctionInfo(
+            name=name,
+            args=args,
+            return_type=return_type,
+            decorators=[],
+            docstring=_preceding_jsdoc(node, src),
+            is_async=is_async,
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=_extract_function_calls(node, src, name),
+        )
+    )
 
 
 def _parse_arrow_declarations(node, src: bytes, out: list[FunctionInfo]) -> None:
@@ -516,16 +627,14 @@ def _parse_arrow_declarations(node, src: bytes, out: list[FunctionInfo]) -> None
         value_node = _field(decl, "value")
         if not name_node or not value_node:
             continue
-        if value_node.type not in ("arrow_function", "function_expression",
-                                   "generator_function"):
+        if value_node.type not in ("arrow_function", "function_expression", "generator_function"):
             continue
         name = _text(name_node, src)
         if name.startswith("_"):
             continue
 
         is_async = any(c.type == "async" for c in value_node.children)
-        params_node = (_field(value_node, "parameters")
-                       or _first(value_node, "formal_parameters"))
+        params_node = _field(value_node, "parameters") or _first(value_node, "formal_parameters")
         if params_node:
             args = [ArgInfo(name=p) for p in _parse_params(params_node, src)]
         else:
@@ -536,12 +645,19 @@ def _parse_arrow_declarations(node, src: bytes, out: list[FunctionInfo]) -> None
         ret_node = _field(value_node, "return_type")
         return_type = _text(ret_node, src).lstrip(":").strip() if ret_node else ""
 
-        out.append(FunctionInfo(
-            name=name, args=args, return_type=return_type, decorators=[],
-            docstring=jsdoc, is_async=is_async,
-            line_start=_line(decl), line_end=_end_line(decl),
-            calls=_extract_function_calls(value_node, src, name),
-        ))
+        out.append(
+            FunctionInfo(
+                name=name,
+                args=args,
+                return_type=return_type,
+                decorators=[],
+                docstring=jsdoc,
+                is_async=is_async,
+                line_start=_line(decl),
+                line_end=_end_line(decl),
+                calls=_extract_function_calls(value_node, src, name),
+            )
+        )
 
 
 def _extract_function_calls(node, src: bytes, fn_name: str) -> list[tuple[str, str]]:
@@ -561,14 +677,12 @@ def _extract_function_calls(node, src: bytes, fn_name: str) -> list[tuple[str, s
             func = _field(n, "function") or _first(n, "identifier", "member_expression")
             if func and func.type == "identifier":
                 cname = _text(func, src)
-                if (cname and cname[0].isupper() and cname not in _JS_IGNORE
-                        and cname not in seen):
+                if cname and cname[0].isupper() and cname not in _JS_IGNORE and cname not in seen:
                     seen.add(cname)
                     results.append((cname, fn_name))
             elif func and func.type == "member_expression":
                 cname = _text(func, src).split(".")[0]
-                if (cname and cname[0].isupper() and cname not in _JS_IGNORE
-                        and cname not in seen):
+                if cname and cname[0].isupper() and cname not in _JS_IGNORE and cname not in seen:
                     seen.add(cname)
                     results.append((cname, fn_name))
         for child in n.children:
@@ -583,8 +697,11 @@ def _extract_function_calls(node, src: bytes, fn_name: str) -> list[tuple[str, s
 # ---------------------------------------------------------------------------
 
 _EXT_TO_LANG = {
-    ".ts": "typescript", ".tsx": "typescript",
-    ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".mjs": "javascript",
 }
 
 
@@ -609,12 +726,18 @@ def analyze_typescript(path: str, content: str, language: str = "") -> CodeAnaly
 
     if not _TREESITTER_AVAILABLE:
         return CodeAnalysis(
-            path=path, language=lang_name, line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language=lang_name,
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
                 "tree-sitter not installed — run: "
-                "pip install \"tree-sitter>=0.23.0\" "
+                'pip install "tree-sitter>=0.23.0" '
                 "tree-sitter-typescript tree-sitter-javascript"
             ],
         )
@@ -633,10 +756,10 @@ def analyze_typescript(path: str, content: str, language: str = "") -> CodeAnaly
         if root.has_error:
             parse_errors.append("File contains syntax errors (partial extraction attempted)")
 
-        imports    = _extract_imports(root, src)
-        classes    = _extract_classes(root, src)
+        imports = _extract_imports(root, src)
+        classes = _extract_classes(root, src)
         interfaces = _extract_interfaces(root, src) if lang_name == "typescript" else []
-        functions  = _extract_functions(root, src)
+        functions = _extract_functions(root, src)
 
         return CodeAnalysis(
             path=path,
@@ -653,8 +776,14 @@ def analyze_typescript(path: str, content: str, language: str = "") -> CodeAnaly
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language=lang_name, line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language=lang_name,
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"AnalysisError: {exc}"],
         )

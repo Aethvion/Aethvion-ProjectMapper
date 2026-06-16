@@ -6,14 +6,22 @@ map and a centre entity, build its relation neighbourhood and render it.
 Used by both the pm_visualize MCP tool and the HTTP /query/visualize endpoint —
 neither contains diagram logic itself.
 """
+
 from __future__ import annotations
 
 from collections import deque
 from typing import Any
 
-_VIZ_DEFAULT_KINDS: frozenset[str] = frozenset({
-    "calls", "imports", "uses", "extends", "implements", "depends_on",
-})
+_VIZ_DEFAULT_KINDS: frozenset[str] = frozenset(
+    {
+        "calls",
+        "imports",
+        "uses",
+        "extends",
+        "implements",
+        "depends_on",
+    }
+)
 
 
 def _viz_node_id(entity_id: str) -> str:
@@ -22,7 +30,7 @@ def _viz_node_id(entity_id: str) -> str:
 
 
 def _viz_node_label(entity: dict) -> str:
-    name  = entity.get("name", "?")
+    name = entity.get("name", "?")
     etype = entity.get("type", "")
     return f"{name}\\n[{etype}]" if etype else name
 
@@ -30,7 +38,7 @@ def _viz_node_label(entity: dict) -> str:
 def _viz_mermaid(center_id: str, nodes: dict, edges: list, truncated: bool) -> str:
     lines = ["```mermaid", "graph TD"]
     for eid, entity in nodes.items():
-        nid   = _viz_node_id(eid)
+        nid = _viz_node_id(eid)
         label = _viz_node_label(entity).replace('"', "'")
         lines.append(f'    {nid}["{label}"]')
     lines.append("")
@@ -58,16 +66,15 @@ def _viz_dot(center_id: str, nodes: dict, edges: list, truncated: bool) -> str:
     lines = [
         "```dot",
         "digraph pm_visualize {",
-        '    rankdir=LR',
+        "    rankdir=LR",
         '    node [shape=box fontname="Helvetica"]',
     ]
     for eid, entity in nodes.items():
-        nid   = _viz_node_id(eid)
+        nid = _viz_node_id(eid)
         label = _viz_node_label(entity).replace('"', "'")
         if eid == center_id:
             lines.append(
-                f'    {nid} [label="{label}" style=filled '
-                'fillcolor="#4a90d9" fontcolor=white]'
+                f'    {nid} [label="{label}" style=filled fillcolor="#4a90d9" fontcolor=white]'
             )
         else:
             lines.append(f'    {nid} [label="{label}"]')
@@ -108,10 +115,10 @@ def build_diagram(
       {"status": "ok", "center", "center_type", "nodes", "edges", "depth",
        "format", "diagram", "truncated", "max_nodes"}
     """
-    depth     = max(1, min(4, int(depth or 2)))
+    depth = max(1, min(4, int(depth or 2)))
     direction = (direction or "both").lower()
     rel_kinds = frozenset(relations or []) or _VIZ_DEFAULT_KINDS
-    fmt       = (fmt or "mermaid").lower()
+    fmt = (fmt or "mermaid").lower()
     max_nodes = max(5, min(150, int(max_nodes or 40)))
 
     if not entity_map:
@@ -139,7 +146,7 @@ def build_diagram(
     rev: dict[str, list[tuple[str, str]]] = {}
     for eid2, e in entity_map.items():
         for rel in e.get("sections", {}).get("relations", []):
-            kind      = rel.get("kind", "")
+            kind = rel.get("kind", "")
             target_id = rel.get("target_id", "")
             if not kind or not target_id or kind not in rel_kinds:
                 continue
@@ -152,7 +159,7 @@ def build_diagram(
     collected_edges: list[tuple[str, str, str]] = []
 
     while queue and len(visited) < max_nodes:
-        curr_id  = queue.popleft()
+        curr_id = queue.popleft()
         curr_hop = visited[curr_id]
         if curr_hop >= depth:
             continue
@@ -186,14 +193,14 @@ def build_diagram(
         else _viz_mermaid(center_id, nodes, collected_edges, truncated)
     )
     return {
-        "status":      "ok",
-        "center":      center["name"],
+        "status": "ok",
+        "center": center["name"],
         "center_type": center.get("type", "entity"),
-        "nodes":       len(nodes),
-        "edges":       edge_count,
-        "depth":       depth,
-        "format":      fmt,
-        "diagram":     diagram,
-        "truncated":   truncated,
-        "max_nodes":   max_nodes,
+        "nodes": len(nodes),
+        "edges": edge_count,
+        "depth": depth,
+        "format": fmt,
+        "diagram": diagram,
+        "truncated": truncated,
+        "max_nodes": max_nodes,
     }

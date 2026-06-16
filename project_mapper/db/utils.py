@@ -7,6 +7,7 @@ Provides the three helpers that the DB layer depends on:
   atomic_json_write — write JSON atomically (temp-file + rename)
   load_json         — load JSON from a path with a safe default on error
 """
+
 from __future__ import annotations
 
 import json

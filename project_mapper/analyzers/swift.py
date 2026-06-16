@@ -31,6 +31,7 @@ from __future__ import annotations
 try:
     import tree_sitter_swift as _tsswift
     from tree_sitter import Language, Parser
+
     _SWIFT_LANGUAGE = Language(_tsswift.language())
     _AVAILABLE = True
 except Exception:
@@ -51,7 +52,7 @@ from .base import (
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -125,7 +126,7 @@ def _swift_kind(node, src: bytes) -> str:
         if ct == "extension":
             return "extension"
         if ct == "class":
-            return ""   # regular class
+            return ""  # regular class
     return ""
 
 
@@ -241,8 +242,11 @@ def _parse_func_decl(node, src: bytes) -> MethodInfo | None:
             break
 
     return MethodInfo(
-        name=name, args=args, return_type=return_type,
-        is_async=is_async, is_classmethod=is_class,
+        name=name,
+        args=args,
+        return_type=return_type,
+        is_async=is_async,
+        is_classmethod=is_class,
     )
 
 
@@ -341,9 +345,14 @@ def _parse_class_decl(node, src: bytes) -> ClassInfo | None:
     methods, class_vars, calls = _parse_class_body(body_node, src, kind)
 
     return ClassInfo(
-        name=name, kind=kind, bases=bases, methods=methods, class_vars=class_vars,
+        name=name,
+        kind=kind,
+        bases=bases,
+        methods=methods,
+        class_vars=class_vars,
         calls=calls,
-        line_start=_line(node), line_end=_end_line(node),
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 
@@ -358,8 +367,13 @@ def _parse_protocol_decl(node, src: bytes) -> ClassInfo | None:
     methods = _parse_protocol_body(body_node, src)
 
     return ClassInfo(
-        name=name, kind="protocol", bases=[], methods=methods, class_vars=[],
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind="protocol",
+        bases=[],
+        methods=methods,
+        class_vars=[],
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 
@@ -368,10 +382,13 @@ def _parse_protocol_decl(node, src: bytes) -> ClassInfo | None:
 # ---------------------------------------------------------------------------
 
 
-def _walk(node, src: bytes,
-          classes: list[ClassInfo],
-          functions: list[FunctionInfo],
-          imports: list[ImportInfo]) -> None:
+def _walk(
+    node,
+    src: bytes,
+    classes: list[ClassInfo],
+    functions: list[FunctionInfo],
+    imports: list[ImportInfo],
+) -> None:
     for child in node.children:
         nt = child.type
         if nt == "class_declaration":
@@ -385,23 +402,32 @@ def _walk(node, src: bytes,
         elif nt == "typealias_declaration":
             name_node = child.child_by_field_name("name")
             if name_node:
-                classes.append(ClassInfo(
-                    name=_t(name_node, src), kind="typealias", bases=[], methods=[],
-                    class_vars=[], line_start=_line(child), line_end=_end_line(child),
-                ))
+                classes.append(
+                    ClassInfo(
+                        name=_t(name_node, src),
+                        kind="typealias",
+                        bases=[],
+                        methods=[],
+                        class_vars=[],
+                        line_start=_line(child),
+                        line_end=_end_line(child),
+                    )
+                )
         elif nt == "function_declaration":
             m = _parse_func_decl(child, src)
             if m:
                 fn_calls = _collect_calls_swift(child.child_by_field_name("body"), src)
-                functions.append(FunctionInfo(
-                    name=m.name,
-                    args=[ArgInfo(name=a) for a in m.args],
-                    return_type=m.return_type,
-                    is_async=m.is_async,
-                    calls=fn_calls,
-                    line_start=_line(child),
-                    line_end=_end_line(child),
-                ))
+                functions.append(
+                    FunctionInfo(
+                        name=m.name,
+                        args=[ArgInfo(name=a) for a in m.args],
+                        return_type=m.return_type,
+                        is_async=m.is_async,
+                        calls=fn_calls,
+                        line_start=_line(child),
+                        line_end=_end_line(child),
+                    )
+                )
         elif nt == "import_declaration":
             # import Foundation  /  import UIKit
             # The module name is after the `import` keyword
@@ -411,9 +437,14 @@ def _walk(node, src: bytes,
                     parts.append(_t(c, src))
             if parts:
                 module = ".".join(parts)
-                imports.append(ImportInfo(
-                    module=module, names=[], is_from=False, is_relative=False,
-                ))
+                imports.append(
+                    ImportInfo(
+                        module=module,
+                        names=[],
+                        is_from=False,
+                        is_relative=False,
+                    )
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -427,11 +458,17 @@ def analyze_swift(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="swift", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="swift",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-swift not installed — run: '
+                "tree-sitter-swift not installed — run: "
                 'pip install "tree-sitter>=0.23.0" tree-sitter-swift'
             ],
         )
@@ -453,16 +490,28 @@ def analyze_swift(path: str, content: str) -> CodeAnalysis:
         _walk(root, src, classes, functions, imports)
 
         return CodeAnalysis(
-            path=path, language="swift", line_count=line_count,
-            module_docstring="", classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="swift",
+            line_count=line_count,
+            module_docstring="",
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="swift", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="swift",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"swift_analyzer internal error: {exc}"],
         )

@@ -1,4 +1,5 @@
 """project_mapper.core.query.orphans — orphans query."""
+
 from __future__ import annotations
 
 import logging
@@ -17,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 def orphan_query(
-    entity_map:      dict[str, dict],
-    types:           list[str] | None = None,
+    entity_map: dict[str, dict],
+    types: list[str] | None = None,
     include_modules: bool = False,
-    max_results:     int  = 100,
+    max_results: int = 100,
 ) -> dict[str, Any]:
     """
     Find entities with no inbound dependency-forming relations — potential dead code.
@@ -42,8 +43,8 @@ def orphan_query(
                     referenced_ids.add(tid)
 
     allowed_types = set(types) if types else None
-    orphans:       list[dict] = []
-    skipped_count: int        = 0
+    orphans: list[dict] = []
+    skipped_count: int = 0
 
     for eid, entity in entity_map.items():
         if entity.get("status") in ("deleted", "stub"):
@@ -57,8 +58,8 @@ def orphan_query(
         if allowed_types and etype not in allowed_types:
             continue
 
-        name      = entity.get("name", "")
-        props     = entity.get("sections", {}).get("properties", {})
+        name = entity.get("name", "")
+        props = entity.get("sections", {}).get("properties", {})
         file_path = props.get("file_path", "")
 
         fp_parts = set(file_path.replace("\\", "/").split("/"))
@@ -73,23 +74,23 @@ def orphan_query(
             skipped_count += 1
             continue
 
-        orphans.append({
-            "id":         eid,
-            "name":       name,
-            "type":       etype,
-            "kind":       entity.get("kind"),
-            "file_path":  file_path,
-            "line_start": props.get("line_start", ""),
-            "summary":    entity.get("sections", {})
-                               .get("core", {})
-                               .get("summary", "")[:120],
-        })
+        orphans.append(
+            {
+                "id": eid,
+                "name": name,
+                "type": etype,
+                "kind": entity.get("kind"),
+                "file_path": file_path,
+                "line_start": props.get("line_start", ""),
+                "summary": entity.get("sections", {}).get("core", {}).get("summary", "")[:120],
+            }
+        )
 
     orphans.sort(key=lambda x: (x["type"], x["name"]))
 
     return {
-        "orphans":          orphans[:max_results],
-        "total":            len(orphans),
-        "skipped_count":    skipped_count,
+        "orphans": orphans[:max_results],
+        "total": len(orphans),
+        "skipped_count": skipped_count,
         "referenced_count": len(referenced_ids),
     }

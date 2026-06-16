@@ -53,35 +53,91 @@ except Exception:
 # Java standard-library classes to exclude from call graphs
 # ---------------------------------------------------------------------------
 
-_JAVA_IGNORE: frozenset[str] = frozenset({
-    # java.lang (auto-imported)
-    "Object", "String", "Integer", "Long", "Double", "Float", "Boolean",
-    "Byte", "Short", "Character", "Number", "Math", "System", "Runtime",
-    "Thread", "Runnable", "Enum", "Record", "Class", "ClassLoader",
-    "Throwable", "Exception", "Error", "RuntimeException",
-    "NullPointerException", "IllegalArgumentException", "IllegalStateException",
-    "IndexOutOfBoundsException", "UnsupportedOperationException",
-    "StringBuilder", "StringBuffer", "Comparable", "Iterable", "Cloneable",
-    # java.util
-    "List", "ArrayList", "LinkedList", "Map", "HashMap", "LinkedHashMap",
-    "TreeMap", "Set", "HashSet", "LinkedHashSet", "TreeSet", "Queue",
-    "Deque", "ArrayDeque", "PriorityQueue", "Collections", "Arrays",
-    "Optional", "Stream", "Iterator", "ListIterator",
-    # java.io / java.nio
-    "File", "Path", "Paths", "Files", "InputStream", "OutputStream",
-    "Reader", "Writer", "BufferedReader", "BufferedWriter",
-    "PrintWriter", "PrintStream",
-    # Spring / Jakarta common base types (skip, too generic)
-    "Object",
-})
+_JAVA_IGNORE: frozenset[str] = frozenset(
+    {
+        # java.lang (auto-imported)
+        "Object",
+        "String",
+        "Integer",
+        "Long",
+        "Double",
+        "Float",
+        "Boolean",
+        "Byte",
+        "Short",
+        "Character",
+        "Number",
+        "Math",
+        "System",
+        "Runtime",
+        "Thread",
+        "Runnable",
+        "Enum",
+        "Record",
+        "Class",
+        "ClassLoader",
+        "Throwable",
+        "Exception",
+        "Error",
+        "RuntimeException",
+        "NullPointerException",
+        "IllegalArgumentException",
+        "IllegalStateException",
+        "IndexOutOfBoundsException",
+        "UnsupportedOperationException",
+        "StringBuilder",
+        "StringBuffer",
+        "Comparable",
+        "Iterable",
+        "Cloneable",
+        # java.util
+        "List",
+        "ArrayList",
+        "LinkedList",
+        "Map",
+        "HashMap",
+        "LinkedHashMap",
+        "TreeMap",
+        "Set",
+        "HashSet",
+        "LinkedHashSet",
+        "TreeSet",
+        "Queue",
+        "Deque",
+        "ArrayDeque",
+        "PriorityQueue",
+        "Collections",
+        "Arrays",
+        "Optional",
+        "Stream",
+        "Iterator",
+        "ListIterator",
+        # java.io / java.nio
+        "File",
+        "Path",
+        "Paths",
+        "Files",
+        "InputStream",
+        "OutputStream",
+        "Reader",
+        "Writer",
+        "BufferedReader",
+        "BufferedWriter",
+        "PrintWriter",
+        "PrintStream",
+        # Spring / Jakarta common base types (skip, too generic)
+        "Object",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Tree-sitter node helpers
 # ---------------------------------------------------------------------------
 
+
 def _text(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _field(node, name: str):
@@ -124,6 +180,7 @@ def _has_modifier(modifiers_node, *keywords: str) -> bool:
 # Import extraction
 # ---------------------------------------------------------------------------
 
+
 def _scoped_id_to_str(node, src: bytes) -> str:
     """Flatten a scoped_identifier / identifier into a dotted string."""
     return _text(node, src)
@@ -161,13 +218,15 @@ def _extract_imports(root, src: bytes) -> list[ImportInfo]:
             names = [parts[-1]] if parts else []
             module = ".".join(parts[:-1]) if len(parts) > 1 else module_path
 
-        imports.append(ImportInfo(
-            module=module,
-            names=names,
-            is_from=True,
-            is_relative=False,
-            level=0,
-        ))
+        imports.append(
+            ImportInfo(
+                module=module,
+                names=names,
+                is_from=True,
+                is_relative=False,
+                level=0,
+            )
+        )
 
     return imports
 
@@ -212,6 +271,7 @@ def _walk_declarations(node, src: bytes, out: list[ClassInfo], depth: int) -> No
 
 # --- Class ---
 
+
 def _parse_class(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None:
     name_node = _first(node, "identifier")
     if not name_node:
@@ -244,18 +304,20 @@ def _parse_class(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None
     if body:
         _walk_declarations(body, src, out, depth + 1)
 
-    out.append(ClassInfo(
-        name=name,
-        bases=bases,
-        methods=methods,
-        class_vars=class_vars,
-        decorators=decorators,
-        docstring="",
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=calls,
-        kind="abstract" if is_abstract else "",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=class_vars,
+            decorators=decorators,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=calls,
+            kind="abstract" if is_abstract else "",
+        )
+    )
 
 
 def _parse_class_body(body, src: bytes, own_name: str):
@@ -291,6 +353,7 @@ def _parse_class_body(body, src: bytes, own_name: str):
 
 # --- Interface ---
 
+
 def _parse_interface(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None:
     name_node = _first(node, "identifier")
     if not name_node:
@@ -320,21 +383,24 @@ def _parse_interface(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> 
             elif child.type == "class_declaration":
                 _parse_class(child, src, out, depth + 1)
 
-    out.append(ClassInfo(
-        name=name,
-        bases=bases,
-        methods=methods,
-        class_vars=[],
-        decorators=decorators,
-        docstring="",
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=[],
-        kind="interface",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=[],
+            decorators=decorators,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="interface",
+        )
+    )
 
 
 # --- Enum ---
+
 
 def _parse_enum(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None:
     name_node = _first(node, "identifier")
@@ -376,21 +442,24 @@ def _parse_enum(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None:
                 elif child.type == "class_declaration":
                     _parse_class(child, src, out, depth + 1)
 
-    out.append(ClassInfo(
-        name=name,
-        bases=bases,
-        methods=methods,
-        class_vars=enum_constants,
-        decorators=decorators,
-        docstring="",
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=[],
-        kind="enum",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=enum_constants,
+            decorators=decorators,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="enum",
+        )
+    )
 
 
 # --- Record ---
+
 
 def _parse_record(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None:
     name_node = _first(node, "identifier")
@@ -430,21 +499,24 @@ def _parse_record(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> Non
                 if m:
                     methods.append(m)
 
-    out.append(ClassInfo(
-        name=name,
-        bases=bases,
-        methods=methods,
-        class_vars=components,
-        decorators=decorators,
-        docstring="",
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=[],
-        kind="record",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=bases,
+            methods=methods,
+            class_vars=components,
+            decorators=decorators,
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="record",
+        )
+    )
 
 
 # --- Annotation type ---
+
 
 def _parse_annotation(node, src: bytes, out: list[ClassInfo], depth: int = 0) -> None:
     name_node = _first(node, "identifier")
@@ -461,23 +533,26 @@ def _parse_annotation(node, src: bytes, out: list[ClassInfo], depth: int = 0) ->
                 if id_node:
                     elements.append(_text(id_node, src))
 
-    out.append(ClassInfo(
-        name=name,
-        bases=[],
-        methods=[MethodInfo(name=e, args=[]) for e in elements],
-        class_vars=[],
-        decorators=[],
-        docstring="",
-        line_start=_line(node),
-        line_end=_end_line(node),
-        calls=[],
-        kind="annotation",
-    ))
+    out.append(
+        ClassInfo(
+            name=name,
+            bases=[],
+            methods=[MethodInfo(name=e, args=[]) for e in elements],
+            class_vars=[],
+            decorators=[],
+            docstring="",
+            line_start=_line(node),
+            line_end=_end_line(node),
+            calls=[],
+            kind="annotation",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Method / constructor parsing
 # ---------------------------------------------------------------------------
+
 
 def _parse_method(node, src: bytes) -> MethodInfo | None:
     name_node = _first(node, "identifier")
@@ -486,7 +561,7 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
     name = _text(name_node, src)
 
     modifiers = _first(node, "modifiers")
-    is_static   = _has_modifier(modifiers, "static")
+    is_static = _has_modifier(modifiers, "static")
     _has_modifier(modifiers, "abstract")
 
     params_node = _first(node, "formal_parameters")
@@ -494,8 +569,14 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
 
     # Return type: first type node before identifier (various Java type nodes)
     _TYPE_NODES = {
-        "type_identifier", "void_type", "integral_type", "floating_point_type",
-        "boolean_type", "generic_type", "array_type", "wildcard_type",
+        "type_identifier",
+        "void_type",
+        "integral_type",
+        "floating_point_type",
+        "boolean_type",
+        "generic_type",
+        "array_type",
+        "wildcard_type",
     }
     return_type = ""
     for child in node.children:
@@ -525,7 +606,7 @@ def _parse_constructor(node, src: bytes) -> MethodInfo | None:
     params_node = _first(node, "formal_parameters")
     args = _parse_params(params_node, src) if params_node else []
     return MethodInfo(
-        name="<init>",   # Java convention for constructors
+        name="<init>",  # Java convention for constructors
         args=args,
         return_type="",
         decorators=[],
@@ -567,9 +648,14 @@ def _collect_annotations(modifiers_node, src: bytes) -> list[str]:
 # Call graph (new X() and static calls inside method bodies)
 # ---------------------------------------------------------------------------
 
+
 def _collect_calls_from_method(
-    method_node, src: bytes, method_name: str,
-    out: list[tuple[str, str]], seen: set[tuple[str, str]], own_name: str,
+    method_node,
+    src: bytes,
+    method_name: str,
+    out: list[tuple[str, str]],
+    seen: set[tuple[str, str]],
+    own_name: str,
 ) -> None:
     body = _first(method_node, "block")
     if not body:
@@ -578,8 +664,12 @@ def _collect_calls_from_method(
 
 
 def _scan_calls(
-    node, src: bytes, context: str,
-    out: list[tuple[str, str]], seen: set[tuple[str, str]], own_name: str,
+    node,
+    src: bytes,
+    context: str,
+    out: list[tuple[str, str]],
+    seen: set[tuple[str, str]],
+    own_name: str,
 ) -> None:
     stack = [node]
     while stack:
@@ -605,6 +695,7 @@ def _scan_calls(
 # We return an empty list here; standalone static methods on utility classes
 # are captured under their class.
 
+
 def _extract_functions(root, src: bytes) -> list[FunctionInfo]:
     return []
 
@@ -612,6 +703,7 @@ def _extract_functions(root, src: bytes) -> list[FunctionInfo]:
 # ---------------------------------------------------------------------------
 # Package extraction (used as module path)
 # ---------------------------------------------------------------------------
+
 
 def _extract_package(root, src: bytes) -> str:
     for child in root.children:
@@ -626,6 +718,7 @@ def _extract_package(root, src: bytes) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def analyze_java(path: str, content: str) -> CodeAnalysis:
     """
     Parse a Java source file and return a CodeAnalysis.
@@ -636,12 +729,18 @@ def analyze_java(path: str, content: str) -> CodeAnalysis:
 
     if not _TREESITTER_AVAILABLE:
         return CodeAnalysis(
-            path=path, language="java", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="java",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
                 "tree-sitter-java not installed — run: "
-                "pip install \"tree-sitter>=0.23.0\" tree-sitter-java"
+                'pip install "tree-sitter>=0.23.0" tree-sitter-java'
             ],
         )
 
@@ -655,16 +754,16 @@ def analyze_java(path: str, content: str) -> CodeAnalysis:
         if root.has_error:
             parse_errors.append("File contains syntax errors (partial extraction attempted)")
 
-        imports    = _extract_imports(root, src)
-        classes    = _extract_type_declarations(root, src)
-        functions  = _extract_functions(root, src)
-        package    = _extract_package(root, src)
+        imports = _extract_imports(root, src)
+        classes = _extract_type_declarations(root, src)
+        functions = _extract_functions(root, src)
+        package = _extract_package(root, src)
 
         return CodeAnalysis(
             path=path,
             language="java",
             line_count=line_count,
-            module_docstring=package,   # re-use docstring field for package name
+            module_docstring=package,  # re-use docstring field for package name
             classes=classes,
             functions=functions,
             imports=imports,
@@ -675,8 +774,14 @@ def analyze_java(path: str, content: str) -> CodeAnalysis:
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="java", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="java",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"AnalysisError: {exc}"],
         )

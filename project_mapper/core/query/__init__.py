@@ -3,6 +3,7 @@ project_mapper.core.query
 Graph query engine, one module per query primitive. Shared infrastructure in
 _common. Public API re-exported here so callers import from .query unchanged.
 """
+
 from ._common import _resolve_entity, build_entity_map
 from .context import context_query
 from .contribute import apply_contribution

@@ -1,4 +1,5 @@
 """project_mapper.core.query.context — context query."""
+
 from __future__ import annotations
 
 import logging
@@ -13,12 +14,38 @@ from ._common import (
 logger = logging.getLogger(__name__)
 
 _DETAIL_LEVELS: dict[str, frozenset[str]] = {
-    "high":   frozenset({"module", "service", "decision", "goal", "constraint", "workflow"}),
-    "medium": frozenset({"module", "service", "class", "component", "decision",
-                         "goal", "constraint", "workflow", "config", "dependency"}),
-    "low":    frozenset({"module", "service", "class", "component", "function",
-                         "endpoint", "model", "decision", "goal", "constraint",
-                         "workflow", "config", "dependency"}),
+    "high": frozenset({"module", "service", "decision", "goal", "constraint", "workflow"}),
+    "medium": frozenset(
+        {
+            "module",
+            "service",
+            "class",
+            "component",
+            "decision",
+            "goal",
+            "constraint",
+            "workflow",
+            "config",
+            "dependency",
+        }
+    ),
+    "low": frozenset(
+        {
+            "module",
+            "service",
+            "class",
+            "component",
+            "function",
+            "endpoint",
+            "model",
+            "decision",
+            "goal",
+            "constraint",
+            "workflow",
+            "config",
+            "dependency",
+        }
+    ),
 }
 
 
@@ -27,67 +54,138 @@ _TOKENS_PER_ENTITY = 80
 
 _QUERY_SYNONYMS: dict[str, list[str]] = {
     # Security / auth
-    "authentication":  ["security", "firewall", "auth"],
-    "authorization":   ["security", "permissions", "auth"],
-    "auth":            ["security", "firewall"],
-    "login":           ["security", "auth"],
-    "permissions":     ["security", "firewall"],
+    "authentication": ["security", "firewall", "auth"],
+    "authorization": ["security", "permissions", "auth"],
+    "auth": ["security", "firewall"],
+    "login": ["security", "auth"],
+    "permissions": ["security", "firewall"],
     # Logging / observability
-    "logging":         ["logger"],
-    "logs":            ["logger"],
-    "log":             ["logger"],
+    "logging": ["logger"],
+    "logs": ["logger"],
+    "log": ["logger"],
     # Data persistence
-    "database":        ["db", "aethviondb", "storage"],
-    "persistence":     ["db", "storage"],
-    "storage":         ["db", "aethviondb"],
+    "database": ["db", "aethviondb", "storage"],
+    "persistence": ["db", "storage"],
+    "storage": ["db", "aethviondb"],
     # Configuration
-    "configuration":   ["config", "settings"],
-    "settings":        ["config", "preferences"],
-    "preferences":     ["config", "settings"],
+    "configuration": ["config", "settings"],
+    "settings": ["config", "preferences"],
+    "preferences": ["config", "settings"],
     # Networking / web
-    "routing":         ["router", "routes"],
-    "routes":          ["router", "route"],
-    "endpoint":        ["router", "routes"],
-    "websocket":       ["ws"],
-    "http":            ["server", "routes", "api"],
+    "routing": ["router", "routes"],
+    "routes": ["router", "route"],
+    "endpoint": ["router", "routes"],
+    "websocket": ["ws"],
+    "http": ["server", "routes", "api"],
     # AI / models
-    "llm":             ["provider", "model"],
-    "model":           ["provider", "model"],
-    "inference":       ["provider"],
-    "generation":      ["provider", "generate"],
+    "llm": ["provider", "model"],
+    "model": ["provider", "model"],
+    "inference": ["provider"],
+    "generation": ["provider", "generate"],
     # UI
-    "interface":       ["ui", "dashboard", "routes"],
-    "frontend":        ["dashboard", "ui"],
-    "dashboard":       ["ui", "server"],
+    "interface": ["ui", "dashboard", "routes"],
+    "frontend": ["dashboard", "ui"],
+    "dashboard": ["ui", "server"],
     # CLI
-    "commandline":     ["cli"],
-    "command":         ["cli", "routes"],
+    "commandline": ["cli"],
+    "command": ["cli", "routes"],
     # Task / workflow
-    "queue":           ["task", "worker"],
-    "worker":          ["task", "queue"],
-    "job":             ["task", "queue"],
-    "async":           ["worker", "task"],
+    "queue": ["task", "worker"],
+    "worker": ["task", "queue"],
+    "job": ["task", "queue"],
+    "async": ["worker", "task"],
 }
 
 
-_TOKENIZE_STOP: frozenset[str] = frozenset({
-    "a","an","the","i","im","is","are","was","be","been","being",
-    "in","on","at","to","for","of","and","or","but","not","with",
-    "this","that","these","those","what","how","when","where","which",
-    "my","me","we","our","if","do","did","have","has","had","it",
-    "working","adding","need","want","know","should","would","could",
-    "about","from","will","let","get","just","like","also","more",
-    "use","used","uses","using","make","makes","made","take","takes",
-    "its","all","can","into","via","new","do",
-})
+_TOKENIZE_STOP: frozenset[str] = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "i",
+        "im",
+        "is",
+        "are",
+        "was",
+        "be",
+        "been",
+        "being",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "and",
+        "or",
+        "but",
+        "not",
+        "with",
+        "this",
+        "that",
+        "these",
+        "those",
+        "what",
+        "how",
+        "when",
+        "where",
+        "which",
+        "my",
+        "me",
+        "we",
+        "our",
+        "if",
+        "do",
+        "did",
+        "have",
+        "has",
+        "had",
+        "it",
+        "working",
+        "adding",
+        "need",
+        "want",
+        "know",
+        "should",
+        "would",
+        "could",
+        "about",
+        "from",
+        "will",
+        "let",
+        "get",
+        "just",
+        "like",
+        "also",
+        "more",
+        "use",
+        "used",
+        "uses",
+        "using",
+        "make",
+        "makes",
+        "made",
+        "take",
+        "takes",
+        "its",
+        "all",
+        "can",
+        "into",
+        "via",
+        "new",
+        "do",
+    }
+)
 
 
-_STRUCTURAL_EDGE_KINDS: frozenset[str] = frozenset({
-    "contains",
-    "imports",
-    "depends_on",
-    "related_to",
-})
+_STRUCTURAL_EDGE_KINDS: frozenset[str] = frozenset(
+    {
+        "contains",
+        "imports",
+        "depends_on",
+        "related_to",
+    }
+)
 
 
 def _name_words(entity_name: str) -> set[str]:
@@ -105,20 +203,21 @@ def _keyword_score(tokens: list[str], entity: dict) -> float:
     """
     Score an entity against query tokens using structure-aware field weighting.
     """
-    core  = entity.get("sections", {}).get("core", {})
+    core = entity.get("sections", {}).get("core", {})
     props = entity.get("sections", {}).get("properties", {})
 
-    name    = entity.get("name", "").lower()
+    name = entity.get("name", "").lower()
     summary = core.get("summary", "").lower()
-    tags    = " ".join(core.get("tags", [])).lower()
+    tags = " ".join(core.get("tags", [])).lower()
     aliases = " ".join(core.get("aliases", [])).lower()
 
-    nwords     = _name_words(entity.get("name", ""))
-    methods    = [m.strip().lower() for m in props.get("methods", "").split(",") if m.strip()]
-    base_cls   = props.get("base_classes", "").lower()
-    file_parts = [p for p in re.split(r"[/._\\]", props.get("file_path", "").lower())
-                  if len(p) >= 2]
-    signature  = props.get("signature", "").lower()
+    nwords = _name_words(entity.get("name", ""))
+    methods = [m.strip().lower() for m in props.get("methods", "").split(",") if m.strip()]
+    base_cls = props.get("base_classes", "").lower()
+    file_parts = [
+        p for p in re.split(r"[/._\\]", props.get("file_path", "").lower()) if len(p) >= 2
+    ]
+    signature = props.get("signature", "").lower()
 
     score = 0.0
     for tok in tokens:
@@ -179,15 +278,15 @@ def _tokenize(text: str) -> list[str]:
 
 
 def context_query(
-    q:            str,
-    entity_map:   dict[str, dict],
-    index:        Any,
+    q: str,
+    entity_map: dict[str, dict],
+    index: Any,
     anchor_names: list[str] | None = None,
-    max_seeds:    int = 8,
+    max_seeds: int = 8,
     expansion_hops: int = 1,
     detail_level: str = "medium",
-    max_results:  int = 40,
-    slim:         bool = False,
+    max_results: int = 40,
+    slim: bool = False,
 ) -> dict[str, Any]:
     """
     Return a focused context package relevant to the task described in *q*.
@@ -201,7 +300,7 @@ def context_query(
         for syn in _QUERY_SYNONYMS.get(tok, []):
             if syn not in base_tokens and syn not in extra:
                 extra.append(syn)
-    tokens       = base_tokens + extra
+    tokens = base_tokens + extra
     detail_types = _DETAIL_LEVELS.get(detail_level, _DETAIL_LEVELS["medium"])
 
     # ---- 1. Score all entities -------------------------------------------
@@ -262,11 +361,11 @@ def context_query(
 
     total = len(all_stubs)
     return {
-        "query":          q,
-        "tokens":         tokens[:12],
-        "detail_level":   detail_level,
-        "seeds_found":    len(seed_ids),
-        "by_type":        by_type,
-        "total":          total,
+        "query": q,
+        "tokens": tokens[:12],
+        "detail_level": detail_level,
+        "seeds_found": len(seed_ids),
+        "by_type": by_type,
+        "total": total,
         "token_estimate": total * _TOKENS_PER_ENTITY,
     }

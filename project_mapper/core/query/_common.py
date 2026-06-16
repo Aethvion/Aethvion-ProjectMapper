@@ -3,6 +3,7 @@ project_mapper.core.query._common
 Shared query infrastructure: entity-map construction, entity resolution/stub
 formatting, the reverse-impact adjacency builder, and cross-query constants.
 """
+
 from __future__ import annotations
 
 import logging
@@ -12,32 +13,36 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-IMPACT_INCOMING_KINDS: frozenset[str] = frozenset({
-    "calls",
-    "imports",
-    "depends_on",
-    "uses",
-    "reads_from",
-    "writes_to",
-    "triggered_by",
-    "implements",
-    "extends",
-    "configured_by",
-    "tests",
-})
+IMPACT_INCOMING_KINDS: frozenset[str] = frozenset(
+    {
+        "calls",
+        "imports",
+        "depends_on",
+        "uses",
+        "reads_from",
+        "writes_to",
+        "triggered_by",
+        "implements",
+        "extends",
+        "configured_by",
+        "tests",
+    }
+)
 
 
-_SEMANTIC_EDGE_KINDS: frozenset[str] = frozenset({
-    "calls",
-    "extends",
-    "implements",
-    "uses",
-    "reads_from",
-    "writes_to",
-    "triggered_by",
-    "configured_by",
-    "tests",
-})
+_SEMANTIC_EDGE_KINDS: frozenset[str] = frozenset(
+    {
+        "calls",
+        "extends",
+        "implements",
+        "uses",
+        "reads_from",
+        "writes_to",
+        "triggered_by",
+        "configured_by",
+        "tests",
+    }
+)
 
 
 _EXCEPTION_NAME_PAT: re.Pattern = re.compile(
@@ -46,21 +51,44 @@ _EXCEPTION_NAME_PAT: re.Pattern = re.compile(
 )
 
 
-_ORPHAN_ENTRY_NAMES: frozenset[str] = frozenset({
-    "main", "run", "start", "setup", "teardown", "configure", "create_app",
-    "application", "app", "wsgi", "asgi", "celery", "init_app",
-})
-
-
-_ORPHAN_SKIP_FILES: tuple[str, ...] = (
-    "setup.py", "conftest.py", "wsgi.py", "asgi.py",
-    "__init__.py", "__main__.py", "manage.py", "cli.py",
+_ORPHAN_ENTRY_NAMES: frozenset[str] = frozenset(
+    {
+        "main",
+        "run",
+        "start",
+        "setup",
+        "teardown",
+        "configure",
+        "create_app",
+        "application",
+        "app",
+        "wsgi",
+        "asgi",
+        "celery",
+        "init_app",
+    }
 )
 
 
-_ORPHAN_VENDOR_DIRS: frozenset[str] = frozenset({
-    "vendor", "node_modules", "bower_components",
-})
+_ORPHAN_SKIP_FILES: tuple[str, ...] = (
+    "setup.py",
+    "conftest.py",
+    "wsgi.py",
+    "asgi.py",
+    "__init__.py",
+    "__main__.py",
+    "manage.py",
+    "cli.py",
+)
+
+
+_ORPHAN_VENDOR_DIRS: frozenset[str] = frozenset(
+    {
+        "vendor",
+        "node_modules",
+        "bower_components",
+    }
+)
 
 
 _DUNDER_PAT: re.Pattern = re.compile(r"^__[a-z_]+__$")
@@ -91,11 +119,11 @@ def _resolve_entity(
 
 
 def _entity_stub(
-    entity:      dict,
-    hop:         int  = 0,
-    via:         str  = "",
-    slim:        bool = False,
-    max_summary: int  = 180,
+    entity: dict,
+    hop: int = 0,
+    via: str = "",
+    slim: bool = False,
+    max_summary: int = 180,
 ) -> dict:
     """
     Return an agent-friendly representation of an entity.
@@ -122,15 +150,15 @@ def _entity_stub(
             stub["via"] = via
         return stub
 
-    core    = entity.get("sections", {}).get("core", {})
+    core = entity.get("sections", {}).get("core", {})
     summary = core.get("summary", "")
     stub = {
-        "id":     entity["id"],
-        "name":   entity.get("name", ""),
-        "type":   entity.get("type", ""),
-        "kind":   entity.get("kind"),
+        "id": entity["id"],
+        "name": entity.get("name", ""),
+        "type": entity.get("type", ""),
+        "kind": entity.get("kind"),
         "status": entity.get("status", "active"),
-        "tags":   core.get("tags", [])[:5],
+        "tags": core.get("tags", [])[:5],
     }
     if max_summary > 0 and summary:
         stub["summary"] = summary[:max_summary]
@@ -149,18 +177,10 @@ def _entity_stub(
 
 def _is_test_entity(entity: dict) -> bool:
     """Return True if the entity lives in a test file or test directory."""
-    file_path = (
-        entity.get("sections", {})
-              .get("properties", {})
-              .get("file_path", "")
-    )
+    file_path = entity.get("sections", {}).get("properties", {}).get("file_path", "")
     if not file_path:
         return False
-    return (
-        "tests/" in file_path
-        or "/test_" in file_path
-        or file_path.startswith("test_")
-    )
+    return "tests/" in file_path or "/test_" in file_path or file_path.startswith("test_")
 
 
 def build_reverse_impact_adj(
@@ -176,7 +196,7 @@ def build_reverse_impact_adj(
     for eid, entity in entity_map.items():
         ename = entity.get("name", eid)
         for rel in entity.get("sections", {}).get("relations", []):
-            kind      = rel.get("kind", "")
+            kind = rel.get("kind", "")
             target_id = rel.get("target_id", "")
             if kind in IMPACT_INCOMING_KINDS and target_id:
                 rev.setdefault(target_id, []).append((eid, ename, kind))

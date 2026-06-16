@@ -21,6 +21,7 @@ from __future__ import annotations
 try:
     import tree_sitter_ruby as _tsrb
     from tree_sitter import Language, Parser
+
     _RUBY_LANGUAGE = Language(_tsrb.language())
     _AVAILABLE = True
 except Exception:
@@ -41,7 +42,7 @@ from .base import (
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -61,7 +62,9 @@ def _end_line(node) -> int:
 # call graph extraction
 # ---------------------------------------------------------------------------
 
-_RUBY_IMPORT_METHODS: frozenset[str] = frozenset({"require", "require_relative", "include", "extend"})
+_RUBY_IMPORT_METHODS: frozenset[str] = frozenset(
+    {"require", "require_relative", "include", "extend"}
+)
 
 
 def _collect_calls_rb(body_node, src: bytes) -> list[tuple[str, str]]:
@@ -96,9 +99,14 @@ def _parse_rb_params(params_node, src: bytes) -> list[str]:
     names: list[str] = []
     for child in params_node.children:
         nt = child.type
-        if nt in ("identifier", "optional_parameter", "splat_parameter",
-                  "hash_splat_parameter", "block_parameter",
-                  "keyword_parameter"):
+        if nt in (
+            "identifier",
+            "optional_parameter",
+            "splat_parameter",
+            "hash_splat_parameter",
+            "block_parameter",
+            "keyword_parameter",
+        ):
             # For simple params the node IS the identifier;
             # for typed/optional the `name` field gives the identifier.
             name_node = child.child_by_field_name("name")
@@ -171,16 +179,24 @@ def _parse_class_or_module(node, src: bytes, kind: str) -> ClassInfo | None:
         _collect_body(body, src, methods, class_vars, calls)
 
     return ClassInfo(
-        name=name, kind=kind, bases=bases, methods=methods, class_vars=class_vars,
+        name=name,
+        kind=kind,
+        bases=bases,
+        methods=methods,
+        class_vars=class_vars,
         calls=calls,
-        line_start=_line(node), line_end=_end_line(node),
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 
-def _collect_body(body_node, src: bytes,
-                  methods: list[MethodInfo],
-                  class_vars: list[str],
-                  calls: list[tuple[str, str]]) -> None:
+def _collect_body(
+    body_node,
+    src: bytes,
+    methods: list[MethodInfo],
+    class_vars: list[str],
+    calls: list[tuple[str, str]],
+) -> None:
     """Collect methods, constants, and call graph from a class/module body."""
     for child in body_node.children:
         nt = child.type
@@ -226,13 +242,19 @@ def _try_parse_require(node, src: bytes) -> ImportInfo | None:
             raw = _t(content_node, src) if content_node else _t(c, src).strip("'\"`")
             is_rel = method_name == "require_relative"
             return ImportInfo(
-                module=raw, names=[], is_from=False, is_relative=is_rel,
+                module=raw,
+                names=[],
+                is_from=False,
+                is_relative=is_rel,
             )
         elif c.type in ("constant", "scope_resolution"):
             # include / extend with module constant
             mod = _t(c, src)
             return ImportInfo(
-                module=mod, names=[mod], is_from=False, is_relative=False,
+                module=mod,
+                names=[mod],
+                is_from=False,
+                is_relative=False,
             )
     return None
 
@@ -242,11 +264,14 @@ def _try_parse_require(node, src: bytes) -> ImportInfo | None:
 # ---------------------------------------------------------------------------
 
 
-def _walk(node, src: bytes,
-          classes: list[ClassInfo],
-          functions: list[FunctionInfo],
-          imports: list[ImportInfo],
-          depth: int = 0) -> None:
+def _walk(
+    node,
+    src: bytes,
+    classes: list[ClassInfo],
+    functions: list[FunctionInfo],
+    imports: list[ImportInfo],
+    depth: int = 0,
+) -> None:
     """
     Walk a Ruby AST node recursively.
     Recurses into class / module bodies to capture nested definitions.
@@ -273,13 +298,15 @@ def _walk(node, src: bytes,
             m = _parse_method(child, src)
             if m:
                 fn_calls = _collect_calls_rb(child.child_by_field_name("body"), src)
-                functions.append(FunctionInfo(
-                    name=m.name,
-                    args=[ArgInfo(name=a) for a in m.args],
-                    calls=fn_calls,
-                    line_start=_line(child),
-                    line_end=_end_line(child),
-                ))
+                functions.append(
+                    FunctionInfo(
+                        name=m.name,
+                        args=[ArgInfo(name=a) for a in m.args],
+                        calls=fn_calls,
+                        line_start=_line(child),
+                        line_end=_end_line(child),
+                    )
+                )
         elif nt == "call":
             imp = _try_parse_require(child, src)
             if imp:
@@ -297,11 +324,17 @@ def analyze_ruby(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="ruby", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="ruby",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-ruby not installed — run: '
+                "tree-sitter-ruby not installed — run: "
                 'pip install "tree-sitter>=0.23.0" tree-sitter-ruby'
             ],
         )
@@ -323,16 +356,28 @@ def analyze_ruby(path: str, content: str) -> CodeAnalysis:
         _walk(root, src, classes, functions, imports)
 
         return CodeAnalysis(
-            path=path, language="ruby", line_count=line_count,
-            module_docstring="", classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="ruby",
+            line_count=line_count,
+            module_docstring="",
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="ruby", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="ruby",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"ruby_analyzer internal error: {exc}"],
         )

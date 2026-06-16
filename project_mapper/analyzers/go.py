@@ -54,32 +54,78 @@ except Exception:
 # Go standard-library and built-in identifiers to skip in call graphs
 # ---------------------------------------------------------------------------
 
-_GO_IGNORE: frozenset[str] = frozenset({
-    # Built-in functions
-    "make", "new", "len", "cap", "append", "copy", "delete", "close",
-    "panic", "recover", "print", "println", "real", "imag", "complex",
-    # Common stdlib types
-    "error", "string", "int", "int64", "int32", "float64", "bool", "byte",
-    "rune", "uint", "uint64", "uint32", "any", "interface",
-    # fmt
-    "Sprintf", "Printf", "Fprintf", "Errorf", "Println", "Fprintln",
-    # errors
-    "New", "As", "Is", "Unwrap",
-    # context
-    "Background", "TODO", "WithCancel", "WithTimeout", "WithDeadline",
-    # sync
-    "Mutex", "RWMutex", "WaitGroup", "Once",
-    # testing
-    "T", "B", "M", "F",
-})
+_GO_IGNORE: frozenset[str] = frozenset(
+    {
+        # Built-in functions
+        "make",
+        "new",
+        "len",
+        "cap",
+        "append",
+        "copy",
+        "delete",
+        "close",
+        "panic",
+        "recover",
+        "print",
+        "println",
+        "real",
+        "imag",
+        "complex",
+        # Common stdlib types
+        "error",
+        "string",
+        "int",
+        "int64",
+        "int32",
+        "float64",
+        "bool",
+        "byte",
+        "rune",
+        "uint",
+        "uint64",
+        "uint32",
+        "any",
+        "interface",
+        # fmt
+        "Sprintf",
+        "Printf",
+        "Fprintf",
+        "Errorf",
+        "Println",
+        "Fprintln",
+        # errors
+        "New",
+        "As",
+        "Is",
+        "Unwrap",
+        # context
+        "Background",
+        "TODO",
+        "WithCancel",
+        "WithTimeout",
+        "WithDeadline",
+        # sync
+        "Mutex",
+        "RWMutex",
+        "WaitGroup",
+        "Once",
+        # testing
+        "T",
+        "B",
+        "M",
+        "F",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Tree-sitter node helpers
 # ---------------------------------------------------------------------------
 
+
 def _text(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _field(node, name: str):
@@ -113,9 +159,17 @@ def _end_line(node) -> int:
 # ---------------------------------------------------------------------------
 
 _TYPE_NODES = {
-    "type_identifier", "qualified_type", "pointer_type", "slice_type",
-    "array_type", "map_type", "channel_type", "generic_type",
-    "interface_type", "struct_type", "func_type",
+    "type_identifier",
+    "qualified_type",
+    "pointer_type",
+    "slice_type",
+    "array_type",
+    "map_type",
+    "channel_type",
+    "generic_type",
+    "interface_type",
+    "struct_type",
+    "func_type",
 }
 
 
@@ -151,6 +205,7 @@ def _receiver_type_name(param_list_node, src: bytes) -> str:
 # Package extraction
 # ---------------------------------------------------------------------------
 
+
 def _extract_package(root, src: bytes) -> str:
     pkg = _first(root, "package_clause")
     if pkg:
@@ -163,6 +218,7 @@ def _extract_package(root, src: bytes) -> str:
 # ---------------------------------------------------------------------------
 # Import extraction
 # ---------------------------------------------------------------------------
+
 
 def _extract_imports(root, src: bytes) -> list[ImportInfo]:
     imports: list[ImportInfo] = []
@@ -177,7 +233,7 @@ def _parse_import_spec(spec, src: bytes) -> ImportInfo | None:
     str_node = _first(spec, "interpreted_string_literal", "raw_string_literal")
     if not str_node:
         return None
-    path = _text(str_node, src).strip('"').strip('`')
+    path = _text(str_node, src).strip('"').strip("`")
     alias_node = _first(spec, "package_identifier", "blank_identifier", "dot")
     alias = _text(alias_node, src) if alias_node else ""
     # Simple name = last path component
@@ -214,6 +270,7 @@ def _parse_import_decl(node, src: bytes, out: list[ImportInfo]) -> None:
 # Constant extraction (package-level, exported / iota)
 # ---------------------------------------------------------------------------
 
+
 def _extract_constants(root, src: bytes) -> list[str]:
     constants: list[str] = []
     for node in root.children:
@@ -236,6 +293,7 @@ def _extract_constants(root, src: bytes) -> list[str]:
 # Type declaration extraction (structs, interfaces, named types)
 # Two-pass: first collect types, then attach methods.
 # ---------------------------------------------------------------------------
+
 
 def _extract_types(root, src: bytes) -> tuple[list[ClassInfo], dict[str, int]]:
     """
@@ -260,7 +318,7 @@ def _extract_types(root, src: bytes) -> tuple[list[ClassInfo], dict[str, int]]:
 
             # Check struct / interface explicitly first, then fall back
             inner_struct = _first(spec, "struct_type")
-            inner_iface  = _first(spec, "interface_type")
+            inner_iface = _first(spec, "interface_type")
 
             if inner_struct:
                 inner = inner_struct
@@ -274,9 +332,16 @@ def _extract_types(root, src: bytes) -> tuple[list[ClassInfo], dict[str, int]]:
                     if child.type == "type_identifier" and not seen_name:
                         seen_name = True
                         continue
-                    if child.type in ("type_identifier", "qualified_type", "pointer_type",
-                                      "slice_type", "array_type", "map_type",
-                                      "generic_type", "func_type"):
+                    if child.type in (
+                        "type_identifier",
+                        "qualified_type",
+                        "pointer_type",
+                        "slice_type",
+                        "array_type",
+                        "map_type",
+                        "generic_type",
+                        "func_type",
+                    ):
                         inner = child
                         break
 
@@ -286,27 +351,45 @@ def _extract_types(root, src: bytes) -> tuple[list[ClassInfo], dict[str, int]]:
             if inner.type == "struct_type":
                 bases = _struct_embedded_types(inner, src)
                 cls = ClassInfo(
-                    name=name, bases=bases, methods=[], class_vars=[],
-                    decorators=[], docstring="",
-                    line_start=_line(node), line_end=_end_line(node),
-                    calls=[], kind="",
+                    name=name,
+                    bases=bases,
+                    methods=[],
+                    class_vars=[],
+                    decorators=[],
+                    docstring="",
+                    line_start=_line(node),
+                    line_end=_end_line(node),
+                    calls=[],
+                    kind="",
                 )
             elif inner.type == "interface_type":
                 bases, methods = _interface_contents(inner, src)
                 cls = ClassInfo(
-                    name=name, bases=bases, methods=methods, class_vars=[],
-                    decorators=[], docstring="",
-                    line_start=_line(node), line_end=_end_line(node),
-                    calls=[], kind="interface",
+                    name=name,
+                    bases=bases,
+                    methods=methods,
+                    class_vars=[],
+                    decorators=[],
+                    docstring="",
+                    line_start=_line(node),
+                    line_end=_end_line(node),
+                    calls=[],
+                    kind="interface",
                 )
             else:
                 # Named type over primitive/other: type Role int
                 underlying = _text(inner, src).split("[")[0]
                 cls = ClassInfo(
-                    name=name, bases=[underlying], methods=[], class_vars=[],
-                    decorators=[], docstring="",
-                    line_start=_line(node), line_end=_end_line(node),
-                    calls=[], kind="type",
+                    name=name,
+                    bases=[underlying],
+                    methods=[],
+                    class_vars=[],
+                    decorators=[],
+                    docstring="",
+                    line_start=_line(node),
+                    line_end=_end_line(node),
+                    calls=[],
+                    kind="type",
                 )
 
         elif alias:
@@ -324,10 +407,16 @@ def _extract_types(root, src: bytes) -> tuple[list[ClassInfo], dict[str, int]]:
                     break
             underlying = _type_name(underlying_node, src) if underlying_node else ""
             cls = ClassInfo(
-                name=name, bases=[underlying] if underlying else [], methods=[],
-                class_vars=[], decorators=[], docstring="",
-                line_start=_line(node), line_end=_end_line(node),
-                calls=[], kind="alias",
+                name=name,
+                bases=[underlying] if underlying else [],
+                methods=[],
+                class_vars=[],
+                decorators=[],
+                docstring="",
+                line_start=_line(node),
+                line_end=_end_line(node),
+                calls=[],
+                kind="alias",
             )
         else:
             continue
@@ -350,7 +439,12 @@ def _struct_embedded_types(struct_node, src: bytes) -> list[str]:
         if not children:
             continue
         # If first child is a type node (not an identifier), it's embedded
-        if children[0].type in ("type_identifier", "pointer_type", "qualified_type", "generic_type"):
+        if children[0].type in (
+            "type_identifier",
+            "pointer_type",
+            "qualified_type",
+            "generic_type",
+        ):
             embedded.append(_type_name(children[0], src))
     return embedded
 
@@ -408,8 +502,10 @@ def _parse_interface_method(node, src: bytes) -> MethodInfo | None:
 # Method declaration extraction (second pass — attach to structs)
 # ---------------------------------------------------------------------------
 
-def _extract_methods(root, src: bytes, name_to_idx: dict[str, int],
-                     classes: list[ClassInfo]) -> None:
+
+def _extract_methods(
+    root, src: bytes, name_to_idx: dict[str, int], classes: list[ClassInfo]
+) -> None:
     """Walk all method_declaration nodes and attach to their receiver type."""
     for node in root.children:
         if node.type != "method_declaration":
@@ -456,8 +552,9 @@ def _extract_methods(root, src: bytes, name_to_idx: dict[str, int],
             _extract_calls_from_block(body, src, method_name, classes[idx], receiver_type)
 
 
-def _extract_calls_from_block(body, src: bytes, method_name: str,
-                               cls: ClassInfo, own_name: str) -> None:
+def _extract_calls_from_block(
+    body, src: bytes, method_name: str, cls: ClassInfo, own_name: str
+) -> None:
     seen = {(c, m) for c, m in cls.calls}
 
     def _scan(node):
@@ -465,8 +562,7 @@ def _extract_calls_from_block(body, src: bytes, method_name: str,
             type_node = _first(node, "type_identifier", "qualified_type", "generic_type")
             if type_node:
                 cname = _type_name(type_node, src).split(".")[0]
-                if (cname and cname[0].isupper() and cname not in _GO_IGNORE
-                        and cname != own_name):
+                if cname and cname[0].isupper() and cname not in _GO_IGNORE and cname != own_name:
                     pair = (cname, method_name)
                     if pair not in seen:
                         seen.add(pair)
@@ -480,6 +576,7 @@ def _extract_calls_from_block(body, src: bytes, method_name: str,
 # ---------------------------------------------------------------------------
 # Function extraction (top-level non-method functions)
 # ---------------------------------------------------------------------------
+
 
 def _extract_functions(root, src: bytes) -> list[FunctionInfo]:
     functions: list[FunctionInfo] = []
@@ -512,12 +609,19 @@ def _extract_functions(root, src: bytes) -> list[FunctionInfo]:
                     return_type = _type_name(child, src)
                 break
 
-        functions.append(FunctionInfo(
-            name=name, args=args, return_type=return_type,
-            decorators=[], docstring="", is_async=False,
-            line_start=_line(node), line_end=_end_line(node),
-            calls=_extract_function_calls(node, src, name),
-        ))
+        functions.append(
+            FunctionInfo(
+                name=name,
+                args=args,
+                return_type=return_type,
+                decorators=[],
+                docstring="",
+                is_async=False,
+                line_start=_line(node),
+                line_end=_end_line(node),
+                calls=_extract_function_calls(node, src, name),
+            )
+        )
     return functions
 
 
@@ -530,8 +634,7 @@ def _extract_function_calls(node, src: bytes, fn_name: str) -> list[tuple[str, s
             type_node = _first(n, "type_identifier", "qualified_type", "generic_type")
             if type_node:
                 cname = _type_name(type_node, src).split(".")[0]
-                if (cname and cname[0].isupper() and cname not in _GO_IGNORE
-                        and cname not in seen):
+                if cname and cname[0].isupper() and cname not in _GO_IGNORE and cname not in seen:
                     seen.add(cname)
                     results.append((cname, fn_name))
         for child in n.children:
@@ -544,6 +647,7 @@ def _extract_function_calls(node, src: bytes, fn_name: str) -> list[tuple[str, s
 # ---------------------------------------------------------------------------
 # Parameter parsing
 # ---------------------------------------------------------------------------
+
 
 def _parse_params(params_node, src: bytes) -> list[str]:
     """Return flat list of parameter names (or type names for unnamed params)."""
@@ -579,6 +683,7 @@ def _parse_params(params_node, src: bytes) -> list[str]:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def analyze_go(path: str, content: str) -> CodeAnalysis:
     """
     Parse a Go source file and return a CodeAnalysis.
@@ -589,12 +694,18 @@ def analyze_go(path: str, content: str) -> CodeAnalysis:
 
     if not _TREESITTER_AVAILABLE:
         return CodeAnalysis(
-            path=path, language="go", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="go",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
                 "tree-sitter-go not installed — run: "
-                "pip install \"tree-sitter>=0.23.0\" tree-sitter-go"
+                'pip install "tree-sitter>=0.23.0" tree-sitter-go'
             ],
         )
 
@@ -608,21 +719,21 @@ def analyze_go(path: str, content: str) -> CodeAnalysis:
         if root.has_error:
             parse_errors.append("File contains syntax errors (partial extraction attempted)")
 
-        package    = _extract_package(root, src)
-        imports    = _extract_imports(root, src)
-        constants  = _extract_constants(root, src)
+        package = _extract_package(root, src)
+        imports = _extract_imports(root, src)
+        constants = _extract_constants(root, src)
 
         # Two-pass: collect types, then attach methods
         classes, name_to_idx = _extract_types(root, src)
         _extract_methods(root, src, name_to_idx, classes)
-        functions  = _extract_functions(root, src)
+        functions = _extract_functions(root, src)
 
         # Store exported constants in module_docstring / constants field
         return CodeAnalysis(
             path=path,
             language="go",
             line_count=line_count,
-            module_docstring=package,   # package name
+            module_docstring=package,  # package name
             classes=classes,
             functions=functions,
             imports=imports,
@@ -633,8 +744,14 @@ def analyze_go(path: str, content: str) -> CodeAnalysis:
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="go", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="go",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"AnalysisError: {exc}"],
         )

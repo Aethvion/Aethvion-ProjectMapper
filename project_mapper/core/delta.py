@@ -38,26 +38,29 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FileStatus:
     """Describes the state of a single source file relative to the manifest."""
-    path:       str              # relative path (forward-slash normalised)
-    abs_path:   str              # absolute path on disk
-    hash:       str              # current content hash  ("sha256:…") or "" if not computed
-    old_hash:   str = ""         # hash stored in manifest (empty if file is new)
-    entity_ids: list[str] = field(default_factory=list)   # entity IDs from manifest
+
+    path: str  # relative path (forward-slash normalised)
+    abs_path: str  # absolute path on disk
+    hash: str  # current content hash  ("sha256:…") or "" if not computed
+    old_hash: str = ""  # hash stored in manifest (empty if file is new)
+    entity_ids: list[str] = field(default_factory=list)  # entity IDs from manifest
 
 
 @dataclass
 class DeltaResult:
     """Full filesystem-vs-manifest diff for one project root."""
-    project_root:      str
-    new_files:         list[FileStatus]   # present on disk, absent from manifest
-    modified_files:    list[FileStatus]   # present on disk AND in manifest, but hash changed
-    deleted_files:     list[str]          # in manifest, no longer on disk (rel paths)
-    unchanged_count:   int                # files present on disk with matching hash
-    total_on_disk:     int                # total supported files found on disk
-    total_in_manifest: int                # total entries currently in manifest
+
+    project_root: str
+    new_files: list[FileStatus]  # present on disk, absent from manifest
+    modified_files: list[FileStatus]  # present on disk AND in manifest, but hash changed
+    deleted_files: list[str]  # in manifest, no longer on disk (rel paths)
+    unchanged_count: int  # files present on disk with matching hash
+    total_on_disk: int  # total supported files found on disk
+    total_in_manifest: int  # total entries currently in manifest
 
     # Convenience
     @property
@@ -66,20 +69,21 @@ class DeltaResult:
 
     def summary(self) -> dict[str, Any]:
         return {
-            "project_root":      self.project_root,
-            "new_files":         len(self.new_files),
-            "modified_files":    len(self.modified_files),
-            "deleted_files":     len(self.deleted_files),
-            "unchanged_files":   self.unchanged_count,
-            "total_on_disk":     self.total_on_disk,
+            "project_root": self.project_root,
+            "new_files": len(self.new_files),
+            "modified_files": len(self.modified_files),
+            "deleted_files": len(self.deleted_files),
+            "unchanged_files": self.unchanged_count,
+            "total_on_disk": self.total_on_disk,
             "total_in_manifest": self.total_in_manifest,
-            "has_changes":       self.has_changes,
+            "has_changes": self.has_changes,
         }
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _file_hash(fp: Path) -> str:
     """
@@ -101,9 +105,10 @@ def _file_hash(fp: Path) -> str:
 # Core function
 # ---------------------------------------------------------------------------
 
+
 def compute_delta(
-    project_root:   str | Path,
-    file_manifest:  FileManifest,
+    project_root: str | Path,
+    file_manifest: FileManifest,
     *,
     compute_hashes: bool = True,
 ) -> DeltaResult:
@@ -132,23 +137,18 @@ def compute_delta(
         raise NotADirectoryError(f"Not a directory: {project_root}")
 
     # Snapshot the manifest once (thread-safe: list_all() holds the lock)
-    manifest_entries: dict[str, dict[str, Any]] = {
-        e["path"]: e for e in file_manifest.list_all()
-    }
+    manifest_entries: dict[str, dict[str, Any]] = {e["path"]: e for e in file_manifest.list_all()}
 
-    new_files:      list[FileStatus] = []
+    new_files: list[FileStatus] = []
     modified_files: list[FileStatus] = []
-    unchanged       = 0
-    seen_paths:     set[str] = set()
+    unchanged = 0
+    seen_paths: set[str] = set()
 
     for dirpath, dirs, files in os.walk(root):
         # Skip hidden directories and known non-source folders
-        dirs[:] = [
-            d for d in dirs
-            if not d.startswith(".") and d not in _EXCLUDED_DIRS
-        ]
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _EXCLUDED_DIRS]
         for fn in sorted(files):
-            fp  = Path(dirpath) / fn
+            fp = Path(dirpath) / fn
             ext = fp.suffix.lower()
             if ext not in SUPPORTED_EXTENSIONS:
                 continue
@@ -169,37 +169,43 @@ def compute_delta(
 
             if manifest_entry is None:
                 # File has never been scanned
-                new_files.append(FileStatus(
-                    path=rel,
-                    abs_path=str(fp),
-                    hash=_file_hash(fp) if compute_hashes else "",
-                ))
+                new_files.append(
+                    FileStatus(
+                        path=rel,
+                        abs_path=str(fp),
+                        hash=_file_hash(fp) if compute_hashes else "",
+                    )
+                )
                 continue
 
             # Stat fast path: stored size+mtime both match → unchanged without
             # reading the file. Entries without stat data (older manifests)
             # fall through to the hash comparison.
-            if (st is not None
-                    and manifest_entry.get("size", 0)
-                    and manifest_entry.get("mtime", 0.0)
-                    and manifest_entry["size"] == st.st_size
-                    and manifest_entry["mtime"] == st.st_mtime):
+            if (
+                st is not None
+                and manifest_entry.get("size", 0)
+                and manifest_entry.get("mtime", 0.0)
+                and manifest_entry["size"] == st.st_size
+                and manifest_entry["mtime"] == st.st_mtime
+            ):
                 unchanged += 1
                 continue
 
-            stored_hash  = manifest_entry.get("hash", "")
-            entity_ids   = manifest_entry.get("entity_ids", [])
+            stored_hash = manifest_entry.get("hash", "")
+            entity_ids = manifest_entry.get("entity_ids", [])
             current_hash = _file_hash(fp) if compute_hashes else ""
 
             if compute_hashes and current_hash and stored_hash and current_hash != stored_hash:
                 # Content changed since last scan
-                modified_files.append(FileStatus(
-                    path=rel,
-                    abs_path=str(fp),
-                    hash=current_hash,
-                    old_hash=stored_hash,
-                    entity_ids=list(entity_ids),
-                ))
+                modified_files.append(
+                    FileStatus(
+                        path=rel,
+                        abs_path=str(fp),
+                        hash=current_hash,
+                        old_hash=stored_hash,
+                        entity_ids=list(entity_ids),
+                    )
+                )
             else:
                 # Not hashing, or hash matches → treat as unchanged
                 unchanged += 1

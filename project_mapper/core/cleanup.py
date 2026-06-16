@@ -45,10 +45,11 @@ def _now_iso() -> str:
 # 1. Retire a single entity
 # ---------------------------------------------------------------------------
 
+
 def retire_entity(
     entity_id: str,
-    reason:    str,
-    writer:    PMEntityStore,
+    reason: str,
+    writer: PMEntityStore,
 ) -> bool:
     """
     Soft-delete *entity_id*: mark status='deleted' and append a timeline event.
@@ -60,14 +61,14 @@ def retire_entity(
     if not entity:
         return False
     if entity.get("status") == "deleted":
-        return False   # already retired — idempotent
+        return False  # already retired — idempotent
 
     # Mark deleted via top-level status field
     writer.update(entity_id, {"status": "deleted"})
 
     # Append a dated timeline event so the reason is preserved historically
     event: dict[str, Any] = {
-        "date":  _now_iso(),
+        "date": _now_iso(),
         "event": f"[ProjectMapper] Retired — {reason}",
     }
     try:
@@ -82,18 +83,19 @@ def retire_entity(
 # 2. Retire all entities for a deleted file
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RetireFileResult:
-    path:          str
-    entity_ids:    list[str]
+    path: str
+    entity_ids: list[str]
     retired_count: int
-    errors:        list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 def retire_file_entities(
-    path:          str,
+    path: str,
     file_manifest: FileManifest,
-    writer:        PMEntityStore,
+    writer: PMEntityStore,
 ) -> RetireFileResult:
     """
     Retire all entities associated with *path* (a deleted source file).
@@ -144,10 +146,11 @@ def retire_file_entities(
 # 3. Prune removed symbols from a changed file
 # ---------------------------------------------------------------------------
 
+
 def prune_removed_symbols(
     module_entity_id: str,
-    new_child_ids:    list[str],
-    writer:           PMEntityStore,
+    new_child_ids: list[str],
+    writer: PMEntityStore,
 ) -> int:
     """
     After re-scanning a modified module, retire child entities (classes /
@@ -176,15 +179,11 @@ def prune_removed_symbols(
     if not module:
         return 0
 
-    module_file = (
-        module.get("sections", {})
-              .get("properties", {})
-              .get("file_path", "")
-    )
+    module_file = module.get("sections", {}).get("properties", {}).get("file_path", "")
     all_relations: list[dict[str, Any]] = module.get("sections", {}).get("relations", [])
 
-    old_contains  = [r for r in all_relations if r.get("kind") == "contains"]
-    new_set       = set(new_child_ids)
+    old_contains = [r for r in all_relations if r.get("kind") == "contains"]
+    new_set = set(new_child_ids)
     orphaned_rels = [r for r in old_contains if r.get("target_id") not in new_set]
 
     if not orphaned_rels:
@@ -192,7 +191,7 @@ def prune_removed_symbols(
 
     # Start with all relations; we'll selectively re-add orphans we decide to keep
     surviving: list[dict[str, Any]] = [r for r in all_relations if r not in orphaned_rels]
-    retired   = 0
+    retired = 0
 
     for rel in orphaned_rels:
         eid = rel.get("target_id", "")
@@ -201,21 +200,17 @@ def prune_removed_symbols(
 
         child = writer.get(eid)
         if not child:
-            continue   # already gone — just drop the relation
+            continue  # already gone — just drop the relation
 
         # Only retire entities that project_mapper owns
         if child.get("source") != "project_mapper":
-            surviving.append(rel)   # keep relation; entity is user-managed
+            surviving.append(rel)  # keep relation; entity is user-managed
             continue
 
         # Only retire if the entity came from this specific file
-        child_file = (
-            child.get("sections", {})
-                 .get("properties", {})
-                 .get("file_path", "")
-        )
+        child_file = child.get("sections", {}).get("properties", {}).get("file_path", "")
         if child_file != module_file:
-            surviving.append(rel)   # different file, leave it alone
+            surviving.append(rel)  # different file, leave it alone
             continue
 
         if retire_entity(eid, reason=f"symbol removed from {module_file}", writer=writer):
@@ -231,9 +226,7 @@ def prune_removed_symbols(
                 merge_sections=False,
             )
         except Exception as exc:
-            logger.warning(
-                f"[Cleanup] Could not rewrite relations for {module_entity_id}: {exc}"
-            )
+            logger.warning(f"[Cleanup] Could not rewrite relations for {module_entity_id}: {exc}")
 
     return retired
 
@@ -242,19 +235,20 @@ def prune_removed_symbols(
 # 4. Full deletion-cleanup pass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CleanupResult:
     deleted_file_count: int = 0
-    retired_count:      int = 0
-    deleted_files:      list[str] = field(default_factory=list)
-    errors:             list[str] = field(default_factory=list)
+    retired_count: int = 0
+    deleted_files: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 def run_deletion_cleanup(
-    project_root:  str | Path,
+    project_root: str | Path,
     file_manifest: FileManifest,
-    writer:        PMEntityStore,
-    index:         NameIndex,       # reserved for future use (symbol index update)
+    writer: PMEntityStore,
+    index: NameIndex,  # reserved for future use (symbol index update)
     existing_paths: set[str] | None = None,
 ) -> CleanupResult:
     """
@@ -275,7 +269,7 @@ def run_deletion_cleanup(
     index         : NameIndex (currently unused; included for future symbol cleanup).
     existing_paths: Optional set of all supported relative paths currently on disk.
     """
-    root   = Path(project_root)
+    root = Path(project_root)
     result = CleanupResult()
 
     # Build the set of files currently on disk in one pass if not provided
@@ -283,12 +277,9 @@ def run_deletion_cleanup(
         existing_paths = set()
         if root.exists():
             for dirpath, dirs, files in os.walk(root):
-                dirs[:] = [
-                    d for d in dirs
-                    if not d.startswith(".") and d not in _EXCLUDED_DIRS
-                ]
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _EXCLUDED_DIRS]
             for fn in files:
-                fp  = Path(dirpath) / fn
+                fp = Path(dirpath) / fn
                 if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
                     # Mirror scanner.py's size filter so minified bundles don't show
                     # up as perpetual "new files" after every scan
@@ -306,7 +297,7 @@ def run_deletion_cleanup(
         if not path:
             continue
         if path in existing_paths:
-            continue   # file still exists — nothing to do
+            continue  # file still exists — nothing to do
 
         # File is gone
         result.deleted_files.append(path)
@@ -332,9 +323,10 @@ def run_deletion_cleanup(
 # 5. Stub resolution pass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StubResolveResult:
-    stubs_checked:  int = 0
+    stubs_checked: int = 0
     stubs_resolved: int = 0
     relations_rewired: int = 0
     errors: list[str] = field(default_factory=list)
@@ -342,7 +334,7 @@ class StubResolveResult:
 
 def resolve_stubs(
     writer: PMEntityStore,
-    index:  NameIndex,
+    index: NameIndex,
 ) -> StubResolveResult:
     """
     Post-scan pass: find stub entities whose name can now be matched to a
@@ -372,9 +364,7 @@ def resolve_stubs(
     # Also load all entities into memory for relation scanning.
     all_entities: list[dict[str, Any]] = writer.list_all(include_deleted=False)
     active_by_name: dict[str, str] = {
-        e["name"]: e["id"]
-        for e in all_entities
-        if e.get("status") == "active"
+        e["name"]: e["id"] for e in all_entities if e.get("status") == "active"
     }
 
     stubs = [e for e in all_entities if e.get("status") == "stub"]
@@ -387,9 +377,9 @@ def resolve_stubs(
     to_resolve: dict[str, str] = {}  # stub_id → real_id
 
     for stub in stubs:
-        stub_id   = stub["id"]
+        stub_id = stub["id"]
         stub_name = stub["name"]
-        real_id:  str | None = None
+        real_id: str | None = None
 
         # Strategy 1: dotted module path → file path
         if "." in stub_name and "/" not in stub_name:
@@ -429,7 +419,7 @@ def resolve_stubs(
 
     # --- Re-wire incoming relations across all entities ---
     for entity in all_entities:
-        eid  = entity["id"]
+        eid = entity["id"]
         rels = entity.get("sections", {}).get("relations", [])
         if not rels:
             continue
@@ -440,7 +430,7 @@ def resolve_stubs(
 
         # First pass: keep existing non-stub relations, building seen set
         for rel in rels:
-            tid  = rel.get("target_id", "")
+            tid = rel.get("target_id", "")
             kind = rel.get("kind", "")
             if tid not in to_resolve:
                 pair = (kind, tid)
@@ -450,11 +440,11 @@ def resolve_stubs(
 
         # Second pass: add re-wired relations (skip if already present)
         for rel in rels:
-            tid  = rel.get("target_id", "")
+            tid = rel.get("target_id", "")
             kind = rel.get("kind", "")
             if tid in to_resolve:
                 new_tid = to_resolve[tid]
-                pair    = (kind, new_tid)
+                pair = (kind, new_tid)
                 if pair not in seen_pairs:
                     seen_pairs.add(pair)
                     new_rel = {**rel, "target_id": new_tid}
@@ -486,6 +476,7 @@ def resolve_stubs(
 # ---------------------------------------------------------------------------
 # 6. Orphan stub pruning
 # ---------------------------------------------------------------------------
+
 
 def prune_orphan_stubs(writer: PMEntityStore) -> int:
     """

@@ -5,6 +5,7 @@ Provides a minimal but realistic in-memory knowledge graph (3 entities, 1 call
 relation) so tool-handler and query tests don't need to touch the filesystem
 beyond a tmp_path scratch directory.
 """
+
 import threading
 
 import pytest
@@ -14,6 +15,7 @@ from project_mapper.db.pm_store import PMEntityStore, PMNameIndex
 from project_mapper.mcp.tools.base import MCPContext
 
 # ── Storage fixtures ──────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def tmp_db(tmp_path):
@@ -82,6 +84,7 @@ def populated_store(tmp_db, name_index):
 
 
 # ── MCPContext fixtures ───────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def empty_ctx(tmp_db, empty_store, name_index, file_manifest):

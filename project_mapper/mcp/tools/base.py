@@ -3,6 +3,7 @@ project_mapper.mcp.tools.base
 Shared context object (MCPContext) and entity-formatting helpers used across
 the individual tool modules.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,23 +13,23 @@ from typing import Any
 
 @dataclass
 class MCPContext:
-    db_root:        Path
-    db_name:        str
-    writer:         Any    # PMEntityStore
-    index:          Any    # NameIndex
-    file_manifest:  Any    # FileManifest
-    project_root:   str | None = None   # default project dir for scan/delta
-    scan_lock:      Any | None = None   # threading.Lock — shared with AutoScanner
-    auto_scanner:   Any | None = None   # AutoScanner instance (when --watch active)
+    db_root: Path
+    db_name: str
+    writer: Any  # PMEntityStore
+    index: Any  # NameIndex
+    file_manifest: Any  # FileManifest
+    project_root: str | None = None  # default project dir for scan/delta
+    scan_lock: Any | None = None  # threading.Lock — shared with AutoScanner
+    auto_scanner: Any | None = None  # AutoScanner instance (when --watch active)
 
 
 def _prop_line(entity: dict[str, Any]) -> str:
     """Single-line label: 'Name [type/kind] — summary'"""
-    name    = entity.get("name", "?")
-    etype   = entity.get("type", "")
-    kind    = entity.get("kind", "")
+    name = entity.get("name", "?")
+    etype = entity.get("type", "")
+    kind = entity.get("kind", "")
     summary = entity.get("sections", {}).get("core", {}).get("summary", "")
-    label   = kind if kind and kind != etype else etype
+    label = kind if kind and kind != etype else etype
     summary_part = f" — {summary[:80]}" if summary else ""
     return f"  * {name} [{label}]{summary_part}"
 
@@ -39,26 +40,26 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
     # No id, no type, no sections. Render as a compact single line.
     if "sections" not in entity and "id" not in entity and "type" not in entity:
         name = entity.get("name", "?")
-        fp   = entity.get("file_path", "")
+        fp = entity.get("file_path", "")
         line = entity.get("line", "")
-        via  = entity.get("via", "")
-        loc  = f" — {fp}:{line}" if fp and line else (f" — {fp}" if fp else "")
+        via = entity.get("via", "")
+        loc = f" — {fp}:{line}" if fp and line else (f" — {fp}" if fp else "")
         via_part = f" (via: {via})" if via else ""
         return f"  * {name}{loc}{via_part}"
 
-    name      = entity.get("name", "?")
-    etype     = entity.get("type", "")
-    kind      = entity.get("kind", "")
-    status    = entity.get("status", "active")
+    name = entity.get("name", "?")
+    etype = entity.get("type", "")
+    kind = entity.get("kind", "")
+    status = entity.get("status", "active")
 
     if "sections" in entity:
-        core      = entity["sections"].get("core", {})
-        props     = entity["sections"].get("properties", {})
+        core = entity["sections"].get("core", {})
+        props = entity["sections"].get("properties", {})
         relations = entity["sections"].get("relations", [])
     else:
         # Flat stub from context_query / _entity_stub() — fields live at root level
-        core      = entity
-        props     = entity
+        core = entity
+        props = entity
         relations = []
 
     label = kind if kind and kind != etype else etype
@@ -68,7 +69,7 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
     lines = [f"  [{name}] ({label})"]
 
     if "sections" in entity or isinstance(props, dict):
-        fp   = props.get("file_path", "")
+        fp = props.get("file_path", "")
         line = props.get("line_start", "") or props.get("line", "")
         if fp:
             loc = f"{fp}:{line}" if line else fp
@@ -83,8 +84,22 @@ def _entity_block(entity: dict[str, Any], *, show_relations: bool = False) -> st
         lines.append(f"    Tags:    {', '.join(tags[:8])}")
 
     # Exclude stub meta-fields so they don't appear as spurious properties
-    _SKIP = {"file_path", "line_start", "line_end", "line", "id", "name", "type",
-              "kind", "status", "tags", "summary", "relevance_score", "hop", "via"}
+    _SKIP = {
+        "file_path",
+        "line_start",
+        "line_end",
+        "line",
+        "id",
+        "name",
+        "type",
+        "kind",
+        "status",
+        "tags",
+        "summary",
+        "relevance_score",
+        "hop",
+        "via",
+    }
     useful_props = {k: v for k, v in props.items() if k not in _SKIP and v}
     if useful_props:
         for k, v in list(useful_props.items())[:4]:

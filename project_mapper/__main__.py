@@ -5,6 +5,7 @@ Allows the package to be run as:
 Equivalent to:
     python -m project_mapper.mcp.server [args...]
 """
+
 from .mcp.server import main
 
 main()

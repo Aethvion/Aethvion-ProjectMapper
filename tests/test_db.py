@@ -10,6 +10,7 @@ from project_mapper.db.pm_store import PMEntityStore, PMNameIndex
 
 # ── PMEntityStore ─────────────────────────────────────────────────────────────
 
+
 class TestPMEntityStore:
     def test_create_and_retrieve(self, tmp_db, name_index):
         store = PMEntityStore(tmp_db, name_index)
@@ -110,12 +111,17 @@ class TestPMEntityStore:
 
 # ── Snapshot round-trip ───────────────────────────────────────────────────────
 
+
 class TestSnapshotRoundtrip:
     def test_flush_and_reload(self, tmp_db, name_index):
         store = PMEntityStore(tmp_db, name_index)
-        store.create("Alpha", entity_type="module", sections_override={
-            "core": {"summary": "Alpha module"},
-        })
+        store.create(
+            "Alpha",
+            entity_type="module",
+            sections_override={
+                "core": {"summary": "Alpha module"},
+            },
+        )
         store.create("Beta", entity_type="class")
         store.flush()
 
@@ -132,9 +138,12 @@ class TestSnapshotRoundtrip:
         store = PMEntityStore(tmp_db, name_index)
         caller, _ = store.create("Caller", entity_type="function")
         callee, _ = store.create("Callee", entity_type="function")
-        store.update(caller["id"], {
-            "sections": {"relations": [{"kind": "calls", "target_id": callee["id"]}]},
-        })
+        store.update(
+            caller["id"],
+            {
+                "sections": {"relations": [{"kind": "calls", "target_id": callee["id"]}]},
+            },
+        )
         store.flush()
 
         index2 = PMNameIndex(index_path=tmp_db / "name_index.json")
@@ -154,6 +163,7 @@ class TestSnapshotRoundtrip:
 
 
 # ── FileManifest ──────────────────────────────────────────────────────────────
+
 
 class TestFileManifest:
     def test_record_and_get(self, tmp_db):

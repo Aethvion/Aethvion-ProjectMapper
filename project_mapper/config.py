@@ -7,10 +7,8 @@ Override the default with the PM_DATA_DIR environment variable:
 
 Default location: ~/.aethvion_pm/data
 """
+
 import os
 from pathlib import Path
 
-DATA_DIR: Path = Path(
-    os.environ.get("PM_DATA_DIR", "")
-    or Path.home() / ".aethvion_pm" / "data"
-)
+DATA_DIR: Path = Path(os.environ.get("PM_DATA_DIR", "") or Path.home() / ".aethvion_pm" / "data")

@@ -33,6 +33,7 @@ from .routes import router
 
 try:
     from importlib.metadata import version as _pkg_version
+
     __version__ = _pkg_version("aethvion-project-mapper")
 except Exception:
     __version__ = "2.0.0"
@@ -82,6 +83,7 @@ async def health():
 async def server_card():
     """Smithery tool-discovery endpoint — returns MCP tool list without needing a live connection."""
     from ..mcp.tools import TOOL_SCHEMAS
+
     return {
         "name": "aethvion-project-mapper",
         "version": __version__,
@@ -99,15 +101,16 @@ async def root():
     return {
         "service": "Aethvion Project Mapper",
         "version": __version__,
-        "docs":    "/docs",
-        "health":  "/health",
-        "api":     "/api/project-mapper",
+        "docs": "/docs",
+        "health": "/health",
+        "api": "/api/project-mapper",
     }
 
 
 # ---------------------------------------------------------------------------
 # CLI entry point  (pm-server)
 # ---------------------------------------------------------------------------
+
 
 def serve() -> None:
     """Start the HTTP API server. Installed as the ``pm-server`` CLI command."""

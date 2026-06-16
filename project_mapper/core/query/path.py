@@ -1,4 +1,5 @@
 """project_mapper.core.query.path — path query."""
+
 from __future__ import annotations
 
 import logging
@@ -32,7 +33,7 @@ def _build_adjacency(
     rev: dict[str, list[tuple[str, str, str]]] = {}
     for eid, entity in entity_map.items():
         for rel in entity.get("sections", {}).get("relations", []):
-            tid  = rel.get("target_id", "")
+            tid = rel.get("target_id", "")
             kind = rel.get("kind", "related_to")
             note = rel.get("note", "")
             if tid and tid in entity_map:
@@ -44,8 +45,8 @@ def _build_adjacency(
 
 def _compute_skip_ids(
     entity_map: dict[str, dict],
-    from_id:    str,
-    to_id:      str,
+    from_id: str,
+    to_id: str,
 ) -> frozenset[str]:
     """
     Return entity IDs that should be skipped as BFS intermediaries.
@@ -67,18 +68,12 @@ def _compute_skip_ids(
     for eid, entity in entity_map.items():
         if eid in protected:
             continue
-        name      = entity.get("name", "")
-        file_path = (
-            entity.get("sections", {})
-                  .get("properties", {})
-                  .get("file_path", "")
-        )
+        name = entity.get("name", "")
+        file_path = entity.get("sections", {}).get("properties", {}).get("file_path", "")
         if _EXCEPTION_NAME_PAT.search(name):
             skip.add(eid)
         elif file_path and (
-            "tests/" in file_path
-            or "/test_" in file_path
-            or file_path.startswith("test_")
+            "tests/" in file_path or "/test_" in file_path or file_path.startswith("test_")
         ):
             skip.add(eid)
         elif calls_in_degree.get(eid, 0) >= _HUB_CALLS_THRESHOLD:
@@ -88,15 +83,15 @@ def _compute_skip_ids(
 
 
 def _bfs_path(
-    from_id:    str,
-    to_id:      str,
-    to_entity:  dict,
+    from_id: str,
+    to_id: str,
+    to_entity: dict,
     entity_map: dict[str, dict],
-    fwd:        dict[str, list[tuple[str, str, str]]],
-    rev:        dict[str, list[tuple[str, str, str]]],
-    max_hops:   int,
-    skip_ids:   frozenset[str] = frozenset(),
-    slim:       bool = False,
+    fwd: dict[str, list[tuple[str, str, str]]],
+    rev: dict[str, list[tuple[str, str, str]]],
+    max_hops: int,
+    skip_ids: frozenset[str] = frozenset(),
+    slim: bool = False,
 ) -> list[dict] | None:
     """
     BFS from *from_id* to *to_id* using the given adjacency dicts.
@@ -113,7 +108,7 @@ def _bfs_path(
             continue
 
         fwd_nb = [(nid, kind, note, False) for nid, kind, note in fwd.get(current_id, [])]
-        rev_nb = [(nid, kind, note, True)  for nid, kind, note in rev.get(current_id, [])]
+        rev_nb = [(nid, kind, note, True) for nid, kind, note in rev.get(current_id, [])]
         for neighbor_id, rel_kind, edge_note, is_reverse in fwd_nb + rev_nb:
             if neighbor_id in visited:
                 continue
@@ -143,11 +138,11 @@ def _bfs_path(
 
 def shortest_path(
     from_entity: str,
-    to_entity:   str,
-    entity_map:  dict[str, dict],
-    index:       Any,
-    max_hops:    int = 6,
-    slim:        bool = False,
+    to_entity: str,
+    entity_map: dict[str, dict],
+    index: Any,
+    max_hops: int = 6,
+    slim: bool = False,
 ) -> dict[str, Any]:
     """
     Find the shortest meaningful path between two entities.
@@ -159,7 +154,7 @@ def shortest_path(
     path_type field: "semantic" | "structural" | "none"
     """
     from_e = _resolve_entity(from_entity, entity_map, index)
-    to_e   = _resolve_entity(to_entity,   entity_map, index)
+    to_e = _resolve_entity(to_entity, entity_map, index)
 
     if not from_e:
         return {"found": False, "error": f"Entity not found: {from_entity!r}"}
@@ -167,50 +162,52 @@ def shortest_path(
         return {"found": False, "error": f"Entity not found: {to_entity!r}"}
 
     from_id = from_e["id"]
-    to_id   = to_e["id"]
+    to_id = to_e["id"]
 
     if from_id == to_id:
         return {
-            "found": True, "path": [_entity_stub(from_e, slim=slim)],
-            "length": 0, "path_type": "semantic",
+            "found": True,
+            "path": [_entity_stub(from_e, slim=slim)],
+            "length": 0,
+            "path_type": "semantic",
         }
 
     skip_ids = _compute_skip_ids(entity_map, from_id, to_id)
 
     # ---- Phase 1: semantic edges only -----------------------------------
     fwd_sem, rev_sem = _build_adjacency(entity_map, _SEMANTIC_EDGE_KINDS)
-    path = _bfs_path(from_id, to_id, to_e, entity_map, fwd_sem, rev_sem,
-                     max_hops, skip_ids, slim=slim)
+    path = _bfs_path(
+        from_id, to_id, to_e, entity_map, fwd_sem, rev_sem, max_hops, skip_ids, slim=slim
+    )
     if path is None and skip_ids:
-        path = _bfs_path(from_id, to_id, to_e, entity_map, fwd_sem, rev_sem,
-                         max_hops, slim=slim)
+        path = _bfs_path(from_id, to_id, to_e, entity_map, fwd_sem, rev_sem, max_hops, slim=slim)
     if path is not None:
         return {
-            "found":     True,
-            "path":      path,
-            "length":    len(path) - 1,
+            "found": True,
+            "path": path,
+            "length": len(path) - 1,
             "path_type": "semantic",
         }
 
     # ---- Phase 2: full graph (semantic + structural) --------------------
     fwd_all, rev_all = _build_adjacency(entity_map, None)
-    path = _bfs_path(from_id, to_id, to_e, entity_map, fwd_all, rev_all,
-                     max_hops, skip_ids, slim=slim)
+    path = _bfs_path(
+        from_id, to_id, to_e, entity_map, fwd_all, rev_all, max_hops, skip_ids, slim=slim
+    )
     if path is None and skip_ids:
-        path = _bfs_path(from_id, to_id, to_e, entity_map, fwd_all, rev_all,
-                         max_hops, slim=slim)
+        path = _bfs_path(from_id, to_id, to_e, entity_map, fwd_all, rev_all, max_hops, slim=slim)
     if path is not None:
         return {
-            "found":     True,
-            "path":      path,
-            "length":    len(path) - 1,
+            "found": True,
+            "path": path,
+            "length": len(path) - 1,
             "path_type": "structural",
         }
 
     return {
-        "found":     False,
-        "path":      [],
-        "length":    0,
+        "found": False,
+        "path": [],
+        "length": 0,
         "path_type": "none",
-        "error":     f"No path found between {from_entity!r} and {to_entity!r} within {max_hops} hops",
+        "error": f"No path found between {from_entity!r} and {to_entity!r} within {max_hops} hops",
     }

@@ -1,95 +1,120 @@
 """security MCP tool."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from .base import MCPContext
 
-SCHEMA = {'name': 'pm_security',
- 'description': 'Standalone security scanner: walks the project files and runs OWASP Top 10 '
-                'pattern matching across Python, JavaScript/TypeScript, PHP, Ruby, Go, Java, '
-                'C#, and C/C++. Covers SQL/command/NoSQL injection, XSS, open redirect, path '
-                'traversal, insecure deserialization, SSRF, weak crypto, and hardcoded '
-                'secrets. Completely decoupled from pm_scan — run on-demand whenever you want '
-                'a security review. Persists findings to a snapshot with stable IDs and triage '
-                'statuses (unreviewed / verified_vulnerability / false_positive / resolved). '
-                'false_positive findings are hidden by default to save tokens. Use '
-                'pm_security_triage to update statuses after investigating.',
- 'inputSchema': {'type': 'object',
-                 'properties': {'project_root': {'type': 'string',
-                                                 'description': 'Project root to scan. '
-                                                                'Defaults to configured '
-                                                                'project root.'},
-                                'severity': {'type': 'string',
-                                             'enum': ['critical',
-                                                      'high',
-                                                      'medium',
-                                                      'low',
-                                                      'all'],
-                                             'description': 'Minimum severity to include. '
-                                                            "'critical' = critical only; 'all' "
-                                                            '= every finding. Default: '
-                                                            "'medium'.",
-                                             'default': 'medium'},
-                                'language': {'type': 'string',
-                                             'description': 'Filter to a specific language '
-                                                            "(e.g. 'python', 'typescript'). "
-                                                            'Omit for all.'},
-                                'owasp': {'type': 'string',
-                                          'description': 'Filter by OWASP category prefix '
-                                                         "(e.g. 'A03' or 'Injection'). "
-                                                         'Case-insensitive.'},
-                                'file': {'type': 'string',
-                                         'description': 'Show findings for a specific file '
-                                                        'path only (substring match).'},
-                                'max_results': {'type': 'integer',
-                                                'description': 'Maximum findings to show in '
-                                                               'output (default 50). Full list '
-                                                               'goes to snapshot.',
-                                                'default': 50},
-                                'include_false_positives': {'type': 'boolean',
-                                                            'description': 'Include findings '
-                                                                           'marked '
-                                                                           'false_positive '
-                                                                           '(hidden by '
-                                                                           'default). Default: '
-                                                                           'false.',
-                                                            'default': False}},
-                 'required': []}}
+SCHEMA = {
+    "name": "pm_security",
+    "description": "Standalone security scanner: walks the project files and runs OWASP Top 10 "
+    "pattern matching across Python, JavaScript/TypeScript, PHP, Ruby, Go, Java, "
+    "C#, and C/C++. Covers SQL/command/NoSQL injection, XSS, open redirect, path "
+    "traversal, insecure deserialization, SSRF, weak crypto, and hardcoded "
+    "secrets. Completely decoupled from pm_scan — run on-demand whenever you want "
+    "a security review. Persists findings to a snapshot with stable IDs and triage "
+    "statuses (unreviewed / verified_vulnerability / false_positive / resolved). "
+    "false_positive findings are hidden by default to save tokens. Use "
+    "pm_security_triage to update statuses after investigating.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "project_root": {
+                "type": "string",
+                "description": "Project root to scan. Defaults to configured project root.",
+            },
+            "severity": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low", "all"],
+                "description": "Minimum severity to include. "
+                "'critical' = critical only; 'all' "
+                "= every finding. Default: "
+                "'medium'.",
+                "default": "medium",
+            },
+            "language": {
+                "type": "string",
+                "description": "Filter to a specific language "
+                "(e.g. 'python', 'typescript'). "
+                "Omit for all.",
+            },
+            "owasp": {
+                "type": "string",
+                "description": "Filter by OWASP category prefix "
+                "(e.g. 'A03' or 'Injection'). "
+                "Case-insensitive.",
+            },
+            "file": {
+                "type": "string",
+                "description": "Show findings for a specific file path only (substring match).",
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum findings to show in "
+                "output (default 50). Full list "
+                "goes to snapshot.",
+                "default": 50,
+            },
+            "include_false_positives": {
+                "type": "boolean",
+                "description": "Include findings "
+                "marked "
+                "false_positive "
+                "(hidden by "
+                "default). Default: "
+                "false.",
+                "default": False,
+            },
+        },
+        "required": [],
+    },
+}
 
-SCHEMA_TRIAGE = {'name': 'pm_security_triage',
- 'description': 'Update the review status of one or more security findings in the snapshot. '
-                "Statuses: 'unreviewed' (default, needs investigation), 'false_positive' "
-                '(confirmed safe — hidden from future pm_security output to save tokens), '
-                "'verified_vulnerability' (confirmed real bug — kept visible as a reminder "
-                "until fixed), 'resolved' (auto-set when a triaged finding disappears from the "
-                'codebase). Use pm_security first to get finding IDs, then call this after '
-                'investigating each finding. Bulk-update all findings in a file with the '
-                "'file' argument.",
- 'inputSchema': {'type': 'object',
-                 'properties': {'status': {'type': 'string',
-                                           'enum': ['false_positive',
-                                                    'verified_vulnerability',
-                                                    'resolved',
-                                                    'unreviewed'],
-                                           'description': 'New lifecycle status to assign to '
-                                                          'the matching finding(s).'},
-                                'id': {'type': 'string',
-                                       'description': 'Stable 8-char hex finding ID from '
-                                                      'pm_security output. Identifies one '
-                                                      'specific finding.'},
-                                'file': {'type': 'string',
-                                         'description': 'File path substring — updates ALL '
-                                                        'findings whose file path contains '
-                                                        'this string.'},
-                                'notes': {'type': 'string',
-                                          'description': 'Investigation notes explaining the '
-                                                         'decision (stored in snapshot, shown '
-                                                         'in output).'},
-                                'project_root': {'type': 'string',
-                                                 'description': 'Project root (defaults to '
-                                                                'configured project root).'}},
-                 'required': ['status']}}
+SCHEMA_TRIAGE = {
+    "name": "pm_security_triage",
+    "description": "Update the review status of one or more security findings in the snapshot. "
+    "Statuses: 'unreviewed' (default, needs investigation), 'false_positive' "
+    "(confirmed safe — hidden from future pm_security output to save tokens), "
+    "'verified_vulnerability' (confirmed real bug — kept visible as a reminder "
+    "until fixed), 'resolved' (auto-set when a triaged finding disappears from the "
+    "codebase). Use pm_security first to get finding IDs, then call this after "
+    "investigating each finding. Bulk-update all findings in a file with the "
+    "'file' argument.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["false_positive", "verified_vulnerability", "resolved", "unreviewed"],
+                "description": "New lifecycle status to assign to the matching finding(s).",
+            },
+            "id": {
+                "type": "string",
+                "description": "Stable 8-char hex finding ID from "
+                "pm_security output. Identifies one "
+                "specific finding.",
+            },
+            "file": {
+                "type": "string",
+                "description": "File path substring — updates ALL "
+                "findings whose file path contains "
+                "this string.",
+            },
+            "notes": {
+                "type": "string",
+                "description": "Investigation notes explaining the "
+                "decision (stored in snapshot, shown "
+                "in output).",
+            },
+            "project_root": {
+                "type": "string",
+                "description": "Project root (defaults to configured project root).",
+            },
+        },
+        "required": ["status"],
+    },
+}
 
 
 _SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -97,6 +122,7 @@ _SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     from ...core.security import scan_project
+
     try:
         from ..server import SERVER_VERSION as _sv
     except Exception:
@@ -118,26 +144,29 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     if r["status"] == "bad_root":
         return f"project_root does not exist or is not a directory: {r['root']}"
 
-    counts          = r["counts"]
-    summary         = r["summary"]
-    files_scanned   = r["files_scanned"]
-    risk_level      = r["risk_level"]
-    owasp_counts    = r["owasp_counts"]
+    counts = r["counts"]
+    summary = r["summary"]
+    files_scanned = r["files_scanned"]
+    risk_level = r["risk_level"]
+    owasp_counts = r["owasp_counts"]
     snapshot_written = r["snapshot_written"]
-    snapshot_path   = r["snapshot_path"]
-    shown           = r["findings"]
+    snapshot_path = r["snapshot_path"]
+    shown = r["findings"]
     total_displayed = r["total_displayed"]
-    flt             = r["filters"]
+    flt = r["filters"]
     severity_filter = flt["severity"]
-    lang_filter     = flt["language"]
-    owasp_filter    = flt["owasp"]
-    file_filter     = flt["file"]
-    max_results     = flt["max_results"]
+    lang_filter = flt["language"]
+    owasp_filter = flt["owasp"]
+    file_filter = flt["file"]
+    max_results = flt["max_results"]
 
-    count_str = "  ".join(
-        f"{sev}: {n}"
-        for sev, n in sorted(counts.items(), key=lambda kv: _SEVERITY_RANK.get(kv[0], 9))
-    ) or "0"
+    count_str = (
+        "  ".join(
+            f"{sev}: {n}"
+            for sev, n in sorted(counts.items(), key=lambda kv: _SEVERITY_RANK.get(kv[0], 9))
+        )
+        or "0"
+    )
 
     lines = [
         "╔══ ProjectMapper Security Report ══════════════════════════════════╗",
@@ -160,27 +189,37 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     if r["top_files"]:
         lines.append("Top files by risk score:")
         for i, tf in enumerate(r["top_files"], 1):
-            sevs   = tf["severities"]
-            c_cnt  = sevs.count("critical")
-            h_cnt  = sevs.count("high")
-            detail = "  ".join(filter(None, [
-                f"{c_cnt} critical" if c_cnt else "",
-                f"{h_cnt} high"     if h_cnt else "",
-            ])) or f"{len(sevs)} finding(s)"
+            sevs = tf["severities"]
+            c_cnt = sevs.count("critical")
+            h_cnt = sevs.count("high")
+            detail = (
+                "  ".join(
+                    filter(
+                        None,
+                        [
+                            f"{c_cnt} critical" if c_cnt else "",
+                            f"{h_cnt} high" if h_cnt else "",
+                        ],
+                    )
+                )
+                or f"{len(sevs)} finding(s)"
+            )
             lines.append(f"  {i}. {tf['file']:<55}  score:{tf['score']:>3}  [{detail}]")
         lines.append("")
 
     if owasp_counts:
         lines.append("OWASP Top 10 coverage:")
         for cat in sorted(owasp_counts):
-            n   = owasp_counts[cat]
+            n = owasp_counts[cat]
             bar = "█" * min(n, 20)
             lines.append(f"  {cat}  {bar}  {n}")
         lines.append("")
 
     if snapshot_written:
         lines.append(f"Snapshot: {snapshot_path}")
-        lines.append("  Use pm_security_triage to mark findings: false_positive | verified_vulnerability")
+        lines.append(
+            "  Use pm_security_triage to mark findings: false_positive | verified_vulnerability"
+        )
         lines.append("  Re-run pm_security after code changes to auto-resolve fixed findings.")
         lines.append("")
 
@@ -211,11 +250,11 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
 
     lines.append("Rule Reference:")
     for pid in sorted(seen_patterns):
-        rf      = seen_patterns[pid]
+        rf = seen_patterns[pid]
         cwe_str = f"  {rf['cwe']}" if rf.get("cwe") else ""
         owasp_s = f"  {rf.get('owasp', '')}" if rf.get("owasp") else ""
-        desc    = rf.get("description", "")
-        fix     = f"  Fix: {rf['fix']}" if rf.get("fix") else ""
+        desc = rf.get("description", "")
+        fix = f"  Fix: {rf['fix']}" if rf.get("fix") else ""
         lines.append(f"  [{pid}]{cwe_str}{owasp_s}  {desc}{fix}")
     lines.append("")
 
@@ -226,13 +265,13 @@ def handle_pm_security(args: dict[str, Any], ctx: MCPContext) -> str:
     for cat in sorted(by_owasp):
         lines.append(f"── {cat} ──")
         for f in by_owasp[cat]:
-            fid    = f.get("id", "")[:8]
-            sev    = f["severity"].upper()
-            reach  = "  ⚡" if f["taint_reachable"] else ""
+            fid = f.get("id", "")[:8]
+            sev = f["severity"].upper()
+            reach = "  ⚡" if f["taint_reachable"] else ""
             status = {
                 "verified_vulnerability": "  [CONFIRMED]",
-                "false_positive":         "  [FALSE-POS]",
-                "resolved":               "  [RESOLVED]",
+                "false_positive": "  [FALSE-POS]",
+                "resolved": "  [RESOLVED]",
             }.get(f["status"], "")
             lines.append(
                 f"  {fid}  {sev:<8}  {f['pattern_id']:<28}  {f['file']}:{f['line']}{reach}{status}"
@@ -257,7 +296,7 @@ def handle_pm_security_triage(args: dict[str, Any], ctx: MCPContext) -> str:
     from ...core.security import triage_findings
 
     file_arg = (args.get("file") or "").strip()
-    notes    = (args.get("notes") or "").strip()
+    notes = (args.get("notes") or "").strip()
     project_root_arg = (args.get("project_root") or ctx.project_root or "").strip()
 
     r = triage_findings(
@@ -289,7 +328,7 @@ def handle_pm_security_triage(args: dict[str, Any], ctx: MCPContext) -> str:
     if st == "save_error":
         return f"Snapshot updated in memory but failed to save: {r['error']}"
 
-    updated    = r["updated"]
+    updated = r["updated"]
     new_status = r["new_status"]
     if len(updated) == 1:
         f = updated[0]

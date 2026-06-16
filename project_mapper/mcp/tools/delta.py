@@ -1,4 +1,5 @@
 """delta MCP tool."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,17 +7,25 @@ from typing import Any
 
 from .base import MCPContext
 
-SCHEMA = {'name': 'pm_delta',
- 'description': 'Show what has changed in the project since the last scan — new files, '
-                'modified files, and deleted files — without making any database changes. Use '
-                'to decide whether a re-scan is needed, or to preview what an incremental scan '
-                'would process.',
- 'inputSchema': {'type': 'object',
-                 'properties': {'project_root': {'type': 'string',
-                                                 'description': 'Absolute path to the project '
-                                                                'directory. Uses the server '
-                                                                'default if omitted.'}},
-                 'required': []}}
+SCHEMA = {
+    "name": "pm_delta",
+    "description": "Show what has changed in the project since the last scan — new files, "
+    "modified files, and deleted files — without making any database changes. Use "
+    "to decide whether a re-scan is needed, or to preview what an incremental scan "
+    "would process.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "project_root": {
+                "type": "string",
+                "description": "Absolute path to the project "
+                "directory. Uses the server "
+                "default if omitted.",
+            }
+        },
+        "required": [],
+    },
+}
 
 
 def handle_pm_delta(args: dict[str, Any], ctx: MCPContext) -> str:

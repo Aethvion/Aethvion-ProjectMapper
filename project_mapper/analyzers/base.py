@@ -25,80 +25,84 @@ from pathlib import Path
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ImportInfo:
-    module:      str         # "jwt", "core.auth.service", "" (for "from . import x")
-    names:       list[str]   # [] for "import x", ["y","z"] for "from x import y,z"
-    is_from:     bool        # True for "from X import Y"
-    is_relative: bool        # True for "from . import ..."
-    level:       int = 0     # number of leading dots in relative import
-    alias:       str = ""    # "import jwt as j" → alias="j"
+    module: str  # "jwt", "core.auth.service", "" (for "from . import x")
+    names: list[str]  # [] for "import x", ["y","z"] for "from x import y,z"
+    is_from: bool  # True for "from X import Y"
+    is_relative: bool  # True for "from . import ..."
+    level: int = 0  # number of leading dots in relative import
+    alias: str = ""  # "import jwt as j" → alias="j"
 
 
 @dataclass
 class ArgInfo:
-    name:       str
+    name: str
     annotation: str = ""
-    default:    str = ""
+    default: str = ""
 
 
 @dataclass
 class MethodInfo:
-    name:            str
-    args:            list[str]       # parameter names only (brief)
-    return_type:     str = ""
-    decorators:      list[str] = field(default_factory=list)
-    is_async:        bool = False
-    is_property:     bool = False
-    is_classmethod:  bool = False
+    name: str
+    args: list[str]  # parameter names only (brief)
+    return_type: str = ""
+    decorators: list[str] = field(default_factory=list)
+    is_async: bool = False
+    is_property: bool = False
+    is_classmethod: bool = False
     is_staticmethod: bool = False
 
 
 @dataclass
 class ClassInfo:
-    name:        str
-    bases:       list[str]
-    methods:     list[MethodInfo]
-    class_vars:  list[str]            # UPPER_CASE class-level names
-    decorators:  list[str] = field(default_factory=list)
-    docstring:   str = ""
-    line_start:  int = 0
-    line_end:    int = 0
-    calls:       list[tuple[str, str]] = field(default_factory=list)  # (callee_name, via_method)
-    kind:        str = ""             # "interface", "abstract", "enum", "struct", "record", "" …
+    name: str
+    bases: list[str]
+    methods: list[MethodInfo]
+    class_vars: list[str]  # UPPER_CASE class-level names
+    decorators: list[str] = field(default_factory=list)
+    docstring: str = ""
+    line_start: int = 0
+    line_end: int = 0
+    calls: list[tuple[str, str]] = field(default_factory=list)  # (callee_name, via_method)
+    kind: str = ""  # "interface", "abstract", "enum", "struct", "record", "" …
 
 
 @dataclass
 class FunctionInfo:
-    name:        str
-    args:        list[ArgInfo]
+    name: str
+    args: list[ArgInfo]
     return_type: str = ""
-    decorators:  list[str] = field(default_factory=list)
-    docstring:   str = ""
-    is_async:    bool = False
-    line_start:  int = 0
-    line_end:    int = 0
-    calls:       list[tuple[str, str]] = field(default_factory=list)  # (callee_name, via_method)
+    decorators: list[str] = field(default_factory=list)
+    docstring: str = ""
+    is_async: bool = False
+    line_start: int = 0
+    line_end: int = 0
+    calls: list[tuple[str, str]] = field(default_factory=list)  # (callee_name, via_method)
 
 
 @dataclass
 class CodeAnalysis:
-    path:             str              # relative path from project root
-    language:         str              # "python", etc.
-    line_count:       int
+    path: str  # relative path from project root
+    language: str  # "python", etc.
+    line_count: int
     module_docstring: str
-    classes:          list[ClassInfo]
-    functions:        list[FunctionInfo]   # top-level functions (public + private)
-    imports:          list[ImportInfo]
-    all_exports:      list[str]            # __all__ contents
-    constants:        list[tuple[str, str]]  # (name, value_repr) for UPPER_CASE
-    parse_errors:     list[str]
-    module_calls:     list[tuple[str, str]] = field(default_factory=list)  # (callee_name, "module_level")
+    classes: list[ClassInfo]
+    functions: list[FunctionInfo]  # top-level functions (public + private)
+    imports: list[ImportInfo]
+    all_exports: list[str]  # __all__ contents
+    constants: list[tuple[str, str]]  # (name, value_repr) for UPPER_CASE
+    parse_errors: list[str]
+    module_calls: list[tuple[str, str]] = field(
+        default_factory=list
+    )  # (callee_name, "module_level")
 
 
 # ---------------------------------------------------------------------------
 # AST helpers
 # ---------------------------------------------------------------------------
+
 
 def _safe_unparse(node: ast.expr) -> str:
     """Convert an AST expression to source string; fall back to type name."""
@@ -155,66 +159,267 @@ def _literal_repr(node: ast.expr) -> str:
 # Built-in names, stdlib types, and common non-class callables to ignore when
 # extracting call-graph targets.  Keep this list broad so the ingestor doesn't
 # create stubs for obvious non-project names.
-_CALL_IGNORE: frozenset[str] = frozenset({
-    # ---- builtins --------------------------------------------------------
-    "print", "len", "range", "list", "dict", "set", "tuple", "str", "int",
-    "float", "bool", "bytes", "bytearray", "memoryview", "complex",
-    "type", "isinstance", "issubclass", "hasattr", "getattr", "setattr",
-    "delattr", "super", "object", "staticmethod", "classmethod", "property",
-    "enumerate", "zip", "map", "filter", "sorted", "reversed", "min", "max",
-    "sum", "abs", "round", "pow", "divmod", "hex", "oct", "bin", "chr", "ord",
-    "open", "next", "iter", "vars", "dir", "repr", "hash", "id", "callable",
-    "any", "all", "format", "input", "eval", "exec", "compile", "breakpoint",
-    "globals", "locals", "classmethod",
-    # ---- exceptions ------------------------------------------------------
-    "Exception", "BaseException", "NotImplementedError", "NotImplemented",
-    "ValueError", "KeyError", "TypeError", "RuntimeError", "AttributeError",
-    "OSError", "IOError", "FileNotFoundError", "PermissionError", "IsADirectoryError",
-    "StopIteration", "StopAsyncIteration", "IndexError", "NameError",
-    "AssertionError", "ImportError", "ModuleNotFoundError", "LookupError",
-    "ArithmeticError", "ZeroDivisionError", "OverflowError", "MemoryError",
-    "RecursionError", "TimeoutError", "ConnectionError", "BrokenPipeError",
-    "GeneratorExit", "SystemExit", "KeyboardInterrupt", "UnicodeError",
-    "UnicodeDecodeError", "UnicodeEncodeError", "BufferError", "EOFError",
-    "DeprecationWarning", "UserWarning", "FutureWarning", "Warning",
-    # ---- typing ----------------------------------------------------------
-    "Optional", "Dict", "List", "Set", "FrozenSet", "Tuple", "Union",
-    "Callable", "Any", "Type", "ClassVar", "Final", "Literal",
-    "TypeVar", "TypeVarTuple", "ParamSpec", "Protocol", "TypeAlias",
-    "Generator", "Iterator", "Iterable", "AsyncGenerator", "AsyncIterator",
-    "AsyncIterable", "Awaitable", "Coroutine", "Sequence", "MutableSequence",
-    "Mapping", "MutableMapping", "AbstractSet", "MutableSet",
-    "TypedDict", "NamedTuple", "overload", "cast", "dataclass",
-    "Generic", "Annotated", "get_type_hints", "get_origin", "get_args",
-    # ---- stdlib classes --------------------------------------------------
-    "Path", "PurePath", "PosixPath", "WindowsPath",
-    "datetime", "date", "time", "timedelta", "timezone",
-    "deque", "defaultdict", "OrderedDict", "Counter", "ChainMap",
-    "Thread", "Lock", "RLock", "Event", "Condition", "Semaphore",
-    "Queue", "PriorityQueue", "LifoQueue",
-    "Enum", "IntEnum", "StrEnum", "Flag", "IntFlag", "auto",
-    "ABC", "ABCMeta", "abstractmethod",
-    "StringIO", "BytesIO", "TextIOWrapper",
-    "re", "Pattern", "Match",
-    # ---- common third-party base classes / decorators --------------------
-    "BaseModel", "BaseSettings", "Field", "validator", "root_validator",
-    "model_validator", "field_validator", "ConfigDict",
-    "dataclasses",
-    # ---- FastAPI / Starlette / HTTP --------------------------------------
-    "FastAPI", "APIRouter", "Request", "Response", "JSONResponse",
-    "HTMLResponse", "StreamingResponse", "FileResponse", "RedirectResponse",
-    "HTTPException", "WebSocket", "BackgroundTasks", "Depends",
-    "Body", "Query", "Path", "Header", "Cookie", "Form", "File", "UploadFile",
-    "status",
-    # ---- asyncio ---------------------------------------------------------
-    "asyncio", "Task", "Future", "Event", "gather", "sleep", "create_task",
-    "get_event_loop", "run", "wait", "wait_for", "shield", "timeout",
-    # ---- logging / misc --------------------------------------------------
-    "Logger", "LogRecord", "Formatter", "Handler", "StreamHandler",
-    "NullHandler", "FileHandler",
-    "UUID", "Decimal", "Fraction",
-    "json", "os", "sys", "re", "math", "random", "copy", "functools",
-})
+_CALL_IGNORE: frozenset[str] = frozenset(
+    {
+        # ---- builtins --------------------------------------------------------
+        "print",
+        "len",
+        "range",
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "bytes",
+        "bytearray",
+        "memoryview",
+        "complex",
+        "type",
+        "isinstance",
+        "issubclass",
+        "hasattr",
+        "getattr",
+        "setattr",
+        "delattr",
+        "super",
+        "object",
+        "staticmethod",
+        "classmethod",
+        "property",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+        "sorted",
+        "reversed",
+        "min",
+        "max",
+        "sum",
+        "abs",
+        "round",
+        "pow",
+        "divmod",
+        "hex",
+        "oct",
+        "bin",
+        "chr",
+        "ord",
+        "open",
+        "next",
+        "iter",
+        "vars",
+        "dir",
+        "repr",
+        "hash",
+        "id",
+        "callable",
+        "any",
+        "all",
+        "format",
+        "input",
+        "eval",
+        "exec",
+        "compile",
+        "breakpoint",
+        "globals",
+        "locals",
+        "classmethod",
+        # ---- exceptions ------------------------------------------------------
+        "Exception",
+        "BaseException",
+        "NotImplementedError",
+        "NotImplemented",
+        "ValueError",
+        "KeyError",
+        "TypeError",
+        "RuntimeError",
+        "AttributeError",
+        "OSError",
+        "IOError",
+        "FileNotFoundError",
+        "PermissionError",
+        "IsADirectoryError",
+        "StopIteration",
+        "StopAsyncIteration",
+        "IndexError",
+        "NameError",
+        "AssertionError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "LookupError",
+        "ArithmeticError",
+        "ZeroDivisionError",
+        "OverflowError",
+        "MemoryError",
+        "RecursionError",
+        "TimeoutError",
+        "ConnectionError",
+        "BrokenPipeError",
+        "GeneratorExit",
+        "SystemExit",
+        "KeyboardInterrupt",
+        "UnicodeError",
+        "UnicodeDecodeError",
+        "UnicodeEncodeError",
+        "BufferError",
+        "EOFError",
+        "DeprecationWarning",
+        "UserWarning",
+        "FutureWarning",
+        "Warning",
+        # ---- typing ----------------------------------------------------------
+        "Optional",
+        "Dict",
+        "List",
+        "Set",
+        "FrozenSet",
+        "Tuple",
+        "Union",
+        "Callable",
+        "Any",
+        "Type",
+        "ClassVar",
+        "Final",
+        "Literal",
+        "TypeVar",
+        "TypeVarTuple",
+        "ParamSpec",
+        "Protocol",
+        "TypeAlias",
+        "Generator",
+        "Iterator",
+        "Iterable",
+        "AsyncGenerator",
+        "AsyncIterator",
+        "AsyncIterable",
+        "Awaitable",
+        "Coroutine",
+        "Sequence",
+        "MutableSequence",
+        "Mapping",
+        "MutableMapping",
+        "AbstractSet",
+        "MutableSet",
+        "TypedDict",
+        "NamedTuple",
+        "overload",
+        "cast",
+        "dataclass",
+        "Generic",
+        "Annotated",
+        "get_type_hints",
+        "get_origin",
+        "get_args",
+        # ---- stdlib classes --------------------------------------------------
+        "Path",
+        "PurePath",
+        "PosixPath",
+        "WindowsPath",
+        "datetime",
+        "date",
+        "time",
+        "timedelta",
+        "timezone",
+        "deque",
+        "defaultdict",
+        "OrderedDict",
+        "Counter",
+        "ChainMap",
+        "Thread",
+        "Lock",
+        "RLock",
+        "Event",
+        "Condition",
+        "Semaphore",
+        "Queue",
+        "PriorityQueue",
+        "LifoQueue",
+        "Enum",
+        "IntEnum",
+        "StrEnum",
+        "Flag",
+        "IntFlag",
+        "auto",
+        "ABC",
+        "ABCMeta",
+        "abstractmethod",
+        "StringIO",
+        "BytesIO",
+        "TextIOWrapper",
+        "re",
+        "Pattern",
+        "Match",
+        # ---- common third-party base classes / decorators --------------------
+        "BaseModel",
+        "BaseSettings",
+        "Field",
+        "validator",
+        "root_validator",
+        "model_validator",
+        "field_validator",
+        "ConfigDict",
+        "dataclasses",
+        # ---- FastAPI / Starlette / HTTP --------------------------------------
+        "FastAPI",
+        "APIRouter",
+        "Request",
+        "Response",
+        "JSONResponse",
+        "HTMLResponse",
+        "StreamingResponse",
+        "FileResponse",
+        "RedirectResponse",
+        "HTTPException",
+        "WebSocket",
+        "BackgroundTasks",
+        "Depends",
+        "Body",
+        "Query",
+        "Path",
+        "Header",
+        "Cookie",
+        "Form",
+        "File",
+        "UploadFile",
+        "status",
+        # ---- asyncio ---------------------------------------------------------
+        "asyncio",
+        "Task",
+        "Future",
+        "Event",
+        "gather",
+        "sleep",
+        "create_task",
+        "get_event_loop",
+        "run",
+        "wait",
+        "wait_for",
+        "shield",
+        "timeout",
+        # ---- logging / misc --------------------------------------------------
+        "Logger",
+        "LogRecord",
+        "Formatter",
+        "Handler",
+        "StreamHandler",
+        "NullHandler",
+        "FileHandler",
+        "UUID",
+        "Decimal",
+        "Fraction",
+        "json",
+        "os",
+        "sys",
+        "re",
+        "math",
+        "random",
+        "copy",
+        "functools",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +427,13 @@ _CALL_IGNORE: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 
 _FACTORY_PREFIXES: tuple[str, ...] = (
-    "get_", "create_", "build_", "make_", "load_", "init_", "setup_",
+    "get_",
+    "create_",
+    "build_",
+    "make_",
+    "load_",
+    "init_",
+    "setup_",
 )
 
 
@@ -235,7 +446,7 @@ def _factory_to_class_name(fname: str) -> str:
     """
     for prefix in _FACTORY_PREFIXES:
         if fname.startswith(prefix):
-            remainder = fname[len(prefix):]
+            remainder = fname[len(prefix) :]
             if remainder:
                 return "".join(w.capitalize() for w in remainder.split("_"))
     return ""
@@ -276,13 +487,15 @@ class _SelfAssignExtractor(ast.NodeVisitor):
     """
 
     def __init__(self) -> None:
-        self.attr_to_class: dict[str, str] = {}   # attr_name → ClassName
+        self.attr_to_class: dict[str, str] = {}  # attr_name → ClassName
 
     def visit_Assign(self, node: ast.Assign) -> None:
         for target in node.targets:
-            if not (isinstance(target, ast.Attribute)
-                    and isinstance(target.value, ast.Name)
-                    and target.value.id == "self"):
+            if not (
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "self"
+            ):
                 continue
             attr = target.attr
             if isinstance(node.value, ast.Call):
@@ -302,8 +515,8 @@ class _CallExtractor(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self.instantiated: set[str] = set()
-        self.attr_calls:   set[str] = set()
-        self.fn_calls:     set[str] = set()
+        self.attr_calls: set[str] = set()
+        self.fn_calls: set[str] = set()
 
     def visit_Call(self, node: ast.Call) -> None:
         func = node.func
@@ -327,20 +540,25 @@ class _CallExtractor(ast.NodeVisitor):
                     self.fn_calls.add(name)
 
         elif isinstance(func, ast.Attribute):
-            obj  = func.value
+            obj = func.value
 
             # self.X.method(...) — X is a stored object attribute
-            if (isinstance(obj, ast.Attribute)
-                    and isinstance(obj.value, ast.Name)
-                    and obj.value.id == "self"
-                    and not obj.attr.startswith("_")):
+            if (
+                isinstance(obj, ast.Attribute)
+                and isinstance(obj.value, ast.Name)
+                and obj.value.id == "self"
+                and not obj.attr.startswith("_")
+            ):
                 self.attr_calls.add(obj.attr)
 
             # SomeName.method(...) — SomeName looks like a class/module name
-            elif (isinstance(obj, ast.Name)
-                  and obj.id != "self"
-                  and obj.id and obj.id[0].isupper()
-                  and obj.id not in _CALL_IGNORE):
+            elif (
+                isinstance(obj, ast.Name)
+                and obj.id != "self"
+                and obj.id
+                and obj.id[0].isupper()
+                and obj.id not in _CALL_IGNORE
+            ):
                 self.instantiated.add(obj.id)
 
             # module.get_something() or module.SomeClass() — attribute factory/class
@@ -352,12 +570,18 @@ class _CallExtractor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> None:
-        if node.id and node.id[0].isupper() and not node.id.isupper() and node.id not in _CALL_IGNORE:
+        if (
+            node.id
+            and node.id[0].isupper()
+            and not node.id.isupper()
+            and node.id not in _CALL_IGNORE
+        ):
             self.instantiated.add(node.id)
         self.generic_visit(node)
 
 
-_UPPERWORD_PAT = re.compile(r'\b[A-Z][a-zA-Z0-9_]*\b')
+_UPPERWORD_PAT = re.compile(r"\b[A-Z][a-zA-Z0-9_]*\b")
+
 
 def _extract_classes_from_type_annotation(annotation: str) -> set[str]:
     if not annotation:
@@ -433,14 +657,14 @@ def _extract_class_calls(
             attr_to_class.update(extractor.attr_to_class)
 
     # Step 2 + 3: extract per-method, preserving source method name
-    result:  list[tuple[str, str]] = []
-    seen:    set[tuple[str, str]]  = set()
+    result: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
 
     for item in class_node.body:
         if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         method_name = item.name
-        extractor   = _CallExtractor()
+        extractor = _CallExtractor()
         extractor.visit(item)
 
         callees = set(extractor.instantiated)
@@ -483,15 +707,16 @@ def _extract_class_calls(
 # Python AST visitor
 # ---------------------------------------------------------------------------
 
+
 class _PythonVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.classes:      list[ClassInfo] = []
-        self.functions:    list[FunctionInfo] = []
-        self.imports:      list[ImportInfo] = []
-        self.all_exports:  list[str] = []
-        self.constants:    list[tuple[str, str]] = []
+        self.classes: list[ClassInfo] = []
+        self.functions: list[FunctionInfo] = []
+        self.imports: list[ImportInfo] = []
+        self.all_exports: list[str] = []
+        self.constants: list[tuple[str, str]] = []
         self.module_calls: list[tuple[str, str]] = []
-        self._class_stack: list[str] = []   # track nesting
+        self._class_stack: list[str] = []  # track nesting
 
     def _in_class(self) -> bool:
         return bool(self._class_stack)
@@ -502,8 +727,11 @@ class _PythonVisitor(ast.NodeVisitor):
 
     def visit_Module(self, node: ast.Module) -> None:
         _skip = (
-            ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
-            ast.Import, ast.ImportFrom,
+            ast.FunctionDef,
+            ast.AsyncFunctionDef,
+            ast.ClassDef,
+            ast.Import,
+            ast.ImportFrom,
         )
         seen: set[str] = set()
         for stmt in node.body:
@@ -523,27 +751,31 @@ class _PythonVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            self.imports.append(ImportInfo(
-                module=alias.name,
-                names=[],
-                is_from=False,
-                is_relative=False,
-                level=0,
-                alias=alias.asname or "",
-            ))
+            self.imports.append(
+                ImportInfo(
+                    module=alias.name,
+                    names=[],
+                    is_from=False,
+                    is_relative=False,
+                    level=0,
+                    alias=alias.asname or "",
+                )
+            )
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         module = node.module or ""
-        level  = node.level or 0
-        names  = [a.name for a in node.names]
-        self.imports.append(ImportInfo(
-            module=module,
-            names=names,
-            is_from=True,
-            is_relative=(level > 0),
-            level=level,
-        ))
+        level = node.level or 0
+        names = [a.name for a in node.names]
+        self.imports.append(
+            ImportInfo(
+                module=module,
+                names=names,
+                is_from=True,
+                is_relative=(level > 0),
+                level=level,
+            )
+        )
         self.generic_visit(node)
 
     # ------------------------------------------------------------------
@@ -556,11 +788,11 @@ class _PythonVisitor(ast.NodeVisitor):
             self.generic_visit(node)
             return
 
-        bases      = [_node_to_str(b) for b in node.bases]
+        bases = [_node_to_str(b) for b in node.bases]
         decorators = [_decorator_name(d) for d in node.decorator_list]
-        docstring  = ast.get_docstring(node) or ""
+        docstring = ast.get_docstring(node) or ""
 
-        methods:    list[MethodInfo] = []
+        methods: list[MethodInfo] = []
         class_vars: list[str] = []
 
         self._class_stack.append(node.name)
@@ -578,27 +810,29 @@ class _PythonVisitor(ast.NodeVisitor):
         self._class_stack.pop()
 
         end_line = getattr(node, "end_lineno", node.lineno)
-        calls    = _extract_class_calls(node)
-        self.classes.append(ClassInfo(
-            name=node.name,
-            bases=bases,
-            methods=methods,
-            class_vars=class_vars,
-            decorators=decorators,
-            docstring=docstring[:300],
-            line_start=node.lineno,
-            line_end=end_line,
-            calls=calls,
-        ))
+        calls = _extract_class_calls(node)
+        self.classes.append(
+            ClassInfo(
+                name=node.name,
+                bases=bases,
+                methods=methods,
+                class_vars=class_vars,
+                decorators=decorators,
+                docstring=docstring[:300],
+                line_start=node.lineno,
+                line_end=end_line,
+                calls=calls,
+            )
+        )
 
     def _build_method(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> MethodInfo:
-        decs      = [_decorator_name(d) for d in node.decorator_list]
-        args      = [a.arg for a in node.args.args if a.arg != "self" and a.arg != "cls"]
-        ret_type  = _safe_unparse(node.returns) if node.returns else ""
-        is_async  = isinstance(node, ast.AsyncFunctionDef)
-        is_prop   = "property" in decs
-        is_cm     = "classmethod" in decs
-        is_sm     = "staticmethod" in decs
+        decs = [_decorator_name(d) for d in node.decorator_list]
+        args = [a.arg for a in node.args.args if a.arg != "self" and a.arg != "cls"]
+        ret_type = _safe_unparse(node.returns) if node.returns else ""
+        is_async = isinstance(node, ast.AsyncFunctionDef)
+        is_prop = "property" in decs
+        is_cm = "classmethod" in decs
+        is_sm = "staticmethod" in decs
         return MethodInfo(
             name=node.name,
             args=args,
@@ -629,33 +863,35 @@ class _PythonVisitor(ast.NodeVisitor):
         node: ast.FunctionDef | ast.AsyncFunctionDef,
         is_async: bool,
     ) -> None:
-        decs      = [_decorator_name(d) for d in node.decorator_list]
+        decs = [_decorator_name(d) for d in node.decorator_list]
         docstring = ast.get_docstring(node) or ""
-        ret_type  = _safe_unparse(node.returns) if node.returns else ""
+        ret_type = _safe_unparse(node.returns) if node.returns else ""
 
         # Build args list with defaults aligned
-        all_args   = node.args.args
-        defaults   = node.args.defaults
+        all_args = node.args.args
+        defaults = node.args.defaults
         # defaults are right-aligned: last len(defaults) args have defaults
-        pad        = len(all_args) - len(defaults)
+        pad = len(all_args) - len(defaults)
         args: list[ArgInfo] = []
         for i, arg in enumerate(all_args):
             dflt_node = defaults[i - pad] if i >= pad else None
             args.append(_arg_info(arg, dflt_node))
 
-        end_line   = getattr(node, "end_lineno", node.lineno)
-        fn_calls   = _extract_function_calls(node)
-        self.functions.append(FunctionInfo(
-            name=node.name,
-            args=args,
-            return_type=ret_type,
-            decorators=decs,
-            docstring=docstring[:200],
-            is_async=is_async,
-            line_start=node.lineno,
-            line_end=end_line,
-            calls=fn_calls,
-        ))
+        end_line = getattr(node, "end_lineno", node.lineno)
+        fn_calls = _extract_function_calls(node)
+        self.functions.append(
+            FunctionInfo(
+                name=node.name,
+                args=args,
+                return_type=ret_type,
+                decorators=decs,
+                docstring=docstring[:200],
+                is_async=is_async,
+                line_start=node.lineno,
+                line_end=end_line,
+                calls=fn_calls,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Module-level assignments: constants + __all__
@@ -672,7 +908,8 @@ class _PythonVisitor(ast.NodeVisitor):
             if name == "__all__":
                 if isinstance(node.value, (ast.List, ast.Tuple)):
                     self.all_exports = [
-                        elt.s if isinstance(elt, ast.Constant) and isinstance(elt.s, str)
+                        elt.s
+                        if isinstance(elt, ast.Constant) and isinstance(elt.s, str)
                         else _safe_unparse(elt)
                         for elt in node.value.elts
                     ]
@@ -692,28 +929,41 @@ class _PythonVisitor(ast.NodeVisitor):
 # Public analysis functions
 # ---------------------------------------------------------------------------
 
+
 def analyze_python(path: str, content: str) -> CodeAnalysis:
     """
     Parse *content* as Python source and return a CodeAnalysis.
     Never raises — parse errors are collected in CodeAnalysis.parse_errors.
     """
-    line_count   = content.count("\n") + 1
+    line_count = content.count("\n") + 1
     parse_errors: list[str] = []
 
     try:
         tree = ast.parse(content, filename=path)
     except SyntaxError as exc:
         return CodeAnalysis(
-            path=path, language="python", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="python",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"SyntaxError: {exc}"],
         )
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="python", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="python",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"ParseError: {exc}"],
         )
 
@@ -742,11 +992,25 @@ def analyze_python(path: str, content: str) -> CodeAnalysis:
 
 _LANGUAGE_BY_EXT: dict[str, str] = {
     ".py": "python",
-    ".js": "javascript", ".mjs": "javascript",
-    ".ts": "typescript", ".tsx": "typescript", ".jsx": "javascript",
-    ".java": "java", ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".c": "c", ".h": "cpp", ".hpp": "cpp",
-    ".rb": "ruby", ".go": "go", ".rs": "rust", ".php": "php",
-    ".cs": "csharp", ".swift": "swift", ".kt": "kotlin",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".jsx": "javascript",
+    ".java": "java",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".c": "c",
+    ".h": "cpp",
+    ".hpp": "cpp",
+    ".rb": "ruby",
+    ".go": "go",
+    ".rs": "rust",
+    ".php": "php",
+    ".cs": "csharp",
+    ".swift": "swift",
+    ".kt": "kotlin",
 }
 
 
@@ -767,36 +1031,47 @@ def analyze_file(path: str, content: str, language: str = "") -> CodeAnalysis:
         return analyze_python(path, content)
     if language in ("typescript", "javascript"):
         from .typescript import analyze_typescript
+
         return analyze_typescript(path, content, language)
     if language == "java":
         from .java import analyze_java
+
         return analyze_java(path, content)
     if language == "go":
         from .go import analyze_go
+
         return analyze_go(path, content)
     if language == "csharp":
         from .csharp import analyze_csharp
+
         return analyze_csharp(path, content)
     if language == "rust":
         from .rust import analyze_rust
+
         return analyze_rust(path, content)
     if language in ("c", "cpp"):
         if language == "c":
             from .c import analyze_c
+
             return analyze_c(path, content)
         from .cpp import analyze_cpp
+
         return analyze_cpp(path, content)
     if language == "php":
         from .php import analyze_php
+
         return analyze_php(path, content)
     if language == "ruby":
         from .ruby import analyze_ruby
+
         return analyze_ruby(path, content)
     if language == "kotlin":
         from .kotlin import analyze_kotlin
+
         return analyze_kotlin(path, content)
     if language == "swift":
         from .swift import analyze_swift
+
         return analyze_swift(path, content)
     # Minimal stub for unsupported file types
     return CodeAnalysis(
@@ -830,8 +1105,12 @@ def build_compact_summary(analysis: CodeAnalysis) -> str:
             bases_str = f"({', '.join(cls.bases)})" if cls.bases else ""
             lines.append(f"  {cls.name}{bases_str}")
             if cls.docstring:
-                lines.append(f"    \"{cls.docstring[:120]}\"")
-            public_methods = [m for m in cls.methods if not m.name.startswith("_") or m.name.startswith("__") and m.name.endswith("__")]
+                lines.append(f'    "{cls.docstring[:120]}"')
+            public_methods = [
+                m
+                for m in cls.methods
+                if not m.name.startswith("_") or m.name.startswith("__") and m.name.endswith("__")
+            ]
             if public_methods:
                 meth_strs = []
                 for m in public_methods[:8]:
@@ -865,7 +1144,7 @@ def build_compact_summary(analysis: CodeAnalysis) -> str:
                 sig = "  [async]" + sig[1:]
             lines.append(sig)
             if fn.docstring:
-                lines.append(f"    \"{fn.docstring[:100]}\"")
+                lines.append(f'    "{fn.docstring[:100]}"')
 
     # Partition imports
     int_imps = [i for i in analysis.imports if _could_be_internal(i)]
@@ -907,40 +1186,211 @@ def _could_be_internal(imp: ImportInfo) -> bool:
 # Known stdlib top-level package names (Python 3.10 stdlib)
 # ---------------------------------------------------------------------------
 
-_STDLIB_TOP_LEVEL: frozenset[str] = frozenset({
-    "abc", "aifc", "argparse", "array", "ast", "asynchat", "asyncio",
-    "asyncore", "atexit", "audioop", "base64", "bdb", "binascii",
-    "binhex", "bisect", "builtins", "bz2", "calendar", "cgi", "cgitb",
-    "chunk", "cmath", "cmd", "code", "codecs", "codeop", "collections",
-    "colorsys", "compileall", "concurrent", "configparser", "contextlib",
-    "contextvars", "copy", "copyreg", "cProfile", "csv", "ctypes",
-    "curses", "dataclasses", "datetime", "dbm", "decimal", "difflib",
-    "dis", "distutils", "doctest", "email", "encodings", "enum",
-    "errno", "faulthandler", "fcntl", "filecmp", "fileinput", "fnmatch",
-    "fractions", "ftplib", "functools", "gc", "getopt", "getpass",
-    "gettext", "glob", "grp", "gzip", "hashlib", "heapq", "hmac",
-    "html", "http", "idlelib", "imaplib", "imghdr", "imp", "importlib",
-    "inspect", "io", "ipaddress", "itertools", "json", "keyword",
-    "lib2to3", "linecache", "locale", "logging", "lzma", "mailbox",
-    "marshal", "math", "mimetypes", "mmap", "modulefinder", "multiprocessing",
-    "netrc", "nis", "nntplib", "numbers", "operator", "optparse",
-    "os", "ossaudiodev", "pathlib", "pdb", "pickle", "pickletools",
-    "pipes", "pkgutil", "platform", "plistlib", "poplib", "posix",
-    "posixpath", "pprint", "profile", "pstats", "pty", "pwd", "py_compile",
-    "pyclbr", "pydoc", "queue", "quopri", "random", "re", "readline",
-    "reprlib", "resource", "rlcompleter", "runpy", "sched", "secrets",
-    "select", "selectors", "shelve", "shlex", "shutil", "signal",
-    "site", "smtpd", "smtplib", "sndhdr", "socket", "socketserver",
-    "spwd", "sqlite3", "sre_compile", "sre_constants", "sre_parse",
-    "ssl", "stat", "statistics", "string", "stringprep", "struct",
-    "subprocess", "sunau", "symtable", "sys", "sysconfig", "syslog",
-    "tabnanny", "tarfile", "telnetlib", "tempfile", "termios", "test",
-    "textwrap", "threading", "time", "timeit", "tkinter", "token",
-    "tokenize", "tomllib", "trace", "traceback", "tracemalloc", "tty",
-    "turtle", "turtledemo", "types", "typing", "unicodedata", "unittest",
-    "urllib", "uu", "uuid", "venv", "warnings", "wave", "weakref",
-    "webbrowser", "wsgiref", "xdrlib", "xml", "xmlrpc", "zipapp",
-    "zipfile", "zipimport", "zlib", "zoneinfo",
-    # Common third-party that look like stdlib
-    "typing_extensions",
-})
+_STDLIB_TOP_LEVEL: frozenset[str] = frozenset(
+    {
+        "abc",
+        "aifc",
+        "argparse",
+        "array",
+        "ast",
+        "asynchat",
+        "asyncio",
+        "asyncore",
+        "atexit",
+        "audioop",
+        "base64",
+        "bdb",
+        "binascii",
+        "binhex",
+        "bisect",
+        "builtins",
+        "bz2",
+        "calendar",
+        "cgi",
+        "cgitb",
+        "chunk",
+        "cmath",
+        "cmd",
+        "code",
+        "codecs",
+        "codeop",
+        "collections",
+        "colorsys",
+        "compileall",
+        "concurrent",
+        "configparser",
+        "contextlib",
+        "contextvars",
+        "copy",
+        "copyreg",
+        "cProfile",
+        "csv",
+        "ctypes",
+        "curses",
+        "dataclasses",
+        "datetime",
+        "dbm",
+        "decimal",
+        "difflib",
+        "dis",
+        "distutils",
+        "doctest",
+        "email",
+        "encodings",
+        "enum",
+        "errno",
+        "faulthandler",
+        "fcntl",
+        "filecmp",
+        "fileinput",
+        "fnmatch",
+        "fractions",
+        "ftplib",
+        "functools",
+        "gc",
+        "getopt",
+        "getpass",
+        "gettext",
+        "glob",
+        "grp",
+        "gzip",
+        "hashlib",
+        "heapq",
+        "hmac",
+        "html",
+        "http",
+        "idlelib",
+        "imaplib",
+        "imghdr",
+        "imp",
+        "importlib",
+        "inspect",
+        "io",
+        "ipaddress",
+        "itertools",
+        "json",
+        "keyword",
+        "lib2to3",
+        "linecache",
+        "locale",
+        "logging",
+        "lzma",
+        "mailbox",
+        "marshal",
+        "math",
+        "mimetypes",
+        "mmap",
+        "modulefinder",
+        "multiprocessing",
+        "netrc",
+        "nis",
+        "nntplib",
+        "numbers",
+        "operator",
+        "optparse",
+        "os",
+        "ossaudiodev",
+        "pathlib",
+        "pdb",
+        "pickle",
+        "pickletools",
+        "pipes",
+        "pkgutil",
+        "platform",
+        "plistlib",
+        "poplib",
+        "posix",
+        "posixpath",
+        "pprint",
+        "profile",
+        "pstats",
+        "pty",
+        "pwd",
+        "py_compile",
+        "pyclbr",
+        "pydoc",
+        "queue",
+        "quopri",
+        "random",
+        "re",
+        "readline",
+        "reprlib",
+        "resource",
+        "rlcompleter",
+        "runpy",
+        "sched",
+        "secrets",
+        "select",
+        "selectors",
+        "shelve",
+        "shlex",
+        "shutil",
+        "signal",
+        "site",
+        "smtpd",
+        "smtplib",
+        "sndhdr",
+        "socket",
+        "socketserver",
+        "spwd",
+        "sqlite3",
+        "sre_compile",
+        "sre_constants",
+        "sre_parse",
+        "ssl",
+        "stat",
+        "statistics",
+        "string",
+        "stringprep",
+        "struct",
+        "subprocess",
+        "sunau",
+        "symtable",
+        "sys",
+        "sysconfig",
+        "syslog",
+        "tabnanny",
+        "tarfile",
+        "telnetlib",
+        "tempfile",
+        "termios",
+        "test",
+        "textwrap",
+        "threading",
+        "time",
+        "timeit",
+        "tkinter",
+        "token",
+        "tokenize",
+        "tomllib",
+        "trace",
+        "traceback",
+        "tracemalloc",
+        "tty",
+        "turtle",
+        "turtledemo",
+        "types",
+        "typing",
+        "unicodedata",
+        "unittest",
+        "urllib",
+        "uu",
+        "uuid",
+        "venv",
+        "warnings",
+        "wave",
+        "weakref",
+        "webbrowser",
+        "wsgiref",
+        "xdrlib",
+        "xml",
+        "xmlrpc",
+        "zipapp",
+        "zipfile",
+        "zipimport",
+        "zlib",
+        "zoneinfo",
+        # Common third-party that look like stdlib
+        "typing_extensions",
+    }
+)

@@ -43,7 +43,7 @@ logger = get_logger(__name__)
 # ── File name constants ───────────────────────────────────────────────────────
 
 SNAPSHOT_FILE = "AethvionDB.SNAPSHOT"
-META_FILE     = "AethvionDB.SNAPSHOT.meta.json"
+META_FILE = "AethvionDB.SNAPSHOT.meta.json"
 
 # Written by PMEntityStore.flush() — signals that this database was built by
 # the in-memory PM store (no ws_*.json entity files exist by design).
@@ -52,6 +52,7 @@ PM_MARKER_FILE = "AethvionDB.PMSTORE"
 
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
+
 
 def snapshot_path(db_root: Path) -> Path:
     """Absolute path to the snapshot data file."""
@@ -65,11 +66,13 @@ def meta_path(db_root: Path) -> Path:
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def is_fresh(db_root: Path, entities_dir: Path) -> bool:
     """Return ``True`` if the snapshot exists and is up-to-date.
@@ -129,9 +132,9 @@ def build(db_root: Path, entities: list[dict[str, Any]]) -> None:
     entities: Complete entity list — should include deleted entities so that
               ``include_deleted`` filtering works at load time.
     """
-    t0   = time.perf_counter()
+    t0 = time.perf_counter()
     snap = snapshot_path(db_root)
-    tmp  = snap.with_suffix(".tmp")
+    tmp = snap.with_suffix(".tmp")
 
     try:
         tmp.write_text(
@@ -150,10 +153,10 @@ def build(db_root: Path, entities: list[dict[str, Any]]) -> None:
     elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     meta = {
-        "v":            1,
-        "built_at":     _now_iso(),
+        "v": 1,
+        "built_at": _now_iso(),
         "entity_count": len(entities),
-        "elapsed_ms":   elapsed_ms,
+        "elapsed_ms": elapsed_ms,
     }
     try:
         meta_path(db_root).write_text(
@@ -163,10 +166,7 @@ def build(db_root: Path, entities: list[dict[str, Any]]) -> None:
     except Exception as exc:
         logger.warning(f"[Snapshot] Meta write failed: {exc}")
 
-    logger.info(
-        f"[Snapshot] Built: {len(entities)} entities in {elapsed_ms} ms"
-        f" → {snap.name}"
-    )
+    logger.info(f"[Snapshot] Built: {len(entities)} entities in {elapsed_ms} ms → {snap.name}")
 
 
 def load(db_root: Path) -> list[dict[str, Any]]:

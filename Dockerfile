@@ -17,7 +17,7 @@ WORKDIR /app
 COPY pyproject.toml .
 COPY project_mapper/ project_mapper/
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir .[languages]
 
 # Non-root user for security
 RUN useradd -m -u 1000 pm \

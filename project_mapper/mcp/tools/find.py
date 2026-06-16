@@ -1,39 +1,50 @@
 """find MCP tool."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from .base import MCPContext
 
-SCHEMA = {'name': 'pm_find',
- 'description': 'Look up a symbol by name and return its definition location, callers, and '
-                'callees. Searches by exact name first (case-insensitive), then suffix/method '
-                'match, then substring. Use this when you know — or partially know — the name '
-                'of a function, class, or module and need to find where it lives, what calls '
-                'it, and what it calls. Faster and more precise than pm_context for direct '
-                'symbol lookups.',
- 'inputSchema': {'type': 'object',
-                 'properties': {'name': {'type': 'string',
-                                         'description': 'Symbol name to look up, e.g. '
-                                                        "'UserService', 'get_user', 'auth'. "
-                                                        'Exact match tried first; partial '
-                                                        'matches returned if no exact match.'},
-                                'max_results': {'type': 'integer',
-                                                'description': 'Maximum matches to return when '
-                                                               'multiple symbols share the '
-                                                               'name (default 10).',
-                                                'default': 10}},
-                 'required': ['name']}}
+SCHEMA = {
+    "name": "pm_find",
+    "description": "Look up a symbol by name and return its definition location, callers, and "
+    "callees. Searches by exact name first (case-insensitive), then suffix/method "
+    "match, then substring. Use this when you know — or partially know — the name "
+    "of a function, class, or module and need to find where it lives, what calls "
+    "it, and what it calls. Faster and more precise than pm_context for direct "
+    "symbol lookups.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Symbol name to look up, e.g. "
+                "'UserService', 'get_user', 'auth'. "
+                "Exact match tried first; partial "
+                "matches returned if no exact match.",
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum matches to return when "
+                "multiple symbols share the "
+                "name (default 10).",
+                "default": 10,
+            },
+        },
+        "required": ["name"],
+    },
+}
 
 
 def _format_find_result(m: dict[str, Any]) -> str:
     """Format a single pm_find match as a detailed block."""
-    name      = m.get("name", "?")
-    etype     = m.get("type", "")
-    kind      = m.get("kind") or etype
-    fp        = m.get("file_path", "")
+    name = m.get("name", "?")
+    etype = m.get("type", "")
+    kind = m.get("kind") or etype
+    fp = m.get("file_path", "")
     line_start = str(m.get("line_start", ""))
-    line_end   = str(m.get("line_end", ""))
+    line_end = str(m.get("line_end", ""))
 
     loc = ""
     if fp:
@@ -95,8 +106,8 @@ def _format_find_result(m: dict[str, Any]) -> str:
 def _format_method_find(queried: str, result: dict[str, Any]) -> str:
     """Format pm_find result when the query matched a class method, not a top-level entity."""
     method_name = result.get("matched_method", queried)
-    matches     = result.get("matches", [])
-    total       = result.get("total", 0)
+    matches = result.get("matches", [])
+    total = result.get("total", 0)
 
     note = (
         f"Note: {queried!r} matched as a method, not a top-level entity — "
@@ -112,11 +123,11 @@ def _format_method_find(queried: str, result: dict[str, Any]) -> str:
         "",
     ]
     for m in matches:
-        fp    = m.get("file_path", "")
-        line  = str(m.get("line_start", ""))
-        loc   = f"  {fp}:{line}" if fp and line else (f"  {fp}" if fp else "")
+        fp = m.get("file_path", "")
+        line = str(m.get("line_start", ""))
+        loc = f"  {fp}:{line}" if fp and line else (f"  {fp}" if fp else "")
         label = m.get("kind") or m.get("type") or "?"
-        desc  = f" — {m['summary'][:60]}" if m.get("summary") else ""
+        desc = f" — {m['summary'][:60]}" if m.get("summary") else ""
         lines.append(f"  * {m['name']} [{label}]{loc}{desc}")
     lines.append("")
     lines.append("Use pm_find <ClassName> to get the full class detail.")
@@ -139,8 +150,7 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
     result = find_query(name, entity_map, ctx.index, max_results=max_results)
 
     if result.get("not_found"):
-        method_result = find_by_method(name, entity_map, ctx.index,
-                                       max_results=max_results)
+        method_result = find_by_method(name, entity_map, ctx.index, max_results=max_results)
         if not method_result.get("not_found"):
             return _format_method_find(name, method_result)
         return (
@@ -149,7 +159,7 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
         )
 
     matches = result.get("matches", [])
-    total   = result.get("total", 0)
+    total = result.get("total", 0)
 
     if total == 0:
         return f"No symbols found for {name!r}."
@@ -172,16 +182,15 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
         "",
     ]
     for i, m in enumerate(matches, 1):
-        fp    = m.get("file_path", "")
-        line  = str(m.get("line_start", ""))
-        loc   = f"  {fp}:{line}" if fp and line else f"  {fp}" if fp else ""
+        fp = m.get("file_path", "")
+        line = str(m.get("line_start", ""))
+        loc = f"  {fp}:{line}" if fp and line else f"  {fp}" if fp else ""
         label = m.get("kind") or m.get("type") or "?"
-        desc  = f" — {m['summary'][:60]}" if m.get("summary") else ""
+        desc = f" — {m['summary'][:60]}" if m.get("summary") else ""
         lines.append(f"  {i}. {m['name']} [{label}]{loc}{desc}")
 
     lines.append("")
     lines.append(
-        "Use a more specific name to get the detailed view, "
-        "or pm_context for task-oriented search."
+        "Use a more specific name to get the detailed view, or pm_context for task-oriented search."
     )
     return "\n".join(lines)

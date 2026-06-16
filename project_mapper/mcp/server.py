@@ -79,15 +79,15 @@ from typing import Any
 # JSON-RPC constants
 # ---------------------------------------------------------------------------
 
-PARSE_ERROR      = -32700
-INVALID_REQUEST  = -32600
+PARSE_ERROR = -32700
+INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
-INVALID_PARAMS   = -32602
-INTERNAL_ERROR   = -32603
+INVALID_PARAMS = -32602
+INTERNAL_ERROR = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME      = "project-mapper"
-SERVER_VERSION   = "2.0.0"
+SERVER_NAME = "project-mapper"
+SERVER_VERSION = "2.0.0"
 
 # Injected into the client agent's context at session start (MCP `instructions`
 # field of the initialize response). Keep this short — it costs context tokens
@@ -136,6 +136,7 @@ string-based references are not captured.\
 # MCPServer
 # ---------------------------------------------------------------------------
 
+
 class MCPServer:
     """
     Minimal MCP stdio server.
@@ -146,19 +147,19 @@ class MCPServer:
 
     def __init__(
         self,
-        db_root:       Path,
-        db_name:       str,
-        project_root:  str | None = None,
-        watch:         bool = False,
+        db_root: Path,
+        db_name: str,
+        project_root: str | None = None,
+        watch: bool = False,
         watch_interval: float = 10.0,
     ) -> None:
-        self._db_root       = db_root
-        self._db_name       = db_name
-        self._project_root  = project_root
-        self._watch         = watch
+        self._db_root = db_root
+        self._db_name = db_name
+        self._project_root = project_root
+        self._watch = watch
         self._watch_interval = watch_interval
-        self._scan_lock     = threading.Lock()
-        self._ctx           = None   # built lazily on first tool call
+        self._scan_lock = threading.Lock()
+        self._ctx = None  # built lazily on first tool call
 
         # stdout must be unbuffered text so responses are flushed immediately
         self._out = sys.stdout
@@ -223,26 +224,30 @@ class MCPServer:
     # ------------------------------------------------------------------
 
     def _handle_initialize(self, req_id: Any, params: dict) -> None:
-        self._ok(req_id, {
-            "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {
-                "tools": {},   # we expose tools
+        self._ok(
+            req_id,
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {
+                    "tools": {},  # we expose tools
+                },
+                "serverInfo": {
+                    "name": SERVER_NAME,
+                    "version": SERVER_VERSION,
+                },
+                "instructions": SERVER_INSTRUCTIONS,
             },
-            "serverInfo": {
-                "name":    SERVER_NAME,
-                "version": SERVER_VERSION,
-            },
-            "instructions": SERVER_INSTRUCTIONS,
-        })
+        )
 
     def _handle_tools_list(self, req_id: Any, params: dict) -> None:
         from .tools import TOOL_SCHEMAS
+
         self._ok(req_id, {"tools": TOOL_SCHEMAS})
 
     def _handle_tools_call(self, req_id: Any, params: dict) -> None:
         from .tools import HANDLERS
 
-        name      = params.get("name", "")
+        name = params.get("name", "")
         arguments = params.get("arguments", {}) or {}
 
         handler = HANDLERS.get(name)
@@ -251,26 +256,35 @@ class MCPServer:
             return
 
         try:
-            ctx    = self._get_ctx()
+            ctx = self._get_ctx()
             result = handler(arguments, ctx)
-            self._ok(req_id, {
-                "content": [{"type": "text", "text": result}],
-                "isError": False,
-            })
+            self._ok(
+                req_id,
+                {
+                    "content": [{"type": "text", "text": result}],
+                    "isError": False,
+                },
+            )
         except ValueError as exc:
             # Invalid arguments — return as tool error (not protocol error)
-            self._ok(req_id, {
-                "content": [{"type": "text", "text": f"Error: {exc}"}],
-                "isError": True,
-            })
+            self._ok(
+                req_id,
+                {
+                    "content": [{"type": "text", "text": f"Error: {exc}"}],
+                    "isError": True,
+                },
+            )
         except Exception as exc:
             # Unexpected error — also return as tool error with trace
             tb = traceback.format_exc()
             self._log(f"[MCP] Tool {name!r} failed:\n{tb}")
-            self._ok(req_id, {
-                "content": [{"type": "text", "text": f"Internal error: {exc}"}],
-                "isError": True,
-            })
+            self._ok(
+                req_id,
+                {
+                    "content": [{"type": "text", "text": f"Internal error: {exc}"}],
+                    "isError": True,
+                },
+            )
 
     def _handle_ping(self, req_id: Any, params: dict) -> None:
         self._ok(req_id, {})
@@ -280,9 +294,9 @@ class MCPServer:
     # ------------------------------------------------------------------
 
     def _dispatch(self, msg: dict[str, Any]) -> None:
-        req_id  = msg.get("id")        # None for notifications
-        method  = msg.get("method", "")
-        params  = msg.get("params") or {}
+        req_id = msg.get("id")  # None for notifications
+        method = msg.get("method", "")
+        params = msg.get("params") or {}
 
         # Notifications have no id — don't send a response
         if req_id is None:
@@ -318,15 +332,12 @@ class MCPServer:
         # non-ASCII that crash cp1252 consoles, producing a silent client EOF.
         if sys.platform == "win32":
             import io
-            sys.stdin  = io.TextIOWrapper(
-                sys.stdin.buffer,  encoding="utf-8", errors="replace", newline="\n"
+
+            sys.stdin = io.TextIOWrapper(
+                sys.stdin.buffer, encoding="utf-8", errors="replace", newline="\n"
             )
-            self._out = io.TextIOWrapper(
-                sys.stdout.buffer, encoding="utf-8", errors="replace"
-            )
-            sys.stderr = io.TextIOWrapper(
-                sys.stderr.buffer, encoding="utf-8", errors="replace"
-            )
+            self._out = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
         self._log(
             f"[ProjectMapper MCP] Starting — db={self._db_name!r}  "
@@ -335,12 +346,11 @@ class MCPServer:
 
         if self._watch:
             if not self._project_root:
-                self._log(
-                    "[ProjectMapper MCP] --watch ignored: --project-root not set."
-                )
+                self._log("[ProjectMapper MCP] --watch ignored: --project-root not set.")
             else:
                 from ..core.watcher import AutoScanner
-                ctx = self._get_ctx()   # initialise eagerly so watcher shares the same objects
+
+                ctx = self._get_ctx()  # initialise eagerly so watcher shares the same objects
                 scanner = AutoScanner(
                     project_root=self._project_root,
                     db_root=self._db_root,
@@ -386,6 +396,7 @@ class MCPServer:
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def _resolve_db_root(db_name: str, db_path: str | None) -> tuple[Path, str]:
     """Return (db_root, db_name) from CLI args / env vars."""
     if db_path:
@@ -394,19 +405,23 @@ def _resolve_db_root(db_name: str, db_path: str | None) -> tuple[Path, str]:
     if db_name:
         try:
             from ..db.db_registry import resolve_db_root
+
             return resolve_db_root(db_name), db_name
         except Exception:
             pass
         # Fallback: under DATA_DIR
         from ..config import DATA_DIR
+
         return DATA_DIR / db_name, db_name
 
     # Nothing specified — use "default"
     try:
         from ..db.db_registry import resolve_db_root
+
         return resolve_db_root("default"), "default"
     except Exception:
         from ..config import DATA_DIR
+
         return DATA_DIR / "default", "default"
 
 

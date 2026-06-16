@@ -9,6 +9,7 @@ from project_mapper.core.security.scanner import scan_file_security
 
 # ── Baseline / no-op cases ────────────────────────────────────────────────────
 
+
 def test_empty_content_returns_nothing():
     assert scan_file_security("app.py", "", "python") == []
 
@@ -28,6 +29,7 @@ def test_never_raises_on_garbage_input():
 
 
 # ── Python SQL injection ───────────────────────────────────────────────────────
+
 
 def test_python_sql_fstring_detected():
     code = 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")'
@@ -50,6 +52,7 @@ def test_python_sql_format_detected():
 
 # ── Python command injection ───────────────────────────────────────────────────
 
+
 def test_python_eval_detected():
     code = "result = eval(user_input)"
     findings = scan_file_security("views.py", code, "python")
@@ -64,6 +67,7 @@ def test_subprocess_shell_true_detected():
 
 # ── Comment-line suppression ───────────────────────────────────────────────────
 
+
 def test_comment_line_not_flagged_hash():
     code = '# cursor.execute(f"SELECT * FROM users WHERE id = {uid}")'
     findings = scan_file_security("app.py", code, "python")
@@ -71,12 +75,13 @@ def test_comment_line_not_flagged_hash():
 
 
 def test_comment_line_not_flagged_double_slash():
-    code = '// db.query(`SELECT * FROM t WHERE id = ${uid}`)'
+    code = "// db.query(`SELECT * FROM t WHERE id = ${uid}`)"
     findings = scan_file_security("app.js", code, "javascript")
     assert findings == []
 
 
 # ── Test-file severity downgrade ───────────────────────────────────────────────
+
 
 def test_critical_in_test_file_downgraded_to_high():
     code = 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")'
@@ -104,6 +109,7 @@ def test_test_file_in_tests_dir_detected():
 
 # ── Finding metadata ───────────────────────────────────────────────────────────
 
+
 def test_finding_has_owasp_category():
     code = 'cursor.execute(f"SELECT * FROM t WHERE id = {uid}")'
     findings = scan_file_security("app.py", code, "python")
@@ -123,10 +129,12 @@ def test_finding_has_file_and_line():
 
 
 def test_findings_sorted_critical_first():
-    code = "\n".join([
-        'cursor.execute(f"SELECT * FROM t WHERE id = {uid}")',   # critical
-        "subprocess.Popen(cmd, shell=True)",                      # high
-    ])
+    code = "\n".join(
+        [
+            'cursor.execute(f"SELECT * FROM t WHERE id = {uid}")',  # critical
+            "subprocess.Popen(cmd, shell=True)",  # high
+        ]
+    )
     findings = scan_file_security("app.py", code, "python")
     if len(findings) >= 2:
         order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -145,6 +153,7 @@ def test_to_dict_roundtrip():
 
 
 # ── JavaScript patterns ───────────────────────────────────────────────────────
+
 
 def test_js_sql_template_literal_detected():
     code = "db.query(`SELECT * FROM users WHERE id = ${userId}`)"

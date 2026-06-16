@@ -1,27 +1,40 @@
 """stats MCP tool."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from .base import MCPContext
 
-SCHEMA = {'name': 'pm_stats',
- 'description': 'Return a quick overview of the ProjectMapper database: entity counts by type, '
-                'file manifest coverage, and last scan status. Use at the start of a session '
-                "to understand what's already been indexed.",
- 'inputSchema': {'type': 'object', 'properties': {}, 'required': []}}
+SCHEMA = {
+    "name": "pm_stats",
+    "description": "Return a quick overview of the ProjectMapper database: entity counts by type, "
+    "file manifest coverage, and last scan status. Use at the start of a session "
+    "to understand what's already been indexed.",
+    "inputSchema": {"type": "object", "properties": {}, "required": []},
+}
 
 
 def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
     from ...core.scanner import scan_status
 
     scan = scan_status(ctx.db_root)
-    fm   = ctx.file_manifest.stats()
+    fm = ctx.file_manifest.stats()
 
     pm_types = {
-        "module", "service", "component", "class", "function",
-        "endpoint", "model", "workflow", "config", "dependency",
-        "decision", "goal", "constraint",
+        "module",
+        "service",
+        "component",
+        "class",
+        "function",
+        "endpoint",
+        "model",
+        "workflow",
+        "config",
+        "dependency",
+        "decision",
+        "goal",
+        "constraint",
     }
     type_counts: dict[str, int] = {}
     total = 0
@@ -57,10 +70,10 @@ def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
         lines.append(f"  By language: {lang_str}")
 
     lines.append("")
-    status    = scan.get("status", "never run")
-    started   = scan.get("started_at", "")
+    status = scan.get("status", "never run")
+    started = scan.get("started_at", "")
     completed = scan.get("completed_at", "")
-    proj      = scan.get("project_root", "")
+    proj = scan.get("project_root", "")
     lines.append(f"Last scan: {status}")
     if proj:
         lines.append(f"  Project:   {proj}")
@@ -95,9 +108,7 @@ def handle_pm_stats(args: dict[str, Any], ctx: MCPContext) -> str:
         last_scan_info = ws["last_scan"]
         if ws["last_scan_files"] and ws["last_scan"] != "never":
             last_scan_info += f"  ({ws['last_scan_files']} file(s))"
-        lines.append(
-            f"  Last check: {ws['last_check']}  |  Last scan: {last_scan_info}"
-        )
+        lines.append(f"  Last check: {ws['last_check']}  |  Last scan: {last_scan_info}")
     else:
         lines.append("Auto-scan: off  (start server with --watch to enable)")
 

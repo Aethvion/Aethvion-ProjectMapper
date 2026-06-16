@@ -31,38 +31,87 @@ logger = logging.getLogger(__name__)
 SCANINFO = "ProjectMapper.SCANINFO"
 
 # Supported extensions for static analysis
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs",
-    ".java", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp",
-    ".rb", ".go", ".rs", ".php", ".cs", ".swift", ".kt",
-})
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".mjs",
+        ".java",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".c",
+        ".h",
+        ".hpp",
+        ".rb",
+        ".go",
+        ".rs",
+        ".php",
+        ".cs",
+        ".swift",
+        ".kt",
+    }
+)
 
 # Directory names excluded from all filesystem walks
-_EXCLUDED_DIRS: frozenset[str] = frozenset({
-    "__pycache__", "node_modules", ".venv", "venv",
-    ".git", "dist", "build", ".tox", ".pytest_cache",
-    ".mypy_cache", ".ruff_cache", ".eggs", ".cache",
-})
+_EXCLUDED_DIRS: frozenset[str] = frozenset(
+    {
+        "__pycache__",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".git",
+        "dist",
+        "build",
+        ".tox",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".eggs",
+        ".cache",
+    }
+)
 
 # Exact filenames never indexed (credential / env files)
-_EXCLUDED_FILENAMES: frozenset[str] = frozenset({
-    ".env", ".env.local", ".env.development", ".env.production",
-    ".env.staging", ".env.test", ".env.example", ".env.sample",
-})
+_EXCLUDED_FILENAMES: frozenset[str] = frozenset(
+    {
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.production",
+        ".env.staging",
+        ".env.test",
+        ".env.example",
+        ".env.sample",
+    }
+)
 
 # File suffixes that indicate credential/certificate files
-_EXCLUDED_CREDENTIAL_SUFFIXES: frozenset[str] = frozenset({
-    ".pem", ".key", ".p12", ".pfx", ".jks", ".crt", ".cert",
-    ".keystore", ".secret",
-})
+_EXCLUDED_CREDENTIAL_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".pem",
+        ".key",
+        ".p12",
+        ".pfx",
+        ".jks",
+        ".crt",
+        ".cert",
+        ".keystore",
+        ".secret",
+    }
+)
 
 # In-process task registry
-_active_scans: dict[str, asyncio.Task] = {}   # key: str(db_root)
+_active_scans: dict[str, asyncio.Task] = {}  # key: str(db_root)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -71,9 +120,9 @@ def _now_iso() -> str:
 def _fmt_size(b: int) -> str:
     if b < 1024:
         return f"{b} B"
-    if b < 1024 ** 2:
+    if b < 1024**2:
         return f"{b / 1024:.1f} KB"
-    return f"{b / 1024 ** 2:.1f} MB"
+    return f"{b / 1024**2:.1f} MB"
 
 
 def _content_hash(text: str) -> str:
@@ -111,6 +160,7 @@ def _update_scaninfo(db_root: Path, **kwargs: Any) -> None:
 # Public status / control API
 # ---------------------------------------------------------------------------
 
+
 def scan_status(db_root: Path) -> dict[str, Any]:
     """Return the current scan status dict."""
     info = _read_scaninfo(db_root)
@@ -126,7 +176,7 @@ def is_running(db_root: Path) -> bool:
 
 def cancel_scan(db_root: Path) -> dict[str, Any]:
     """Cancel the running scan task (if any)."""
-    key  = str(db_root)
+    key = str(db_root)
     task = _active_scans.get(key)
     if task:
         task.cancel()
@@ -140,6 +190,7 @@ def cancel_scan(db_root: Path) -> dict[str, Any]:
 # Pre-scan folder scan (sync, for route preview)
 # ---------------------------------------------------------------------------
 
+
 def scan_folder_preview(project_root: str) -> dict[str, Any]:
     """Walk the folder and count files without scanning them."""
     root = Path(project_root)
@@ -150,8 +201,8 @@ def scan_folder_preview(project_root: str) -> dict[str, Any]:
     for dirpath, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _EXCLUDED_DIRS]
         for fn in files:
-            fp   = Path(dirpath) / fn
-            ext  = fp.suffix.lower()
+            fp = Path(dirpath) / fn
+            ext = fp.suffix.lower()
             total += 1
             ext_counts[ext] = ext_counts.get(ext, 0) + 1
             if ext in SUPPORTED_EXTENSIONS:
@@ -159,9 +210,12 @@ def scan_folder_preview(project_root: str) -> dict[str, Any]:
     top_ext = sorted(ext_counts.items(), key=lambda x: -x[1])[:10]
     return {
         "project_root": project_root,
-        "total_files":  total,
+        "total_files": total,
         "supported_files": supported,
-        "top_extensions": [{"ext": e or "(none)", "count": c, "supported": e in SUPPORTED_EXTENSIONS} for e, c in top_ext],
+        "top_extensions": [
+            {"ext": e or "(none)", "count": c, "supported": e in SUPPORTED_EXTENSIONS}
+            for e, c in top_ext
+        ],
     }
 
 
@@ -169,15 +223,16 @@ def scan_folder_preview(project_root: str) -> dict[str, Any]:
 # Main background scan task
 # ---------------------------------------------------------------------------
 
+
 async def run_scan(
-    db_root:      Path,
+    db_root: Path,
     project_root: str,
-    db_name:      str,
-    writer:       Any,
-    index:        Any,
+    db_name: str,
+    writer: Any,
+    index: Any,
     file_manifest: Any,
-    concurrency:  int = 3,
-    incremental:  bool = True,
+    concurrency: int = 3,
+    incremental: bool = True,
 ) -> None:
     """
     Background task: walk project_root, analyse all supported files,
@@ -217,17 +272,17 @@ async def run_scan(
     # on Windows for large codebases (e.g. 3 000-file Django = ~12 s otherwise).
     # Only files that actually need processing reach the async task stage.
     stats: dict[str, Any] = {
-        "files_total":               0,
-        "files_scanned":             0,
-        "files_skipped_unchanged":   0,
+        "files_total": 0,
+        "files_scanned": 0,
+        "files_skipped_unchanged": 0,
         "files_skipped_unsupported": 0,
-        "entities_created":          0,
-        "entities_updated":          0,
-        "entities_pruned":           0,
-        "relations_created":         0,
-        "files_deleted":             0,
-        "entities_retired":          0,
-        "errors":                    [],
+        "entities_created": 0,
+        "entities_updated": 0,
+        "entities_pruned": 0,
+        "relations_created": 0,
+        "files_deleted": 0,
+        "entities_retired": 0,
+        "errors": [],
     }
 
     def _prefilter() -> tuple[list[tuple[Path, str, int, float]], int, set[str]]:
@@ -267,7 +322,7 @@ async def run_scan(
                 if suffix not in SUPPORTED_EXTENSIONS:
                     continue
                 total += 1
-                fp  = Path(entry.path)
+                fp = Path(entry.path)
                 rel = str(fp.relative_to(root)).replace("\\", "/")
                 if "node_modules" in fp.parts:
                     stats["files_skipped_unsupported"] += 1
@@ -277,7 +332,7 @@ async def run_scan(
                 except OSError as exc:
                     stats["errors"].append({"path": rel, "error": f"stat: {exc}"})
                     continue
-                file_size  = st.st_size
+                file_size = st.st_size
                 file_mtime = st.st_mtime
                 if file_size > 250_000:
                     stats["files_skipped_unsupported"] += 1
@@ -292,16 +347,19 @@ async def run_scan(
     pending, total, existing_paths = await asyncio.to_thread(_prefilter)
     stats["files_total"] = total
 
-    _write_scaninfo(db_root, {
-        "project_root":  project_root,
-        "db":            db_name,
-        "status":        "running",
-        "started_at":    _now_iso(),
-        "last_updated":  _now_iso(),
-        "total_files":   total,
-        "current_file":  "",
-        "stats":         stats,
-    })
+    _write_scaninfo(
+        db_root,
+        {
+            "project_root": project_root,
+            "db": db_name,
+            "status": "running",
+            "started_at": _now_iso(),
+            "last_updated": _now_iso(),
+            "total_files": total,
+            "current_file": "",
+            "stats": stats,
+        },
+    )
 
     logger.info(
         f"[Scanner] Starting scan of {project_root} "
@@ -325,7 +383,9 @@ async def run_scan(
         # Record in manifest (no entities) so pm_delta doesn't re-flag as new.
         if len(content) > 100 and content.count("\x00") / len(content) > 0.1:
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime, save=False)
+            file_manifest.record(
+                rel, _content_hash(content), [], size=file_size, mtime=file_mtime, save=False
+            )
             return
 
         # Minification heuristic: substantial content with almost no line breaks.
@@ -333,7 +393,9 @@ async def run_scan(
         # filter), so without a record they'd show as "new" on every delta.
         if len(content) > 10_000 and content.count("\n") < 5:
             stats["files_skipped_unsupported"] += 1
-            file_manifest.record(rel, _content_hash(content), [], size=file_size, mtime=file_mtime, save=False)
+            file_manifest.record(
+                rel, _content_hash(content), [], size=file_size, mtime=file_mtime, save=False
+            )
             return
 
         file_hash = _content_hash(content)
@@ -353,6 +415,7 @@ async def run_scan(
             return
 
         from ..analyzers import detect_language_for_path  # inline to avoid circular
+
         language = detect_language_for_path(str(fp))
         analysis = await asyncio.to_thread(analyze_file, rel, content, language)
 
@@ -365,16 +428,16 @@ async def run_scan(
             stats["errors"].extend([{"path": rel, "error": e} for e in ingest_result.errors])
 
         if ingest_result.was_created:
-            stats["entities_created"] += 1 + len(ingest_result.class_entity_ids) + len(ingest_result.function_entity_ids)
+            stats["entities_created"] += (
+                1 + len(ingest_result.class_entity_ids) + len(ingest_result.function_entity_ids)
+            )
         else:
             stats["entities_updated"] += 1
             # Prune symbols that were removed from this file since last scan
             if ingest_result.module_entity_id:
                 from .cleanup import prune_removed_symbols
-                all_new_ids = (
-                    ingest_result.class_entity_ids
-                    + ingest_result.function_entity_ids
-                )
+
+                all_new_ids = ingest_result.class_entity_ids + ingest_result.function_entity_ids
                 pruned = await asyncio.to_thread(
                     prune_removed_symbols,
                     ingest_result.module_entity_id,
@@ -384,7 +447,7 @@ async def run_scan(
                 stats["entities_pruned"] += pruned
 
         stats["relations_created"] += ingest_result.relations_created
-        stats["files_scanned"]     += 1
+        stats["files_scanned"] += 1
 
         # Store stat data so the next incremental scan can skip this file
         # without reading it (stat_unchanged fast path).
@@ -392,8 +455,7 @@ async def run_scan(
 
     # Process all files — gather with cancellation support
     try:
-        tasks = [asyncio.create_task(_process_one(fp, rel, fs, fm))
-                 for fp, rel, fs, fm in pending]
+        tasks = [asyncio.create_task(_process_one(fp, rel, fs, fm)) for fp, rel, fs, fm in pending]
         for i, task in enumerate(asyncio.as_completed(tasks)):
             try:
                 await task
@@ -411,12 +473,15 @@ async def run_scan(
                 stats["errors"].append({"path": "unknown", "error": str(exc)[:200]})
 
     except asyncio.CancelledError:
-        _write_scaninfo(db_root, {
-            **_read_scaninfo(db_root),
-            "status": "cancelled",
-            "last_updated": _now_iso(),
-            "stats": stats,
-        })
+        _write_scaninfo(
+            db_root,
+            {
+                **_read_scaninfo(db_root),
+                "status": "cancelled",
+                "last_updated": _now_iso(),
+                "stats": stats,
+            },
+        )
         _active_scans.pop(key, None)
         logger.info(f"[Scanner] Scan cancelled ({stats['files_scanned']}/{total} processed)")
         return
@@ -433,11 +498,12 @@ async def run_scan(
     # previous project's files, which would otherwise stay active forever.
     try:
         from .cleanup import run_deletion_cleanup
+
         _update_scaninfo(db_root, status="cleanup", current_file="[deletion cleanup]")
         cleanup = await asyncio.to_thread(
             run_deletion_cleanup, root, file_manifest, writer, index, existing_paths
         )
-        stats["files_deleted"]   = cleanup.deleted_file_count
+        stats["files_deleted"] = cleanup.deleted_file_count
         stats["entities_retired"] = cleanup.retired_count
         if cleanup.errors:
             stats["errors"].extend([{"path": "cleanup", "error": e} for e in cleanup.errors])
@@ -448,17 +514,18 @@ async def run_scan(
     # When nothing was re-processed and nothing was deleted, the snapshot,
     # name index, and security store are all still valid.  Skip stub
     # resolution, orphan pruning, flush, and security write.
-    if (incremental
-            and stats["files_scanned"] == 0
-            and stats["files_deleted"] == 0):
-        _write_scaninfo(db_root, {
-            **_read_scaninfo(db_root),
-            "status":       "completed",
-            "completed_at": _now_iso(),
-            "last_updated": _now_iso(),
-            "current_file": "",
-            "stats":        stats,
-        })
+    if incremental and stats["files_scanned"] == 0 and stats["files_deleted"] == 0:
+        _write_scaninfo(
+            db_root,
+            {
+                **_read_scaninfo(db_root),
+                "status": "completed",
+                "completed_at": _now_iso(),
+                "last_updated": _now_iso(),
+                "current_file": "",
+                "stats": stats,
+            },
+        )
         _active_scans.pop(key, None)
         logger.info(
             f"[Scanner] Warm scan (no-op): {stats['files_skipped_unchanged']} unchanged,"
@@ -471,14 +538,16 @@ async def run_scan(
     # scanned in a later file.  Safe to run after every scan.
     try:
         from .cleanup import resolve_stubs
+
         _update_scaninfo(db_root, status="cleanup", current_file="[stub resolution]")
         stub_result = await asyncio.to_thread(resolve_stubs, writer, index)
         if stub_result.stubs_resolved:
-            stats["stubs_resolved"]   = stub_result.stubs_resolved
+            stats["stubs_resolved"] = stub_result.stubs_resolved
             stats["relations_rewired"] = stub_result.relations_rewired
         if stub_result.errors:
-            stats["errors"].extend([{"path": "stub_resolve", "error": e}
-                                     for e in stub_result.errors])
+            stats["errors"].extend(
+                [{"path": "stub_resolve", "error": e} for e in stub_result.errors]
+            )
     except Exception as exc:
         logger.warning(f"[Scanner] Stub resolution failed (non-critical): {exc}")
 
@@ -487,6 +556,7 @@ async def run_scan(
     # project roots change in a shared database and pollute stats/search.
     try:
         from .cleanup import prune_orphan_stubs
+
         _update_scaninfo(db_root, status="cleanup", current_file="[stub pruning]")
         stubs_pruned = await asyncio.to_thread(prune_orphan_stubs, writer)
         if stubs_pruned:
@@ -494,14 +564,17 @@ async def run_scan(
     except Exception as exc:
         logger.warning(f"[Scanner] Stub pruning failed (non-critical): {exc}")
 
-    _write_scaninfo(db_root, {
-        **_read_scaninfo(db_root),
-        "status":       "completed",
-        "completed_at": _now_iso(),
-        "last_updated": _now_iso(),
-        "current_file": "",
-        "stats":        stats,
-    })
+    _write_scaninfo(
+        db_root,
+        {
+            **_read_scaninfo(db_root),
+            "status": "completed",
+            "completed_at": _now_iso(),
+            "last_updated": _now_iso(),
+            "current_file": "",
+            "stats": stats,
+        },
+    )
     _active_scans.pop(key, None)
     logger.info(
         f"[Scanner] Scan completed — "
@@ -518,16 +591,15 @@ async def run_scan(
         logger.warning(f"[Scanner] Snapshot flush failed (non-critical): {exc}")
 
 
-
 def start_scan(
-    db_root:       Path,
-    project_root:  str,
-    db_name:       str,
-    writer:        Any,
-    index:         Any,
+    db_root: Path,
+    project_root: str,
+    db_name: str,
+    writer: Any,
+    index: Any,
     file_manifest: Any,
-    concurrency:   int = 3,
-    incremental:   bool = True,
+    concurrency: int = 3,
+    incremental: bool = True,
 ) -> bool:
     """
     Launch the scan as a background asyncio task.

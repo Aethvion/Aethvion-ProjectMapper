@@ -48,6 +48,7 @@ PM_MARKER_FILE = _snapshot.PM_MARKER_FILE
 # PMNameIndex
 # ---------------------------------------------------------------------------
 
+
 class PMNameIndex(NameIndex):
     """NameIndex variant that batches all disk writes to a single flush.
 
@@ -75,6 +76,7 @@ class PMNameIndex(NameIndex):
 # PMEntityStore
 # ---------------------------------------------------------------------------
 
+
 class PMEntityStore:
     """
     In-memory entity store for Project Mapper scan and mutation sessions.
@@ -92,10 +94,10 @@ class PMEntityStore:
         db_root: Path,
         index: PMNameIndex,
     ) -> None:
-        self._store:   dict[str, dict[str, Any]] = {}
-        self._db_root: Path     = db_root
-        self._index:   PMNameIndex = index
-        self._lock:    threading.Lock = threading.Lock()  # guards create()
+        self._store: dict[str, dict[str, Any]] = {}
+        self._db_root: Path = db_root
+        self._index: PMNameIndex = index
+        self._lock: threading.Lock = threading.Lock()  # guards create()
 
     @classmethod
     def from_snapshot(cls, db_root: Path, index: PMNameIndex) -> PMEntityStore:
@@ -128,19 +130,19 @@ class PMEntityStore:
     def create(
         self,
         name: str,
-        entity_type:       str = "other",
-        source:            str = "manual",
-        sections_override: dict[str, Any] | None  = None,
-        extra_aliases:     list[str] | None        = None,
-        kind:              str | list[str] | None   = None,
-        status:            str = "active",
+        entity_type: str = "other",
+        source: str = "manual",
+        sections_override: dict[str, Any] | None = None,
+        extra_aliases: list[str] | None = None,
+        kind: str | list[str] | None = None,
+        status: str = "active",
     ) -> tuple[dict[str, Any], bool]:
         """Create a new entity in memory, or return the existing one.
 
         Returns (entity_dict, was_created).  Thread-safe: the index lookup
         and store insertion are atomic under self._lock.
         """
-        candidate_id  = _new_id()
+        candidate_id = _new_id()
         resolved_status = status if status in VALID_STATUSES else "active"
 
         with self._lock:
@@ -163,8 +165,12 @@ class PMEntityStore:
                 )
 
             entity = make_empty(
-                name, entity_type, source, entity_id,
-                kind=kind, status=resolved_status,
+                name,
+                entity_type,
+                source,
+                entity_id,
+                kind=kind,
+                status=resolved_status,
             )
 
             if sections_override:
@@ -181,20 +187,18 @@ class PMEntityStore:
 
     def update(
         self,
-        entity_id:     str,
-        mutations:     dict[str, Any],
+        entity_id: str,
+        mutations: dict[str, Any],
         merge_sections: bool = True,
     ) -> dict[str, Any]:
         """Update an entity in memory."""
         with self._lock:
             entity = self._store.get(entity_id)
             if entity is None:
-                raise FileNotFoundError(
-                    f"[PMEntityStore] Entity {entity_id!r} not found in store"
-                )
+                raise FileNotFoundError(f"[PMEntityStore] Entity {entity_id!r} not found in store")
 
             protected = {"id", "created", "version", "sections"}
-            old_name  = entity.get("name")
+            old_name = entity.get("name")
             for k, v in mutations.items():
                 if k not in protected:
                     entity[k] = v
@@ -240,7 +244,7 @@ class PMEntityStore:
             if not entity:
                 return False
             if soft:
-                entity["status"]  = "deleted"
+                entity["status"] = "deleted"
                 entity["updated"] = _now_iso()
             else:
                 del self._store[entity_id]
@@ -249,7 +253,7 @@ class PMEntityStore:
     def list_all(
         self,
         include_deleted: bool = False,
-        use_snapshot:    bool = True,   # accepted for API compat; in-memory always used
+        use_snapshot: bool = True,  # accepted for API compat; in-memory always used
     ) -> list[dict[str, Any]]:
         """Return entities from memory.  O(N) — no disk I/O."""
         entities = list(self._store.values())
@@ -264,7 +268,7 @@ class PMEntityStore:
         entity = self.get(entity_id)
         if not entity:
             return []
-        stubs  = entity["sections"].get("stubs", [])
+        stubs = entity["sections"].get("stubs", [])
         result: list[str] = []
         for name in stubs:
             existing_id = self._index.get(name)
@@ -288,16 +292,15 @@ class PMEntityStore:
         def _matches(e: dict[str, Any]) -> bool:
             ek = e.get("kind")
             return (kind in ek) if isinstance(ek, list) else (ek == kind)
+
         return [e for e in self.list_all() if _matches(e)]
 
     def search_by_tag(self, tag: str) -> list[dict[str, Any]]:
         tag_lower = tag.lower()
         return [
-            e for e in self.list_all()
-            if any(
-                t.lower() == tag_lower
-                for t in e["sections"]["core"].get("tags", [])
-            )
+            e
+            for e in self.list_all()
+            if any(t.lower() == tag_lower for t in e["sections"]["core"].get("tags", []))
         ]
 
     # ── PM-specific ──────────────────────────────────────────────────────────
@@ -347,15 +350,13 @@ class PMEntityStore:
         if _stale:
             logger.info(f"[PMEntityStore] Removed {_stale} stale entity file(s)")
 
-        logger.info(
-            f"[PMEntityStore] Flushed {len(entities)} entities → snapshot"
-        )
+        logger.info(f"[PMEntityStore] Flushed {len(entities)} entities → snapshot")
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
     @staticmethod
     def _apply_sections(
-        entity:           dict[str, Any],
+        entity: dict[str, Any],
         sections_override: dict[str, Any],
     ) -> None:
         """Merge sections_override into entity['sections'] in-place."""

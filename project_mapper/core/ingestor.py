@@ -26,20 +26,22 @@ logger = logging.getLogger(__name__)
 # Result types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class IngestResult:
-    module_entity_id:    str | None = None
-    class_entity_ids:    list[str] = field(default_factory=list)
+    module_entity_id: str | None = None
+    class_entity_ids: list[str] = field(default_factory=list)
     function_entity_ids: list[str] = field(default_factory=list)
-    relations_created:   int = 0
-    was_created:         bool = False    # True if module entity was new
-    entities_pruned:     int = 0         # removed symbols (set by scanner, not ingestor)
-    errors:              list[str] = field(default_factory=list)
+    relations_created: int = 0
+    was_created: bool = False  # True if module entity was new
+    entities_pruned: int = 0  # removed symbols (set by scanner, not ingestor)
+    errors: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _top_level_packages(project_root: Path) -> frozenset[str]:
     """Return the set of names that indicate an intra-project import.
@@ -89,12 +91,31 @@ def _is_internal_import(imp: ImportInfo, top_pkgs: frozenset[str]) -> bool:
 
 def _module_path_from_file(rel_path: str) -> str:
     """'core/auth/service.py'  → 'core.auth.service'
-       'src/auth/service.ts'   → 'src.auth.service'
-       'com/example/Foo.java'  → 'com.example.Foo'"""
+    'src/auth/service.ts'   → 'src.auth.service'
+    'com/example/Foo.java'  → 'com.example.Foo'"""
     p = rel_path.replace("\\", "/")
-    for ext in (".py", ".ts", ".tsx", ".js", ".jsx", ".mjs",
-                ".java", ".go", ".cs", ".rs", ".cpp", ".cc", ".cxx",
-                ".c", ".h", ".hpp", ".rb", ".php", ".kt", ".swift"):
+    for ext in (
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".java",
+        ".go",
+        ".cs",
+        ".rs",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".c",
+        ".h",
+        ".hpp",
+        ".rb",
+        ".php",
+        ".kt",
+        ".swift",
+    ):
         if p.endswith(ext):
             p = p[: -len(ext)]
             break
@@ -209,6 +230,7 @@ def _import_to_file_candidates(
 # Ingestor
 # ---------------------------------------------------------------------------
 
+
 class ProjectIngestor:
     """
     Translates CodeAnalysis objects into AethvionDB entities.
@@ -223,14 +245,14 @@ class ProjectIngestor:
 
     def __init__(
         self,
-        db_root:       Path,
-        writer:        Any,
-        index:         Any,
+        db_root: Path,
+        writer: Any,
+        index: Any,
         file_manifest: Any,
     ) -> None:
-        self._db_root       = db_root
-        self._writer        = writer
-        self._index         = index
+        self._db_root = db_root
+        self._writer = writer
+        self._index = index
         self._file_manifest = file_manifest
 
     # ------------------------------------------------------------------
@@ -239,10 +261,10 @@ class ProjectIngestor:
 
     def ingest(
         self,
-        analysis:      CodeAnalysis,
-        project_root:  Path,
-        file_hash:     str = "",
-        file_size:     int = 0,
+        analysis: CodeAnalysis,
+        project_root: Path,
+        file_hash: str = "",
+        file_size: int = 0,
     ) -> IngestResult:
         """
         Ingest a CodeAnalysis synchronously.
@@ -253,11 +275,9 @@ class ProjectIngestor:
         top_pkgs = _top_level_packages(project_root)
 
         # ---- 1. Module entity ----------------------------------------
-        module_entity, was_created = self._upsert_module(
-            analysis, file_hash, file_size
-        )
+        module_entity, was_created = self._upsert_module(analysis, file_hash, file_size)
         result.module_entity_id = module_entity["id"]
-        result.was_created      = was_created
+        result.was_created = was_created
 
         # ---- 2. Class entities ---------------------------------------
         for cls_info in analysis.classes:
@@ -265,7 +285,9 @@ class ProjectIngestor:
             result.class_entity_ids.append(cls_entity["id"])
             # Module contains class
             result.relations_created += self._add_relation(
-                module_entity["id"], "contains", cls_entity["id"],
+                module_entity["id"],
+                "contains",
+                cls_entity["id"],
                 note=f"defined in {analysis.path}",
             )
 
@@ -275,7 +297,9 @@ class ProjectIngestor:
             result.function_entity_ids.append(fn_entity["id"])
             # Module contains function
             result.relations_created += self._add_relation(
-                module_entity["id"], "contains", fn_entity["id"],
+                module_entity["id"],
+                "contains",
+                fn_entity["id"],
                 note=f"defined in {analysis.path}",
             )
 
@@ -287,9 +311,7 @@ class ProjectIngestor:
             # Try to resolve the import to an already-scanned file entity
             # before falling back to a dotted-name stub.
             target_id: str | None = None
-            for candidate in _import_to_file_candidates(
-                imp.module, imp.level, analysis.path
-            ):
+            for candidate in _import_to_file_candidates(imp.module, imp.level, analysis.path):
                 target_id = self._index.get(candidate)
                 if target_id:
                     break
@@ -297,7 +319,9 @@ class ProjectIngestor:
             if target_id:
                 # Wire directly to the real module entity — no stub needed
                 result.relations_created += self._add_relation(
-                    module_entity["id"], "imports", target_id,
+                    module_entity["id"],
+                    "imports",
+                    target_id,
                 )
             else:
                 # Target not scanned yet — create a stub for the stub resolver
@@ -312,7 +336,9 @@ class ProjectIngestor:
                         status="stub",
                     )
                     result.relations_created += self._add_relation(
-                        module_entity["id"], "imports", target_entity["id"],
+                        module_entity["id"],
+                        "imports",
+                        target_entity["id"],
                     )
 
         for imp in external_imports:
@@ -327,7 +353,9 @@ class ProjectIngestor:
                 status="stub",
             )
             result.relations_created += self._add_relation(
-                module_entity["id"], "depends_on", dep_entity["id"],
+                module_entity["id"],
+                "depends_on",
+                dep_entity["id"],
             )
 
         # ---- 5. Class inheritance relations --------------------------
@@ -343,7 +371,9 @@ class ProjectIngestor:
                     status="stub",
                 )
                 result.relations_created += self._add_relation(
-                    cls_id, "extends", base_entity["id"],
+                    cls_id,
+                    "extends",
+                    base_entity["id"],
                 )
 
         # ---- 6. Class calls relations (static call graph) -----------
@@ -373,7 +403,9 @@ class ProjectIngestor:
                     target_id = stub["id"]
                 if target_id and target_id != cls_id:
                     result.relations_created += self._add_relation(
-                        cls_id, "calls", target_id,
+                        cls_id,
+                        "calls",
+                        target_id,
                         note=f"via {via_method}" if via_method else "",
                     )
 
@@ -397,7 +429,9 @@ class ProjectIngestor:
                     target_id = stub["id"]
                 if target_id and target_id != fn_id:
                     result.relations_created += self._add_relation(
-                        fn_id, "calls", target_id,
+                        fn_id,
+                        "calls",
+                        target_id,
                         note=f"via {via_method}" if via_method else "",
                     )
 
@@ -410,16 +444,19 @@ class ProjectIngestor:
             target_id = self._index.get(callee_name)
             if target_id and target_id != module_entity["id"]:
                 result.relations_created += self._add_relation(
-                    module_entity["id"], "calls", target_id,
+                    module_entity["id"],
+                    "calls",
+                    target_id,
                 )
 
         # ---- 9. Provenance -------------------------------------------
         from datetime import datetime, timezone
+
         scanned_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         sf_entry = {
-            "path":       analysis.path,
-            "lines":      [1, analysis.line_count],
-            "language":   analysis.language,
+            "path": analysis.path,
+            "lines": [1, analysis.line_count],
+            "language": analysis.language,
             "scanned_at": scanned_at,
         }
         if file_hash:
@@ -446,7 +483,7 @@ class ProjectIngestor:
 
     def _upsert_module(
         self,
-        analysis:  CodeAnalysis,
+        analysis: CodeAnalysis,
         file_hash: str,
         file_size: int,
     ) -> tuple[dict[str, Any], bool]:
@@ -458,35 +495,40 @@ class ProjectIngestor:
             kind="software.module",
             sections_override={
                 "core": {
-                    "aliases":    [module_path],
-                    "tags":       [analysis.language],
+                    "aliases": [module_path],
+                    "tags": [analysis.language],
                     "categories": ["Source Code"],
                 },
                 "properties": {
-                    "language":       analysis.language,
-                    "file_path":      analysis.path,
-                    "module_path":    module_path,
-                    "line_count":     str(analysis.line_count),
-                    "class_count":    str(len(analysis.classes)),
+                    "language": analysis.language,
+                    "file_path": analysis.path,
+                    "module_path": module_path,
+                    "line_count": str(analysis.line_count),
+                    "class_count": str(len(analysis.classes)),
                     "function_count": str(len(analysis.functions)),
                 },
             },
         )
         if not was_created:
             # Refresh AST-derived fields on re-scan
-            self._writer.update(entity["id"], {
-                "sections": {
-                    "core": {
-                        "summary": analysis.module_docstring[:200] if analysis.module_docstring else "",
-                    },
-                    "properties": {
-                        "language":       analysis.language,
-                        "line_count":     str(analysis.line_count),
-                        "class_count":    str(len(analysis.classes)),
-                        "function_count": str(len(analysis.functions)),
+            self._writer.update(
+                entity["id"],
+                {
+                    "sections": {
+                        "core": {
+                            "summary": analysis.module_docstring[:200]
+                            if analysis.module_docstring
+                            else "",
+                        },
+                        "properties": {
+                            "language": analysis.language,
+                            "line_count": str(analysis.line_count),
+                            "class_count": str(len(analysis.classes)),
+                            "function_count": str(len(analysis.functions)),
+                        },
                     },
                 },
-            })
+            )
         return entity, was_created
 
     def _upsert_class(
@@ -497,9 +539,9 @@ class ProjectIngestor:
         # Map cls_info.kind → entity kind and tag
         # e.g. kind="interface" → "software.interface" / tag "interface"
         #      kind=""          → "software.class"      / tag "class"
-        cls_kind    = getattr(cls_info, "kind", "") or ""
+        cls_kind = getattr(cls_info, "kind", "") or ""
         entity_kind = f"software.{cls_kind}" if cls_kind else "software.class"
-        tag         = cls_kind if cls_kind else "class"
+        tag = cls_kind if cls_kind else "class"
 
         entity, was_created = self._writer.create(
             name=cls_info.name,
@@ -509,44 +551,49 @@ class ProjectIngestor:
             sections_override={
                 "core": {
                     "summary": cls_info.docstring[:200] if cls_info.docstring else "",
-                    "tags":    [tag],
+                    "tags": [tag],
                 },
                 "properties": {
-                    "file_path":    file_path,
+                    "file_path": file_path,
                     "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
                     "method_count": str(len(cls_info.methods)),
-                    "line_start":   str(cls_info.line_start),
-                    "line_end":     str(cls_info.line_end),
-                    "methods":      ", ".join(m.name for m in cls_info.methods[:15]),
-                    "decorators":   ", ".join(cls_info.decorators) if cls_info.decorators else "",
+                    "line_start": str(cls_info.line_start),
+                    "line_end": str(cls_info.line_end),
+                    "methods": ", ".join(m.name for m in cls_info.methods[:15]),
+                    "decorators": ", ".join(cls_info.decorators) if cls_info.decorators else "",
                 },
             },
         )
         if not was_created:
             # Refresh AST-derived fields on re-scan. pm_contribute data lives in
             # sections.properties (custom keys) and sections.timeline — not touched here.
-            self._writer.update(entity["id"], {
-                "sections": {
-                    "core": {
-                        "summary": cls_info.docstring[:200] if cls_info.docstring else "",
-                        "tags":    [tag],
-                    },
-                    "properties": {
-                        "file_path":    file_path,
-                        "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
-                        "method_count": str(len(cls_info.methods)),
-                        "line_start":   str(cls_info.line_start),
-                        "line_end":     str(cls_info.line_end),
-                        "methods":      ", ".join(m.name for m in cls_info.methods[:15]),
-                        "decorators":   ", ".join(cls_info.decorators) if cls_info.decorators else "",
+            self._writer.update(
+                entity["id"],
+                {
+                    "sections": {
+                        "core": {
+                            "summary": cls_info.docstring[:200] if cls_info.docstring else "",
+                            "tags": [tag],
+                        },
+                        "properties": {
+                            "file_path": file_path,
+                            "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
+                            "method_count": str(len(cls_info.methods)),
+                            "line_start": str(cls_info.line_start),
+                            "line_end": str(cls_info.line_end),
+                            "methods": ", ".join(m.name for m in cls_info.methods[:15]),
+                            "decorators": ", ".join(cls_info.decorators)
+                            if cls_info.decorators
+                            else "",
+                        },
                     },
                 },
-            })
+            )
         return entity, was_created
 
     def _upsert_function(
         self,
-        fn_info:   Any,
+        fn_info: Any,
         file_path: str,
     ) -> tuple[dict[str, Any], bool]:
         arg_strs = []
@@ -567,43 +614,48 @@ class ProjectIngestor:
             sections_override={
                 "core": {
                     "summary": fn_info.docstring[:150] if fn_info.docstring else "",
-                    "tags":    ["async" if fn_info.is_async else "sync"],
+                    "tags": ["async" if fn_info.is_async else "sync"],
                 },
                 "properties": {
-                    "file_path":  file_path,
-                    "signature":  signature,
-                    "is_async":   str(fn_info.is_async).lower(),
+                    "file_path": file_path,
+                    "signature": signature,
+                    "is_async": str(fn_info.is_async).lower(),
                     "line_start": str(fn_info.line_start),
-                    "line_end":   str(fn_info.line_end),
+                    "line_end": str(fn_info.line_end),
                     "decorators": ", ".join(fn_info.decorators) if fn_info.decorators else "",
                 },
             },
         )
         if not was_created:
-            self._writer.update(entity["id"], {
-                "sections": {
-                    "core": {
-                        "summary": fn_info.docstring[:150] if fn_info.docstring else "",
-                        "tags":    ["async" if fn_info.is_async else "sync"],
-                    },
-                    "properties": {
-                        "file_path":  file_path,
-                        "signature":  signature,
-                        "is_async":   str(fn_info.is_async).lower(),
-                        "line_start": str(fn_info.line_start),
-                        "line_end":   str(fn_info.line_end),
-                        "decorators": ", ".join(fn_info.decorators) if fn_info.decorators else "",
+            self._writer.update(
+                entity["id"],
+                {
+                    "sections": {
+                        "core": {
+                            "summary": fn_info.docstring[:150] if fn_info.docstring else "",
+                            "tags": ["async" if fn_info.is_async else "sync"],
+                        },
+                        "properties": {
+                            "file_path": file_path,
+                            "signature": signature,
+                            "is_async": str(fn_info.is_async).lower(),
+                            "line_start": str(fn_info.line_start),
+                            "line_end": str(fn_info.line_end),
+                            "decorators": ", ".join(fn_info.decorators)
+                            if fn_info.decorators
+                            else "",
+                        },
                     },
                 },
-            })
+            )
         return entity, was_created
 
     def _add_relation(
         self,
-        source_id:  str,
-        kind:       str,
-        target_id:  str,
-        note:       str = "",
+        source_id: str,
+        kind: str,
+        target_id: str,
+        note: str = "",
     ) -> int:
         """Add a relation to the source entity (deduplication via merge_sections)."""
         try:
@@ -622,4 +674,3 @@ class ProjectIngestor:
         except Exception as exc:
             logger.debug(f"[Ingestor] Could not add relation {kind}: {exc}")
             return 0
-

@@ -33,35 +33,35 @@ class AutoScanner:
 
     def __init__(
         self,
-        project_root:  str,
-        db_root:       Path,
-        db_name:       str,
-        writer:        Any,
-        index:         Any,
+        project_root: str,
+        db_root: Path,
+        db_name: str,
+        writer: Any,
+        index: Any,
         file_manifest: Any,
-        scan_lock:     threading.Lock,
+        scan_lock: threading.Lock,
         poll_interval: float = 10.0,
-        debounce:      float = 2.0,
+        debounce: float = 2.0,
     ) -> None:
-        self.project_root  = project_root
-        self.db_root       = db_root
-        self.db_name       = db_name
-        self.writer        = writer
-        self.index         = index
+        self.project_root = project_root
+        self.db_root = db_root
+        self.db_name = db_name
+        self.writer = writer
+        self.index = index
         self.file_manifest = file_manifest
-        self.scan_lock     = scan_lock
+        self.scan_lock = scan_lock
         self.poll_interval = poll_interval
-        self.debounce      = debounce
+        self.debounce = debounce
 
-        self._thread:     threading.Thread | None = None
+        self._thread: threading.Thread | None = None
         self._stop_event: threading.Event = threading.Event()
 
         # Status fields — read by handle_pm_stats
-        self.active:          bool            = False
-        self.scan_count:      int             = 0
-        self.last_check_at:   float | None = None
-        self.last_scan_at:    float | None = None
-        self.last_scan_files: int             = 0
+        self.active: bool = False
+        self.scan_count: int = 0
+        self.last_check_at: float | None = None
+        self.last_scan_at: float | None = None
+        self.last_scan_files: int = 0
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -71,10 +71,8 @@ class AutoScanner:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
-        self.active  = True
-        self._thread = threading.Thread(
-            target=self._run, daemon=True, name="pm-auto-scan"
-        )
+        self.active = True
+        self._thread = threading.Thread(target=self._run, daemon=True, name="pm-auto-scan")
         self._thread.start()
         logger.info(
             "[AutoScanner] Watching %r — poll=%.0fs  debounce=%.0fs",
@@ -119,11 +117,7 @@ class AutoScanner:
         if not delta.has_changes:
             return
 
-        n_changed = (
-            len(delta.new_files)
-            + len(delta.modified_files)
-            + len(delta.deleted_files)
-        )
+        n_changed = len(delta.new_files) + len(delta.modified_files) + len(delta.deleted_files)
         logger.info(
             "[AutoScanner] %d change(s) detected — debouncing %.0fs …",
             n_changed,
@@ -150,9 +144,9 @@ class AutoScanner:
             t0 = time.monotonic()
             asyncio.run(self._do_scan())
             elapsed = time.monotonic() - t0
-            self.last_scan_at    = time.time()
+            self.last_scan_at = time.time()
             self.last_scan_files = n_changed
-            self.scan_count     += 1
+            self.scan_count += 1
             logger.info(
                 "[AutoScanner] Scan done in %.1fs (%d file(s)).",
                 elapsed,
@@ -190,12 +184,12 @@ class AutoScanner:
             return datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
         return {
-            "active":          self.active,
-            "project_root":    self.project_root,
+            "active": self.active,
+            "project_root": self.project_root,
             "poll_interval_s": self.poll_interval,
-            "debounce_s":      self.debounce,
-            "scan_count":      self.scan_count,
-            "last_check":      _fmt(self.last_check_at),
-            "last_scan":       _fmt(self.last_scan_at),
+            "debounce_s": self.debounce,
+            "scan_count": self.scan_count,
+            "last_check": _fmt(self.last_check_at),
+            "last_scan": _fmt(self.last_scan_at),
             "last_scan_files": self.last_scan_files,
         }

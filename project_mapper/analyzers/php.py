@@ -25,6 +25,7 @@ from __future__ import annotations
 try:
     import tree_sitter_php as _tsphp
     from tree_sitter import Language, Parser
+
     _PHP_LANGUAGE = Language(_tsphp.language_php())
     _AVAILABLE = True
 except Exception:
@@ -45,7 +46,7 @@ from .base import (
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -105,8 +106,7 @@ def _parse_php_params(params_node, src: bytes) -> list[str]:
         return []
     args: list[str] = []
     for child in params_node.children:
-        if child.type in ("simple_parameter", "variadic_parameter",
-                          "property_promotion_parameter"):
+        if child.type in ("simple_parameter", "variadic_parameter", "property_promotion_parameter"):
             name_node = child.child_by_field_name("name")
             if name_node:
                 raw = _t(name_node, src)
@@ -136,8 +136,11 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
     is_async = False  # PHP has no async
 
     return MethodInfo(
-        name=name, args=args, return_type=return_type,
-        is_async=is_async, is_staticmethod=is_static,
+        name=name,
+        args=args,
+        return_type=return_type,
+        is_async=is_async,
+        is_staticmethod=is_static,
     )
 
 
@@ -196,8 +199,13 @@ def _parse_class(node, src: bytes, kind_override: str = "") -> ClassInfo | None:
                 pass
 
     return ClassInfo(
-        name=name, kind=kind, bases=bases, methods=methods, class_vars=class_vars,
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind=kind,
+        bases=bases,
+        methods=methods,
+        class_vars=class_vars,
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 
@@ -306,11 +314,17 @@ def analyze_php(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="php", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="php",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-php not installed — run: '
+                "tree-sitter-php not installed — run: "
                 'pip install "tree-sitter>=0.23.0" tree-sitter-php'
             ],
         )
@@ -353,16 +367,28 @@ def analyze_php(path: str, content: str) -> CodeAnalysis:
         _walk_body(program, src, classes, functions, namespace)
 
         return CodeAnalysis(
-            path=path, language="php", line_count=line_count,
-            module_docstring=namespace, classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="php",
+            line_count=line_count,
+            module_docstring=namespace,
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="php", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="php",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"php_analyzer internal error: {exc}"],
         )

@@ -20,6 +20,7 @@ import re
 try:
     import tree_sitter_c as _tsc
     from tree_sitter import Language, Parser
+
     _C_LANGUAGE = Language(_tsc.language())
     _AVAILABLE = True
 except Exception:
@@ -41,12 +42,13 @@ from .base import (
 #
 # GLib/GTK per-parameter annotation:
 #   void fn(int x G_GNUC_UNUSED)  →  void fn(int x)
-_RE_C_ATTRS = re.compile(r'\b(?:G_GNUC_UNUSED|ATTRIBUTE_TARGET_\w+)\b')
+_RE_C_ATTRS = re.compile(r"\b(?:G_GNUC_UNUSED|ATTRIBUTE_TARGET_\w+)\b")
 
 
 def _strip_macros_c(content: str) -> str:
     """Remove known attribute macros before handing content to tree-sitter."""
-    return _RE_C_ATTRS.sub('', content)
+    return _RE_C_ATTRS.sub("", content)
+
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -54,7 +56,7 @@ def _strip_macros_c(content: str) -> str:
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -169,8 +171,13 @@ def _parse_typedef(node, src: bytes) -> ClassInfo | None:
                     if name:
                         class_vars.append(name)
         return ClassInfo(
-            name=typedef_name, kind="struct", bases=[], methods=[], class_vars=class_vars,
-            line_start=_line(node), line_end=_end_line(node),
+            name=typedef_name,
+            kind="struct",
+            bases=[],
+            methods=[],
+            class_vars=class_vars,
+            line_start=_line(node),
+            line_end=_end_line(node),
         )
 
     if enum_spec:
@@ -183,8 +190,13 @@ def _parse_typedef(node, src: bytes) -> ClassInfo | None:
                     if en:
                         class_vars.append(_t(en, src))
         return ClassInfo(
-            name=typedef_name, kind="enum", bases=[], methods=[], class_vars=class_vars,
-            line_start=_line(node), line_end=_end_line(node),
+            name=typedef_name,
+            kind="enum",
+            bases=[],
+            methods=[],
+            class_vars=class_vars,
+            line_start=_line(node),
+            line_end=_end_line(node),
         )
 
     return None
@@ -265,16 +277,21 @@ def _parse_c_function(node, src: bytes) -> FunctionInfo | None:
 # Preprocessor conditional blocks — their children are C declarations that
 # the top-level loop would otherwise miss.  Redis, LevelDB, and virtually
 # every large C project wrap all declarations in #ifndef HEADER_H guards.
-_PREPROC_BLOCK_TYPES: frozenset[str] = frozenset({
-    "preproc_ifdef", "preproc_if", "preproc_else", "preproc_elif",
-})
+_PREPROC_BLOCK_TYPES: frozenset[str] = frozenset(
+    {
+        "preproc_ifdef",
+        "preproc_if",
+        "preproc_else",
+        "preproc_elif",
+    }
+)
 
 
 def _walk_c_scope(
     node,
-    src:       bytes,
-    imports:   list,
-    classes:   list,
+    src: bytes,
+    imports: list,
+    classes: list,
     functions: list,
 ) -> None:
     """Recursively walk a C translation unit or preprocessor block."""
@@ -286,9 +303,14 @@ def _walk_c_scope(
                 raw = _t(path_node, src)
                 is_rel = raw.startswith('"')
                 module = raw.strip('"<>')
-                imports.append(ImportInfo(
-                    module=module, names=[], is_from=False, is_relative=is_rel,
-                ))
+                imports.append(
+                    ImportInfo(
+                        module=module,
+                        names=[],
+                        is_from=False,
+                        is_relative=is_rel,
+                    )
+                )
         elif nt == "type_definition":
             cls = _parse_typedef(child, src)
             if cls:
@@ -313,12 +335,17 @@ def analyze_c(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="c", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="c",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-c not installed — run: '
-                'pip install "tree-sitter>=0.23.0" tree-sitter-c'
+                'tree-sitter-c not installed — run: pip install "tree-sitter>=0.23.0" tree-sitter-c'
             ],
         )
 
@@ -340,16 +367,28 @@ def analyze_c(path: str, content: str) -> CodeAnalysis:
         _walk_c_scope(root, src, imports, classes, functions)
 
         return CodeAnalysis(
-            path=path, language="c", line_count=line_count,
-            module_docstring="", classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="c",
+            line_count=line_count,
+            module_docstring="",
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="c", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="c",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"c_analyzer internal error: {exc}"],
         )

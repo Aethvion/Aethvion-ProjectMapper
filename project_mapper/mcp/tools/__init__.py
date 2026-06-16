@@ -3,6 +3,7 @@ project_mapper.mcp.tools
 MCP tool schemas + handlers, one module per tool. Assembles the flat
 TOOL_SCHEMAS list and HANDLERS dict the server expects; re-exports MCPContext.
 """
+
 from . import (
     context,
     contribute,

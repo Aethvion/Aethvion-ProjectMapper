@@ -32,33 +32,47 @@ SIDECAR = "AethvionDB.FILEMANIFEST"
 # ---------------------------------------------------------------------------
 
 _LANGUAGE_BY_EXT: dict[str, str] = {
-    ".py":    "python",
-    ".js":    "javascript",  ".mjs": "javascript",
-    ".ts":    "typescript",
-    ".jsx":   "javascript",  ".tsx": "typescript",
-    ".java":  "java",
-    ".cpp":   "cpp",   ".cc": "cpp",   ".cxx": "cpp",
-    ".c":     "c",     ".h":  "cpp",   ".hpp": "cpp",
-    ".rb":    "ruby",
-    ".go":    "go",
-    ".rs":    "rust",
-    ".php":   "php",
-    ".cs":    "csharp",
+    ".py": "python",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".ts": "typescript",
+    ".jsx": "javascript",
+    ".tsx": "typescript",
+    ".java": "java",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".c": "c",
+    ".h": "cpp",
+    ".hpp": "cpp",
+    ".rb": "ruby",
+    ".go": "go",
+    ".rs": "rust",
+    ".php": "php",
+    ".cs": "csharp",
     ".swift": "swift",
-    ".kt":    "kotlin",   ".kts": "kotlin",
-    ".sh":    "shell",    ".bash": "shell",  ".zsh": "shell",  ".fish": "shell",
-    ".sql":   "sql",
-    ".r":     "r",
-    ".lua":   "lua",
-    ".md":    "markdown", ".markdown": "markdown",
-    ".rst":   "rst",
-    ".html":  "html",     ".htm": "html",
-    ".json":  "json",
-    ".yaml":  "yaml",     ".yml": "yaml",
-    ".toml":  "toml",
-    ".xml":   "xml",
-    ".csv":   "csv",      ".tsv": "csv",
-    ".txt":   "text",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".zsh": "shell",
+    ".fish": "shell",
+    ".sql": "sql",
+    ".r": "r",
+    ".lua": "lua",
+    ".md": "markdown",
+    ".markdown": "markdown",
+    ".rst": "rst",
+    ".html": "html",
+    ".htm": "html",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".toml": "toml",
+    ".xml": "xml",
+    ".csv": "csv",
+    ".tsv": "csv",
+    ".txt": "text",
 }
 
 
@@ -135,12 +149,12 @@ class FileManifest:
         lang = detect_language(path)
         with self._lock:
             self._data["files"][path] = {
-                "path":         path,
-                "hash":         file_hash,
-                "entity_ids":   list(entity_ids),
-                "language":     lang,
-                "size":         size,
-                "mtime":        mtime,
+                "path": path,
+                "hash": file_hash,
+                "entity_ids": list(entity_ids),
+                "language": lang,
+                "size": size,
+                "mtime": mtime,
                 "last_scanned": _now_iso(),
             }
             if save:
@@ -175,11 +189,11 @@ class FileManifest:
             entry = self._data["files"].get(path)
             if entry is None:
                 entry = {
-                    "path":         path,
-                    "hash":         file_hash,
-                    "entity_ids":   [],
-                    "language":     lang,
-                    "size":         size,
+                    "path": path,
+                    "hash": file_hash,
+                    "entity_ids": [],
+                    "language": lang,
+                    "size": size,
                     "last_scanned": _now_iso(),
                 }
                 self._data["files"][path] = entry
@@ -240,7 +254,7 @@ class FileManifest:
             entry = self._data["files"].get(path)
         if entry is None:
             return False
-        stored_size  = entry.get("size", 0)
+        stored_size = entry.get("size", 0)
         stored_mtime = entry.get("mtime", 0.0)
         if not stored_size or not stored_mtime:
             return False
@@ -258,7 +272,7 @@ class FileManifest:
                 return
             if entry.get("size") == size and entry.get("mtime") == mtime:
                 return
-            entry["size"]  = size
+            entry["size"] = size
             entry["mtime"] = mtime
             if save:
                 self._save()
@@ -325,11 +339,11 @@ class FileManifest:
                     continue
                 if path not in new_files:
                     new_files[path] = {
-                        "path":         path,
-                        "hash":         sf.get("hash", ""),
-                        "entity_ids":   [],
-                        "language":     sf.get("language", detect_language(path)),
-                        "size":         sf.get("size", 0),
+                        "path": path,
+                        "hash": sf.get("hash", ""),
+                        "entity_ids": [],
+                        "language": sf.get("language", detect_language(path)),
+                        "size": sf.get("size", 0),
                         "last_scanned": sf.get("scanned_at", ""),
                     }
                 if eid not in new_files[path]["entity_ids"]:
@@ -340,23 +354,21 @@ class FileManifest:
             self._data = {"version": 1, "files": new_files}
             self._save()
 
-        logger.info(
-            f"[FileManifest] Rebuilt: {len(new_files)} files, {count} entity mappings"
-        )
+        logger.info(f"[FileManifest] Rebuilt: {len(new_files)} files, {count} entity mappings")
         return {"files": len(new_files), "entity_mappings": count}
 
     def stats(self) -> dict[str, Any]:
         """Return a summary of manifest coverage."""
         with self._lock:
             files = list(self._data["files"].values())
-        total_files    = len(files)
+        total_files = len(files)
         total_mappings = sum(len(f.get("entity_ids", [])) for f in files)
         by_language: dict[str, int] = {}
         for f in files:
             lang = f.get("language") or "unknown"
             by_language[lang] = by_language.get(lang, 0) + 1
         return {
-            "total_files":    total_files,
+            "total_files": total_files,
             "total_mappings": total_mappings,
-            "by_language":    dict(sorted(by_language.items(), key=lambda x: -x[1])),
+            "by_language": dict(sorted(by_language.items(), key=lambda x: -x[1])),
         }

@@ -21,6 +21,7 @@ from __future__ import annotations
 try:
     import tree_sitter_rust as _tsrust
     from tree_sitter import Language, Parser
+
     _RUST_LANGUAGE = Language(_tsrust.language())
     _AVAILABLE = True
 except Exception:
@@ -41,7 +42,7 @@ from .base import (
 
 
 def _t(node, src: bytes) -> str:
-    return src[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return src[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 def _ft(node, field: str, src: bytes) -> str:
@@ -58,7 +59,7 @@ def _end_line(node) -> int:
 
 
 def _preceding_rust_doc(node, src: bytes) -> str:
-    before = src[:node.start_byte].decode("utf-8", errors="replace").rstrip()
+    before = src[: node.start_byte].decode("utf-8", errors="replace").rstrip()
     lines = before.split("\n")
     doc_lines = []
     for line in reversed(lines):
@@ -81,7 +82,11 @@ def _preceding_rust_doc(node, src: bytes) -> str:
             break
         elif line_stripped.startswith("#["):
             continue
-        elif line_stripped.startswith("pub") or line_stripped.startswith("crate") or line_stripped.startswith("async"):
+        elif (
+            line_stripped.startswith("pub")
+            or line_stripped.startswith("crate")
+            or line_stripped.startswith("async")
+        ):
             continue
         else:
             break
@@ -249,8 +254,7 @@ def _parse_impl_methods(impl_node, src: bytes) -> list[MethodInfo]:
     body = impl_node.child_by_field_name("body")
     if not body:
         return []
-    return [_parse_fn(child, src) for child in body.children
-            if child.type == "function_item"]
+    return [_parse_fn(child, src) for child in body.children if child.type == "function_item"]
 
 
 # ---------------------------------------------------------------------------
@@ -270,8 +274,13 @@ def _parse_struct(node, src: bytes) -> ClassInfo:
                         class_vars.append(_t(c, src))
                         break
     return ClassInfo(
-        name=name, kind="struct", bases=[], methods=[], class_vars=class_vars,
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind="struct",
+        bases=[],
+        methods=[],
+        class_vars=class_vars,
+        line_start=_line(node),
+        line_end=_end_line(node),
         docstring=_preceding_rust_doc(node, src),
     )
 
@@ -287,8 +296,13 @@ def _parse_enum(node, src: bytes) -> ClassInfo:
                 if vn:
                     class_vars.append(_t(vn, src))
     return ClassInfo(
-        name=name, kind="enum", bases=[], methods=[], class_vars=class_vars,
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind="enum",
+        bases=[],
+        methods=[],
+        class_vars=class_vars,
+        line_start=_line(node),
+        line_end=_end_line(node),
         docstring=_preceding_rust_doc(node, src),
     )
 
@@ -302,8 +316,13 @@ def _parse_trait(node, src: bytes) -> ClassInfo:
             if child.type in ("function_item", "function_signature_item"):
                 methods.append(_parse_fn(child, src))
     return ClassInfo(
-        name=name, kind="trait", bases=[], methods=methods, class_vars=[],
-        line_start=_line(node), line_end=_end_line(node),
+        name=name,
+        kind="trait",
+        bases=[],
+        methods=methods,
+        class_vars=[],
+        line_start=_line(node),
+        line_end=_end_line(node),
         docstring=_preceding_rust_doc(node, src),
     )
 
@@ -349,11 +368,17 @@ def analyze_rust(path: str, content: str) -> CodeAnalysis:
 
     if not _AVAILABLE:
         return CodeAnalysis(
-            path=path, language="rust", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="rust",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[
-                'tree-sitter-rust not installed — run: '
+                "tree-sitter-rust not installed — run: "
                 'pip install "tree-sitter>=0.23.0" tree-sitter-rust'
             ],
         )
@@ -397,8 +422,13 @@ def analyze_rust(path: str, content: str) -> CodeAnalysis:
                 name = _ft(node, "name", src)
                 if name:
                     cls = ClassInfo(
-                        name=name, kind="type", bases=[], methods=[], class_vars=[],
-                        line_start=_line(node), line_end=_end_line(node),
+                        name=name,
+                        kind="type",
+                        bases=[],
+                        methods=[],
+                        class_vars=[],
+                        line_start=_line(node),
+                        line_end=_end_line(node),
                     )
                     type_map[name] = cls
                     classes.append(cls)
@@ -436,16 +466,28 @@ def analyze_rust(path: str, content: str) -> CodeAnalysis:
                 classes.append(cls)
 
         return CodeAnalysis(
-            path=path, language="rust", line_count=line_count,
-            module_docstring="", classes=classes, functions=functions,
-            imports=imports, all_exports=[], constants=[],
+            path=path,
+            language="rust",
+            line_count=line_count,
+            module_docstring="",
+            classes=classes,
+            functions=functions,
+            imports=imports,
+            all_exports=[],
+            constants=[],
             parse_errors=parse_errors,
         )
 
     except Exception as exc:
         return CodeAnalysis(
-            path=path, language="rust", line_count=line_count,
-            module_docstring="", classes=[], functions=[], imports=[],
-            all_exports=[], constants=[],
+            path=path,
+            language="rust",
+            line_count=line_count,
+            module_docstring="",
+            classes=[],
+            functions=[],
+            imports=[],
+            all_exports=[],
+            constants=[],
             parse_errors=[f"rust_analyzer internal error: {exc}"],
         )
