@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.1.0] — 2026-06-17
+
+### Changed
+- **Data directory moved to `~/.aethvion/project-mapper`** (was `~/.aethvion_pm/data`).
+  Aethvion products now share one vendor directory with a sub-directory per
+  product, matching the standard `~/.config` / `~/.aws` convention and avoiding a
+  sprawl of `~/.aethvion_*` folders as more products ship. `PM_DATA_DIR` still
+  overrides the default. No automatic migration of the old location — re-run a
+  scan to repopulate (scans are fast).
+
+---
+
 ## [2.0.0] — 2026-06-17
 
 ### Changed — breaking / structural
