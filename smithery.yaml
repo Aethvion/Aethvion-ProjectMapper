@@ -11,7 +11,7 @@ startCommand:
         type: string
         description: >
           Name of the knowledge-graph database for your project.
-          A folder with this name will be created in ~/.aethvion_pm/data/.
+          A folder with this name will be created in ~/.aethvion/project-mapper/.
           Use one database per project (e.g. "my-app", "django", "backend").
         default: "default"
       projectRoot:

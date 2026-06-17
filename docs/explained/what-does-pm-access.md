@@ -23,8 +23,8 @@ Project Mapper saves a knowledge graph to a local folder on your machine:
 
 | OS | Default location |
 |---|---|
-| Windows | `C:\Users\<YourUsername>\.aethvion_pm\data\` |
-| Linux / macOS | `~/.aethvion_pm/data/` |
+| Windows | `C:\Users\<YourUsername>\.aethvion\project-mapper\` |
+| Linux / macOS | `~/.aethvion/project-mapper/` |
 
 The knowledge graph contains:
 
@@ -58,7 +58,7 @@ You can delete this folder at any time. Project Mapper will rebuild it on the ne
 
 ## Where does the knowledge graph go when I remove it?
 
-Deleting `~/.aethvion_pm/data/` removes everything Project Mapper has stored. There are no hidden copies, no cloud backups, and no sync. The data exists only on the machine where the scan was run.
+Deleting `~/.aethvion/project-mapper/` removes everything Project Mapper has stored. There are no hidden copies, no cloud backups, and no sync. The data exists only on the machine where the scan was run.
 
 ---
 
@@ -78,7 +78,7 @@ No. The scan, storage, and query tools all run fully offline. The only time netw
 
 ## Who can see the knowledge graph?
 
-Only processes running on your machine with access to `~/.aethvion_pm/data/`. The data is not encrypted at rest (it is plain JSON), so it has the same access controls as any other file in your home directory. If you are on a shared machine, standard OS file permissions apply.
+Only processes running on your machine with access to `~/.aethvion/project-mapper/`. The data is not encrypted at rest (it is plain JSON), so it has the same access controls as any other file in your home directory. If you are on a shared machine, standard OS file permissions apply.
 
 ---
 

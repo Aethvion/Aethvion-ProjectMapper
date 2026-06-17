@@ -294,7 +294,7 @@ If you always work on one codebase, add `PM_PROJECT_ROOT` so the AI never needs 
 
 | Variable | Default | Description |
 |---|---|---|
-| `PM_DATA_DIR` | `~/.aethvion_pm/data` | Root directory for all databases |
+| `PM_DATA_DIR` | `~/.aethvion/project-mapper` | Root directory for all databases |
 | `PM_LOG_LEVEL` | `INFO` | Log level: DEBUG / INFO / WARNING / ERROR |
 | `PM_DB_NAME` | `default` | MCP server: database name |
 | `PM_DB_PATH` | *(unset)* | MCP server: explicit database path |

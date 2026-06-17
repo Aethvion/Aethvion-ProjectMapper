@@ -24,7 +24,7 @@ Project Mapper solves this by scanning your code once and storing a summary — 
 
 2. **Project Mapper reads your source files** — it uses static analysis (reading code without running it) to find every module, class, function, and relationship. No AI is involved in this step. It is purely pattern-matching on text.
 
-3. **A knowledge graph is saved locally** — the results are stored in a small database on your own machine (by default in `~/.aethvion_pm/data/`). Nothing is sent anywhere.
+3. **A knowledge graph is saved locally** — the results are stored in a small database on your own machine (by default in `~/.aethvion/project-mapper/`). Nothing is sent anywhere.
 
 4. **Your AI agent queries the graph** — instead of reading files, it calls tools like `pm_context` ("what's relevant to this task?") or `pm_impact` ("what breaks if I change this?"). Each query takes 10–100 milliseconds and returns only the relevant entities.
 

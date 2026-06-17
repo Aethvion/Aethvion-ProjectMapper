@@ -18,12 +18,12 @@ services:
       - "7474:7474"
     volumes:
       # Persistent database storage
-      - pm_data:/home/pm/.aethvion_pm/data
+      - pm_data:/home/pm/.aethvion/project-mapper
       # Mount your local projects so pm_scan / pm_delta can reach them
       # Adjust the host path to wherever your code lives:
       - ${PROJECTS_DIR:-./}:/projects:ro
     environment:
-      PM_DATA_DIR: /home/pm/.aethvion_pm/data
+      PM_DATA_DIR: /home/pm/.aethvion/project-mapper
       PM_LOG_LEVEL: ${PM_LOG_LEVEL:-INFO}
     healthcheck:
       test: ["CMD", "python", "-c",

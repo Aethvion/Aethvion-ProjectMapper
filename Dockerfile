@@ -21,12 +21,12 @@ RUN pip install --no-cache-dir .[languages]
 
 # Non-root user for security
 RUN useradd -m -u 1000 pm \
- && mkdir -p /home/pm/.aethvion_pm/data \
- && chown -R pm:pm /home/pm/.aethvion_pm
+ && mkdir -p /home/pm/.aethvion/project-mapper \
+ && chown -R pm:pm /home/pm/.aethvion
 
 USER pm
 
-ENV PM_DATA_DIR=/home/pm/.aethvion_pm/data
+ENV PM_DATA_DIR=/home/pm/.aethvion/project-mapper
 ENV PM_LOG_LEVEL=INFO
 
 EXPOSE 7474

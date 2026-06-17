@@ -40,7 +40,7 @@ htmlcov/
 Thumbs.db
 
 # Project Mapper runtime data
-# (default data dir is ~/.aethvion_pm/data — outside the repo)
+# (default data dir is ~/.aethvion/project-mapper — outside the repo)
 # If you override PM_DATA_DIR to a subfolder inside the repo, add it here:
 # data/
 

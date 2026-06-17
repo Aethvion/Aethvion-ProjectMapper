@@ -31,7 +31,7 @@ Environment variable equivalents (CLI overrides env):
     PM_DB_NAME        — same as --db
     PM_DB_PATH        — same as --db-path
     PM_PROJECT_ROOT   — same as --project-root
-    PM_DATA_DIR       — root directory for all databases (default: ~/.aethvion_pm/data)
+    PM_DATA_DIR       — root directory for all databases (default: ~/.aethvion/project-mapper)
     PM_WATCH          — "1" / "true" / "yes" to enable watch mode
     PM_WATCH_INTERVAL — poll interval in seconds (default: 10)
 
