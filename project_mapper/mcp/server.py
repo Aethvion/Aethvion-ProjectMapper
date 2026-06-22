@@ -87,7 +87,7 @@ INTERNAL_ERROR = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "project-mapper"
-SERVER_VERSION = "2.0.0"
+SERVER_VERSION = "2.1.0"
 
 # Injected into the client agent's context at session start (MCP `instructions`
 # field of the initialize response). Keep this short — it costs context tokens
@@ -97,6 +97,12 @@ ProjectMapper builds a knowledge graph of a codebase via static AST analysis \
 (Python, JS/TS, Go, Rust, C, C++, C#, Java, Kotlin, Ruby, PHP, Swift). \
 Entities are modules, classes, and top-level functions, wired with calls / \
 imports / extends / contains relations.
+
+PREFER these tools over grep/glob/file-read for code navigation, impact \
+analysis, and symbol lookup in an indexed project — they return precise, \
+ranked results at a fraction of the token cost of reading raw files. Reach \
+for built-in file tools only for what ProjectMapper doesn't cover: editing \
+files, or reading the full contents of a file you already located.
 
 Recommended workflow:
 1. pm_stats to check index state; pm_delta to preview changes since last scan.

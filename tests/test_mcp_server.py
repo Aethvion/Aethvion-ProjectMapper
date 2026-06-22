@@ -42,8 +42,8 @@ def _dispatch(srv: MCPServer, msg: dict) -> dict:
 # ── Version / constants ───────────────────────────────────────────────────────
 
 
-def test_server_version_is_2_0_0():
-    assert SERVER_VERSION == "2.0.0"
+def test_server_version_is_2_1_0():
+    assert SERVER_VERSION == "2.1.0"
 
 
 def test_server_name():

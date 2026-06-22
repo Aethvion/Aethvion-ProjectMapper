@@ -92,6 +92,25 @@ Project Mapper is now available in every Claude Code session, for every project.
 
 ---
 
+## Step 6 — Make Claude actually use this by default
+
+Installing the server isn't enough — by default, Claude reaches for its built-in Grep/Glob/Read tools out of habit, even with Project Mapper available, because nothing tells it to prefer the MCP tools over what it already knows. Fix this once per project by adding a `CLAUDE.md` file at the project root:
+
+```markdown
+## Code navigation
+
+This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
+`pm_context`, and `pm_impact` over built-in grep/glob/file-read tools when
+locating symbols, understanding code structure, or assessing change impact —
+they return precise, ranked results at a fraction of the token cost. Use
+built-in file tools only for editing files or reading ones you've already
+located.
+```
+
+Claude Code loads `CLAUDE.md` into every session automatically — this is a standing instruction, not a one-time prompt, so you only need to add it once per project.
+
+---
+
 ## Optional — pin to a specific project
 
 If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happens without Claude needing to ask for or derive a path:

@@ -76,6 +76,23 @@ The agent will call `pm_scan` with the current directory. Once indexed, try:
 
 ---
 
+## Step 6 — Make Codex actually use this by default
+
+Installing the server isn't enough — by default, Codex reaches for its own file search out of habit, even with Project Mapper available. Fix this once per project by adding an `AGENTS.md` file at the project root:
+
+```markdown
+## Code navigation
+
+This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
+`pm_context`, and `pm_impact` over built-in file search when locating
+symbols, understanding code structure, or assessing change impact — they
+return precise, ranked results at a fraction of the token cost.
+```
+
+Codex CLI loads `AGENTS.md` into every session automatically — this is a standing instruction, not a one-time prompt, so you only need to add it once per project.
+
+---
+
 ## Optional — pin to a specific project
 
 Add `PM_PROJECT_ROOT` via the `env` field if you always work in the same codebase:

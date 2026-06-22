@@ -75,6 +75,27 @@ The agent will call `pm_scan` with the current directory. Once indexed, try:
 
 ---
 
+## Step 6 — Make Cursor actually use this by default
+
+Installing the server isn't enough — by default, Cursor reaches for its own codebase search out of habit, even with Project Mapper available. Fix this once per project by adding a rule file at `.cursor/rules/project-mapper.mdc`:
+
+```markdown
+---
+description: Prefer Project Mapper over built-in search
+alwaysApply: true
+---
+
+This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
+`pm_context`, and `pm_impact` over built-in codebase search when locating
+symbols, understanding code structure, or assessing change impact — they
+return precise, ranked results at a fraction of the token cost. Use
+built-in search only for what Project Mapper doesn't cover.
+```
+
+On older Cursor versions without `.cursor/rules/`, use a single `.cursorrules` file at the project root with the same body text instead.
+
+---
+
 ## Optional — pin to a specific project
 
 Add `PM_PROJECT_ROOT` via the `env` field so the AI always knows which project to scan without being told:

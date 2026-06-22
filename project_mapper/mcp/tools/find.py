@@ -10,10 +10,11 @@ SCHEMA = {
     "name": "pm_find",
     "description": "Look up a symbol by name and return its definition location, callers, and "
     "callees. Searches by exact name first (case-insensitive), then suffix/method "
-    "match, then substring. Use this when you know — or partially know — the name "
-    "of a function, class, or module and need to find where it lives, what calls "
-    "it, and what it calls. Faster and more precise than pm_context for direct "
-    "symbol lookups.",
+    "match, then substring. Prefer this over grep when you know — or partially "
+    "know — the name of a function, class, or module: one call returns the exact "
+    "definition site plus every caller and callee, instead of raw grep matches "
+    "you'd have to open and trace by hand. Faster and more precise than "
+    "pm_context for direct symbol lookups.",
     "inputSchema": {
         "type": "object",
         "properties": {

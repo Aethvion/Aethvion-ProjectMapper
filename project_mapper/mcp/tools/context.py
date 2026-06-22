@@ -11,8 +11,11 @@ SCHEMA = {
     "description": "Retrieve a focused context package relevant to a coding task. Keyword-scores "
     "all entities in the knowledge graph against the task description, seeds from "
     "the best matches (and any named anchor entities), then expands by following "
-    "relations. Use this BEFORE starting any non-trivial feature or refactor so "
-    "you understand the existing architecture and avoid breaking changes.",
+    "relations. Prefer this over grepping/reading files to orient yourself in an "
+    "indexed project — one call returns ranked, structured results instead of "
+    "raw text matches you'd otherwise have to read and filter yourself. Use "
+    "BEFORE starting any non-trivial feature or refactor so you understand the "
+    "existing architecture and avoid breaking changes.",
     "inputSchema": {
         "type": "object",
         "properties": {

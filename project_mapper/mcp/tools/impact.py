@@ -10,8 +10,11 @@ SCHEMA = {
     "name": "pm_impact",
     "description": "Find all entities that would be affected if the named entity changes. "
     "Traverses dependency-propagating relations (calls, imports, depends_on, uses, "
-    "reads_from, etc.) outward from the subject. Use before refactoring or "
-    "deleting a module/class to understand the blast radius.",
+    "reads_from, etc.) outward from the subject. Prefer this over manually "
+    "grepping for usages — it returns the complete, traced dependency set in one "
+    "call instead of relying on text matches that miss indirect references. Use "
+    "before refactoring or deleting a module/class to understand the blast "
+    "radius.",
     "inputSchema": {
         "type": "object",
         "properties": {
