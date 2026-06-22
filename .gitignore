@@ -47,3 +47,4 @@ Thumbs.db
 # Local env overrides
 .env
 .env.local
+/aireports
