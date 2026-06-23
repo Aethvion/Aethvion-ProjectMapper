@@ -1,8 +1,12 @@
 # docs/howto/
 
-Step-by-step setup guides for connecting Project Mapper to your AI coding agent. Each guide covers installation, configuration, and a quick verification that everything is working.
+Step-by-step setup guides for connecting Project Mapper to your AI coding agent. Each guide covers installation, configuration, making the agent actually prefer Project Mapper over its built-in tools, and a quick verification that everything is working.
 
 For background on what Project Mapper is and how MCP tools work, see [`docs/explained/`](../explained/).
+
+---
+
+**Fastest path:** after installing (`uv tool install "aethvion-project-mapper[languages]" --python 3.10`), run `pm-setup --claude-code` (or `--cursor` / `--antigravity` / `--codex` / `--all`) — it registers the MCP server and writes the rules file that makes the agent prefer Project Mapper by default, in one idempotent command. Run it yourself, or tell your agent to. Each guide below also covers the manual steps it automates, in case you'd rather do it by hand or want to understand exactly what changes on your machine.
 
 ---
 
@@ -15,4 +19,4 @@ For background on what Project Mapper is and how MCP tools work, see [`docs/expl
 
 ---
 
-All guides follow the same two steps: install `pm-mcp` via `uv`, then add the MCP server config to your agent's settings file. No Python installation is required — `uv` manages the environment automatically.
+All guides follow the same shape: install `pm-mcp` via `uv`, then either run `pm-setup` or add the MCP server config and rules file by hand. No Python installation is required — `uv` manages the environment automatically.

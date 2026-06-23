@@ -24,16 +24,18 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 uv tool install "aethvion-project-mapper[languages]" --python 3.10
 ```
 
-**Step 3 — Connect to your agent:**
+**Step 3 — Connect to your agent and make it actually use Project Mapper:**
 
-Add Project Mapper to your agent's MCP config, then restart the agent. The exact one-liner or JSON block per agent is below under [Connect your agent](#connect-your-agent).
-
-For **Claude Code**:
 ```bash
-claude mcp add -s user project-mapper -- pm-mcp --db workspace
+pm-setup --claude-code   # or --cursor / --antigravity / --codex / --all
 ```
 
-Step-by-step per-agent guides: [`docs/howto/`](docs/howto/README.md)
+`pm-setup` registers the MCP server *and* writes a rules file (`CLAUDE.md`, `.cursor/rules/`, or `AGENTS.md`) telling the agent to prefer Project Mapper over built-in grep/glob/read — the part most setups skip. Without it, the tool is installed but the agent still defaults to its own search out of habit. Safe to re-run; never duplicates or overwrites unrelated config. See [why this step exists](#make-your-agent-actually-use-it).
+
+No terminal access, or you'd rather your agent do it? Paste this into a chat with your agent instead:
+> Install and set up Aethvion Project Mapper (https://github.com/Aethvion/Aethvion-ProjectMapper) for this project.
+
+Prefer to do it by hand, or `pm-setup` doesn't support your agent yet? Step-by-step manual guides: [`docs/howto/`](docs/howto/README.md)
 
 New here? The [`docs/explained/`](docs/explained/README.md) folder covers [what Project Mapper is](docs/explained/what-is-project-mapper.md), [what MCP tools are](docs/explained/what-is-mcp.md), [exactly what PM reads and stores on your machine](docs/explained/what-does-pm-access.md), and the [full tools reference](docs/explained/project-mapper-tools.md).
 
@@ -202,9 +204,15 @@ This installs `pm-mcp` as a global command and downloads all language parsers. T
 `--python 3.10` tells `uv` to fetch and pin the exact Python version Project Mapper is tested on, into an isolated environment — so it never depends on (or collides with) whatever Python is already on your system. This is what makes the install reproducible: every user runs the same interpreter and the same locked dependencies.
 
 <a id="connect-your-agent"></a>
-**Step 3 — connect your agent:**
+**Step 3 — connect your agent and make it actually use Project Mapper:**
 
-Add the Project Mapper entry to your agent's MCP config below, then restart the agent. These are the only files involved — nothing edits your config for you, so you stay in control of what changes.
+```bash
+pm-setup --claude-code   # or --cursor / --antigravity / --codex / --all
+```
+
+This is the recommended path — see [Make your agent actually use it](#make-your-agent-actually-use-it) below for why a rules file matters as much as the MCP registration itself. `pm-setup` never overwrites existing config: it only ever adds the `project-mapper` entry to whatever's already there, and it's safe to run again later (re-running is a no-op if already configured). Run it yourself, or tell your agent to ("install and set up Aethvion Project Mapper for this project") — same command either way.
+
+**Manual setup** — if you'd rather not run a script, or `pm-setup` doesn't cover your agent yet, add the entry below to your agent's MCP config by hand, then restart the agent:
 
 **Claude Code** — run this (registers Project Mapper for all your projects):
 ```bash
@@ -287,6 +295,22 @@ If you always work on one codebase, add `PM_PROJECT_ROOT` so the AI never needs 
 ```
 
 > The `workspace` database is shared — scanning a new project overwrites the previous one. This is fine for single-project sessions; incremental scans on a pre-indexed repo typically finish in under 2 s.
+
+<a id="make-your-agent-actually-use-it"></a>
+### Make your agent actually use it
+
+Registering the MCP server isn't enough on its own. By default, agents reach for their built-in grep/glob/read tools out of habit, even with Project Mapper available — nothing tells them to prefer it. The fix isn't a smarter agent; it's a rules file (`CLAUDE.md`, `.cursor/rules/`, or `AGENTS.md`) in your project root that gets loaded into context automatically at the start of every session, the same mechanism that already makes agents follow your coding conventions without you repeating them. `pm-setup` writes this for you:
+
+```markdown
+## Code navigation
+
+This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
+`pm_context`, and `pm_impact` over built-in grep/glob/file-read tools when
+locating symbols, understanding code structure, or assessing change impact —
+they return precise, ranked results at a fraction of the token cost.
+```
+
+Once that file exists, every future session in that project has the instruction loaded automatically — no need to say "use Project Mapper" ever again, for that project. It's scoped per-project, though: the MCP server itself is registered globally and available everywhere once you run `pm-setup` once, but a new project needs its own rules file (`pm-setup --claude-code` again, in the new project root) before the agent there knows to prefer it too.
 
 ---
 

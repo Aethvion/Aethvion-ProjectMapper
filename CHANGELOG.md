@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **`pm-setup` command** — registers Project Mapper as an MCP server with Claude Code, Cursor, Antigravity, or Codex, and writes the rules file (`CLAUDE.md`, `.cursor/rules/`, or `AGENTS.md`) that makes the agent actually prefer Project Mapper over its built-in grep/glob/read tools. Idempotent: safe to re-run, never duplicates or overwrites unrelated config. `pm-setup --claude-code` / `--cursor` / `--antigravity` / `--codex` / `--all`, or no flags for interactive auto-detect.
+  - Claude Code: shells out to `claude mcp add -s user` when available; falls back to a project-level `.mcp.json` otherwise.
+  - Cursor / Antigravity / Codex: read-merge-write their JSON config file, preserving any other configured MCP servers.
+
+### Improved
+- **`SERVER_INSTRUCTIONS` and the `pm_context`/`pm_find`/`pm_impact` tool descriptions** now explicitly direct agents to prefer Project Mapper over built-in file search, instead of only describing a workflow that assumed the agent had already chosen to use it.
+
+---
+
 ## [2.1.0] — 2026-06-17
 
 ### Changed

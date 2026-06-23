@@ -41,6 +41,18 @@ You should see the Project Mapper MCP server help text.
 
 ---
 
+## Fast path — skip to Step 5
+
+```bash
+pm-setup --claude-code
+```
+
+This does Steps 3 and 6 below for you in one command — registers the MCP server with `claude mcp add` (or a project `.mcp.json` if the `claude` CLI isn't on your PATH) and writes `CLAUDE.md` with the rules that make Claude actually prefer Project Mapper over its built-in tools. Safe to run more than once. Run it yourself, or tell Claude to ("install and set up Aethvion Project Mapper for this project") — same command either way. Skip ahead to [Step 5 — Smoke test](#step-5--smoke-test).
+
+The rest of this guide walks through what `pm-setup` does, by hand — useful if you'd rather not run a script, or want to understand exactly what changes on your machine.
+
+---
+
 ## Step 3 — Add the MCP config
 
 Register Project Mapper for **all** your projects with the Claude Code CLI:
@@ -93,6 +105,8 @@ Project Mapper is now available in every Claude Code session, for every project.
 ---
 
 ## Step 6 — Make Claude actually use this by default
+
+> Already ran `pm-setup --claude-code` in the Fast path above? This step is done — it wrote this exact file. Read on only if you're curious what it did, or skip to [Step 5 — Smoke test](#step-5--smoke-test).
 
 Installing the server isn't enough — by default, Claude reaches for its built-in Grep/Glob/Read tools out of habit, even with Project Mapper available, because nothing tells it to prefer the MCP tools over what it already knows. Fix this once per project by adding a `CLAUDE.md` file at the project root:
 

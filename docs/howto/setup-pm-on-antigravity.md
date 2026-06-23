@@ -37,6 +37,18 @@ pm-mcp --help
 
 ---
 
+## Fast path — skip to Step 5
+
+```bash
+pm-setup --antigravity
+```
+
+This does Steps 3 and 6 below for you in one command — registers the MCP server in `~/.gemini/antigravity/mcp_config.json` (merging in alongside anything already there) and writes `AGENTS.md` with the rules that make Antigravity actually prefer Project Mapper over its built-in file search. Safe to run more than once. Run it yourself, or tell Antigravity to ("install and set up Aethvion Project Mapper for this project") — same command either way. Skip ahead to [Step 5 — Smoke test](#step-5--smoke-test).
+
+The rest of this guide walks through what `pm-setup` does, by hand — useful if you'd rather not run a script, or want to understand exactly what changes on your machine.
+
+---
+
 ## Step 3 — Add the MCP config
 
 Open `~/.gemini/antigravity/mcp_config.json` in any text editor (create the file and the `antigravity` folder if they don't exist) and add the `project-mapper` entry. If the file already has other settings, add only the `"mcpServers"` key alongside them — don't replace the whole file.
@@ -75,6 +87,8 @@ The agent will call `pm_scan` with the current directory. Once indexed, try:
 ---
 
 ## Step 6 — Make Antigravity actually use this by default
+
+> Already ran `pm-setup --antigravity` in the Fast path above? This step is done — it wrote this exact file. Read on only if you're curious what it did, or skip to [Step 5 — Smoke test](#step-5--smoke-test).
 
 Installing the server isn't enough — by default, Antigravity reaches for its own file search out of habit, even with Project Mapper available. Fix this once per project by adding an `AGENTS.md` file at the project root (the same cross-tool standard Codex uses):
 

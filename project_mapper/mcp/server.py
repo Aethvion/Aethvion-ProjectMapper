@@ -15,6 +15,12 @@ Usage (after uv tool install)
 ------------------------------
     pm-mcp --db workspace
 
+Fastest setup (registers MCP config + writes "prefer this tool" rules)
+------------------------------------------------------------------------
+    pm-setup --claude-code   # or --cursor / --antigravity / --codex / --all
+    # Idempotent -- safe to re-run. See project_mapper/setup/ or
+    # docs/howto/ for what it does and the manual steps it automates.
+
 Usage (direct, for development)
 --------------------------------
     python -m project_mapper.mcp.server --db my_project

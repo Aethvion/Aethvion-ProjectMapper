@@ -37,6 +37,18 @@ pm-mcp --help
 
 ---
 
+## Fast path — skip to Step 5
+
+```bash
+pm-setup --cursor
+```
+
+This does Steps 3 and 6 below for you in one command — registers the MCP server in `~/.cursor/mcp.json` (merging in alongside anything already there) and writes `.cursor/rules/project-mapper.mdc` with the rules that make Cursor actually prefer Project Mapper over its built-in search. Safe to run more than once. Run it yourself, or tell Cursor to ("install and set up Aethvion Project Mapper for this project") — same command either way. Skip ahead to [Step 5 — Smoke test](#step-5--smoke-test).
+
+The rest of this guide walks through what `pm-setup` does, by hand — useful if you'd rather not run a script, or want to understand exactly what changes on your machine.
+
+---
+
 ## Step 3 — Add the MCP config
 
 Open `~/.cursor/mcp.json` in any text editor (create it if it doesn't exist) and add the `project-mapper` entry. If the file already has other settings, add only the `"mcpServers"` key alongside them — don't replace the whole file.
@@ -76,6 +88,8 @@ The agent will call `pm_scan` with the current directory. Once indexed, try:
 ---
 
 ## Step 6 — Make Cursor actually use this by default
+
+> Already ran `pm-setup --cursor` in the Fast path above? This step is done — it wrote this exact file. Read on only if you're curious what it did, or skip to [Step 5 — Smoke test](#step-5--smoke-test).
 
 Installing the server isn't enough — by default, Cursor reaches for its own codebase search out of habit, even with Project Mapper available. Fix this once per project by adding a rule file at `.cursor/rules/project-mapper.mdc`:
 
