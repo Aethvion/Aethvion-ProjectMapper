@@ -17,12 +17,12 @@ DIRECTIVE_MARKER = "<!-- project-mapper:rules -->"
 
 DIRECTIVE_BODY = """## Code navigation
 
-This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
-`pm_context`, and `pm_impact` over built-in grep/glob/file-read tools when
-locating symbols, understanding code structure, or assessing change impact —
-they return precise, ranked results at a fraction of the token cost. Use
-built-in file tools only for editing files or reading ones you've already
-located."""
+Project Mapper (MCP) is available. If this project hasn't been scanned yet,
+call `pm_scan` first. Then always prefer `pm_find`, `pm_context`, and
+`pm_impact` over built-in grep/glob/file-read tools when locating symbols,
+understanding code structure, or assessing change impact — they return
+precise, ranked results at a fraction of the token cost. Use built-in file
+tools only for editing files or reading ones you've already located."""
 
 DIRECTIVE_BLOCK = f"{DIRECTIVE_MARKER}\n{DIRECTIVE_BODY}\n{DIRECTIVE_MARKER}\n"
 

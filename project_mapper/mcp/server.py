@@ -102,8 +102,10 @@ except Exception:
     SERVER_VERSION = "2.1.0"
 
 # Injected into the client agent's context at session start (MCP `instructions`
-# field of the initialize response). Keep this short — it costs context tokens
-# in every session. Content targets the misunderstandings agents actually hit.
+# field of the initialize response). Keep this under 2048 chars -- Claude Code
+# silently truncates the instructions field past that length (verified via its
+# mcp-logs-project-mapper debug output: "Server instructions truncated from
+# N to 2048 chars"), so anything beyond the cap never reaches the model.
 SERVER_INSTRUCTIONS = """\
 ProjectMapper builds a knowledge graph of a codebase via static AST analysis \
 (Python, JS/TS, Go, Rust, C, C++, C#, Java, Kotlin, Ruby, PHP, Swift). \
@@ -118,35 +120,28 @@ files, or reading the full contents of a file you already located.
 
 Recommended workflow:
 1. pm_stats to check index state; pm_delta to preview changes since last scan.
-2. pm_scan to index. Use background=true for projects with 500+ files, then \
-poll pm_stats. Incremental (default) only re-processes changed files.
-3. pm_context slim=true to locate relevant files cheaply (name + file:line); \
-use slim=false when you need docstrings/summaries instead.
-4. pm_find for one symbol's definition, callers, and callees. pm_impact for \
-blast radius before a change. pm_path to connect two entities.
-5. pm_visualize to generate a Mermaid or DOT subgraph around a named entity \
-(depth, direction, relation-kind filters). Paste the block into a PR or doc.
-6. pm_contribute to save your findings (properties, relations, rationale) back \
-into the graph for future sessions.
+2. pm_scan to index (background=true for 500+ files, then poll pm_stats). \
+Incremental (default) only re-processes changed files.
+3. pm_context slim=true to locate relevant files cheaply; slim=false for \
+docstrings/summaries.
+4. pm_find for a symbol's definition/callers/callees. pm_impact for blast \
+radius before a change. pm_path to connect two entities.
+5. pm_visualize for a Mermaid/DOT subgraph around an entity — paste into a \
+PR or doc.
+6. pm_contribute to save findings (properties, relations, rationale) back \
+into the graph.
 
-Security scanning (no pm_scan required):
-- pm_security scans raw files for OWASP Top 10 patterns (140+ rules, 8 \
-languages). Run once for instant full-codebase coverage with stable finding \
-IDs. Use pm_security_triage to mark false positives so they stay hidden on \
-subsequent runs. Combine with pm_context to close logic-flaw gaps patterns \
-cannot detect.
+Security: pm_security scans raw files for OWASP Top 10 patterns (140+ rules, \
+8 languages) with stable finding IDs; pm_security_triage marks false \
+positives so they stay hidden. Combine with pm_context to close logic-flaw \
+gaps patterns cannot detect.
 
-Important notes:
-- One database per project root. Scanning a different root into the same \
-database retires the previous project's entities.
-- Class METHODS are not separate entities. You can search by class-qualified \
-name (pm_find "DBImpl::Write" or pm_find "ZodObject.parse") and pm_find \
-routes you to the parent class automatically. The class entry lists all \
-methods and which method drives each relation ("via").
-- pm_orphans is a heuristic for dead-code candidates: entities with no inbound \
-relations. Verify with a text search before deleting anything.
-- Relations come from static analysis: dynamic dispatch, reflection, and \
-string-based references are not captured.\
+Notes: one database per project root (rescanning a different root retires \
+prior entities). Class methods aren't separate entities — search by \
+class-qualified name (pm_find "DBImpl::Write") and pm_find routes to the \
+parent class. pm_orphans is a dead-code heuristic — verify before deleting. \
+Relations come from static analysis only: dynamic dispatch, reflection, and \
+string-based references aren't captured.\
 """
 
 

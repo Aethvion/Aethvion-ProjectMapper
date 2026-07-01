@@ -18,7 +18,7 @@ def detect() -> bool:
     return (Path.home() / ".cursor").exists()
 
 
-def register_mcp(project_root: Path) -> str:  # noqa: ARG001 -- config is global, not per-project
+def register_mcp(project_root: Path, global_only: bool = False) -> str:  # noqa: ARG001 -- already global
     return register_in_json_config(Path.home() / ".cursor" / "mcp.json")
 
 

@@ -6,7 +6,7 @@ For background on what Project Mapper is and how MCP tools work, see [`docs/expl
 
 ---
 
-**Fastest path:** after installing (`uv tool install "aethvion-project-mapper[languages]" --python 3.10`), run `pm-setup --claude-code` (or `--cursor` / `--antigravity` / `--codex` / `--all`) — it registers the MCP server and writes the rules file that makes the agent prefer Project Mapper by default, in one idempotent command. Run it yourself, or tell your agent to. Each guide below also covers the manual steps it automates, in case you'd rather do it by hand or want to understand exactly what changes on your machine.
+**Fastest path:** after installing (`uv tool install "aethvion-project-mapper[languages]" --python 3.10`), run `pm-setup --claude-code` (or `--cursor` / `--antigravity` / `--codex` / `--all`) — it registers the MCP server and writes the rules file that makes the agent prefer Project Mapper by default, in one idempotent command. On Claude Code, add `--global` to write that rules file to `~/.claude/CLAUDE.md` instead of the current project's — one run, every project, forever, matching the MCP registration (already user-scoped). Run it yourself, or tell your agent to. Each guide below also covers the manual steps it automates, in case you'd rather do it by hand or want to understand exactly what changes on your machine.
 
 ---
 

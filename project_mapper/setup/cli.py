@@ -6,13 +6,18 @@ reads into context at the start of every session.
 
 Usage
 -----
+    pm-setup --claude-code --global  # Claude Code: one-time, every project, forever
     pm-setup --claude-code
     pm-setup --cursor --antigravity
     pm-setup --all
     pm-setup                         # no flags: detect what's installed, confirm interactively
 
 Safe to run more than once -- every step checks for an existing entry before
-writing anything.
+writing anything. --global writes the rules file to the agent's user-level
+rules file (currently only Claude Code: ~/.claude/CLAUDE.md) instead of the
+project's, matching the MCP registration, which is already user-scoped for
+every agent. Agents without a verified global rules path refuse rather than
+guess at one.
 """
 
 from __future__ import annotations
@@ -45,7 +50,17 @@ def main() -> None:
     parser.add_argument(
         "--project-root",
         default=".",
-        help="Project to write the rules file into (default: current directory)",
+        help="Project to write the rules file into (default: current directory). "
+        "Ignored for the rules file when --global is set.",
+    )
+    parser.add_argument(
+        "--global",
+        dest="use_global",
+        action="store_true",
+        help="Write the 'prefer this tool' directive to the agent's user-level rules "
+        "file (e.g. ~/.claude/CLAUDE.md) instead of the project's. Since MCP "
+        "registration is already user-scoped, this makes the whole setup a "
+        "true one-time, run-from-anywhere command -- no per-project repeat needed.",
     )
     args = parser.parse_args()
 
@@ -67,7 +82,7 @@ def main() -> None:
     print(f"Configuring Project Mapper for: {project_root}\n")
     any_failed = False
     for agent in chosen:
-        any_failed |= _configure(agent, project_root)
+        any_failed |= _configure(agent, project_root, use_global=args.use_global)
     sys.exit(1 if any_failed else 0)
 
 
@@ -87,17 +102,24 @@ def _interactive_pick() -> list[Agent]:
     return []
 
 
-def _configure(agent: Agent, project_root: Path) -> bool:
+def _configure(agent: Agent, project_root: Path, *, use_global: bool = False) -> bool:
     """Run both steps for one agent. Returns True if anything failed."""
-    mcp_status = agent.register_mcp(project_root)
-    rules_status = append_directive(agent.rules_path(project_root), frontmatter=agent.rules_frontmatter)
+    mcp_status = agent.register_mcp(project_root, use_global)
+    mcp_failed = mcp_status.startswith("failed")
+    print(f"[{'x' if mcp_failed else '+'}] {agent.label}: MCP {mcp_status}")
 
-    failed = mcp_status.startswith("failed")
-    mark = "x" if failed else "+"
-    print(f"[{mark}] {agent.label}: MCP {mcp_status}")
-    print(f"[{'+' if not failed else 'x'}] {agent.label}: rules file {rules_status} "
-          f"({agent.rules_path(project_root)})")
-    return failed
+    if use_global:
+        if agent.global_rules_path is None:
+            print(f"[x] {agent.label}: no verified global rules file for this agent yet -- "
+                  f"omit --global to write {agent.rules_path(project_root)} per-project instead")
+            return True
+        rules_path = agent.global_rules_path()
+    else:
+        rules_path = agent.rules_path(project_root)
+
+    rules_status = append_directive(rules_path, frontmatter=agent.rules_frontmatter)
+    print(f"[+] {agent.label}: rules file {rules_status} ({rules_path})")
+    return mcp_failed
 
 
 if __name__ == "__main__":

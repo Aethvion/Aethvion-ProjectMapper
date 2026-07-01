@@ -7,9 +7,12 @@ clobber, never touch an unrelated key".
 """
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from project_mapper.setup import cli
 from project_mapper.setup.agents import claude_code
+from project_mapper.setup.agents.base import Agent
 from project_mapper.setup.mcp_config import SERVER_ENTRY, register_in_json_config
 from project_mapper.setup.rules import DIRECTIVE_MARKER, append_directive
 
@@ -156,3 +159,67 @@ class TestClaudeCodeRegisterMcp:
 
     def test_rules_path_is_claude_md_at_project_root(self, tmp_path):
         assert claude_code.rules_path(tmp_path) == tmp_path / "CLAUDE.md"
+
+    def test_global_rules_path_is_claude_md_in_home(self):
+        assert claude_code.global_rules_path() == Path.home() / ".claude" / "CLAUDE.md"
+
+    def test_global_only_refuses_instead_of_falling_back_to_project_file(self, tmp_path):
+        with patch("project_mapper.setup.agents.claude_code.shutil.which", return_value=None):
+            status = claude_code.register_mcp(tmp_path, global_only=True)
+
+        assert status.startswith("failed")
+        assert not (tmp_path / ".mcp.json").exists()
+
+    def test_global_only_with_cli_present_still_registers(self, tmp_path):
+        fake_result = MagicMock(returncode=0, stdout="", stderr="")
+        with (
+            patch("project_mapper.setup.agents.claude_code.shutil.which", return_value="/usr/bin/claude"),
+            patch("project_mapper.setup.agents.claude_code.subprocess.run", return_value=fake_result),
+        ):
+            status = claude_code.register_mcp(tmp_path, global_only=True)
+
+        assert status == "registered"
+
+
+# ── pm-setup --global ──────────────────────────────────────────────────────────
+
+
+class TestConfigureGlobal:
+    def _agent(self, tmp_path, *, global_rules_path=None):
+        return Agent(
+            key="fake",
+            label="Fake Agent",
+            detect=lambda: True,
+            register_mcp=lambda project_root, global_only: "registered",
+            rules_path=lambda project_root: project_root / "CLAUDE.md",
+            global_rules_path=global_rules_path,
+        )
+
+    def test_global_writes_to_global_path_not_project(self, tmp_path):
+        home = tmp_path / "home"
+        agent = self._agent(tmp_path, global_rules_path=lambda: home / "CLAUDE.md")
+
+        failed = cli._configure(agent, tmp_path / "project", use_global=True)
+
+        assert not failed
+        assert (home / "CLAUDE.md").exists()
+        assert not (tmp_path / "project" / "CLAUDE.md").exists()
+
+    def test_global_without_verified_path_fails_without_writing(self, tmp_path):
+        agent = self._agent(tmp_path, global_rules_path=None)
+        project_root = tmp_path / "project"
+
+        failed = cli._configure(agent, project_root, use_global=True)
+
+        assert failed
+        assert not project_root.exists()
+
+    def test_non_global_still_writes_to_project_root(self, tmp_path):
+        agent = self._agent(tmp_path, global_rules_path=lambda: tmp_path / "home" / "CLAUDE.md")
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+
+        failed = cli._configure(agent, project_root, use_global=False)
+
+        assert not failed
+        assert (project_root / "CLAUDE.md").exists()

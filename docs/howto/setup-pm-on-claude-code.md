@@ -44,10 +44,11 @@ You should see the Project Mapper MCP server help text, including the installed 
 ## Fast path — skip to Step 5
 
 ```bash
-pm-setup --claude-code
+pm-setup --claude-code --global   # recommended: one-time, covers every project
+pm-setup --claude-code            # or: this project only
 ```
 
-This does Steps 3 and 6 below for you in one command — registers the MCP server with `claude mcp add` (or a project `.mcp.json` if the `claude` CLI isn't on your PATH) and writes `CLAUDE.md` with the rules that make Claude actually prefer Project Mapper over its built-in tools. Safe to run more than once. Run it yourself, or tell Claude to ("install and set up Aethvion Project Mapper for this project") — same command either way. Skip ahead to [Step 5 — Smoke test](#step-5--smoke-test).
+This does Steps 3 and 6 below for you in one command — registers the MCP server with `claude mcp add` (or a project `.mcp.json` if the `claude` CLI isn't on your PATH) and writes the rules that make Claude actually prefer Project Mapper over its built-in tools. With `--global`, those rules go to `~/.claude/CLAUDE.md` (loaded in every session, every project) instead of the current project's `CLAUDE.md` — matching the MCP registration, which is already user-scoped. Safe to run more than once. Run it yourself, or tell Claude to ("install and set up Aethvion Project Mapper globally for Claude Code") — same command either way. Skip ahead to [Step 5 — Smoke test](#step-5--smoke-test).
 
 The rest of this guide walks through what `pm-setup` does, by hand — useful if you'd rather not run a script, or want to understand exactly what changes on your machine.
 
@@ -106,22 +107,27 @@ Project Mapper is now available in every Claude Code session, for every project.
 
 ## Step 6 — Make Claude actually use this by default
 
-> Already ran `pm-setup --claude-code` in the Fast path above? This step is done — it wrote this exact file. Read on only if you're curious what it did, or skip to [Step 5 — Smoke test](#step-5--smoke-test).
+> Already ran `pm-setup --claude-code` (or `--global`) in the Fast path above? This step is done — it wrote this exact file. Read on only if you're curious what it did, or skip to [Step 5 — Smoke test](#step-5--smoke-test).
 
-Installing the server isn't enough — by default, Claude reaches for its built-in Grep/Glob/Read tools out of habit, even with Project Mapper available, because nothing tells it to prefer the MCP tools over what it already knows. Fix this once per project by adding a `CLAUDE.md` file at the project root:
+Installing the server isn't enough — by default, Claude reaches for its built-in Grep/Glob/Read tools out of habit, even with Project Mapper available, because nothing tells it to prefer the MCP tools over what it already knows. Fix this by adding the directive below to a `CLAUDE.md` file:
 
 ```markdown
 ## Code navigation
 
-This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
-`pm_context`, and `pm_impact` over built-in grep/glob/file-read tools when
-locating symbols, understanding code structure, or assessing change impact —
-they return precise, ranked results at a fraction of the token cost. Use
-built-in file tools only for editing files or reading ones you've already
-located.
+Project Mapper (MCP) is available. If this project hasn't been scanned yet,
+call `pm_scan` first. Then always prefer `pm_find`, `pm_context`, and
+`pm_impact` over built-in grep/glob/file-read tools when locating symbols,
+understanding code structure, or assessing change impact — they return
+precise, ranked results at a fraction of the token cost. Use built-in file
+tools only for editing files or reading ones you've already located.
 ```
 
-Claude Code loads `CLAUDE.md` into every session automatically — this is a standing instruction, not a one-time prompt, so you only need to add it once per project.
+Where you put that file determines its scope:
+
+- **`<project-root>/CLAUDE.md`** — loaded only in sessions working in that project. Needs to be added again in every new project. This is what `pm-setup --claude-code` (no flag) writes.
+- **`~/.claude/CLAUDE.md`** — loaded in *every* Claude Code session on your machine, regardless of project — the same scope the MCP registration already has via `claude mcp add -s user`. Write it here once and you never need to think about it again, in any project, ever. This is what `pm-setup --claude-code --global` writes.
+
+Either way, Claude Code loads the file automatically at session start — this is a standing instruction, not a one-time prompt.
 
 ---
 

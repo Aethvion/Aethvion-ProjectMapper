@@ -21,9 +21,19 @@ def detect() -> bool:
     return shutil.which("claude") is not None
 
 
-def register_mcp(project_root: Path) -> str:
+def register_mcp(project_root: Path, global_only: bool = False) -> str:
     claude = shutil.which("claude")
     if claude is None:
+        if global_only:
+            # --global means no per-project file, anywhere. Without the CLI
+            # we have no way to write user-scoped ~/.claude.json ourselves
+            # (see module docstring) -- refuse rather than silently writing
+            # a project-level .mcp.json into whatever the cwd happens to be.
+            return (
+                "failed: `claude` CLI not found on PATH -- required to register at user scope "
+                "for --global. Install it / add it to PATH, or omit --global to fall back to "
+                "a project-level .mcp.json"
+            )
         # No CLI on PATH -- fall back to a project-level .mcp.json, which
         # Claude Code also reads.
         return register_in_json_config(project_root / ".mcp.json")
@@ -61,10 +71,18 @@ def rules_path(project_root: Path) -> Path:
     return project_root / "CLAUDE.md"
 
 
+def global_rules_path() -> Path:
+    """~/.claude/CLAUDE.md -- loaded into every session regardless of project,
+    concatenated after any project-level CLAUDE.md. Confirmed against
+    https://code.claude.com/docs/en/memory.md."""
+    return Path.home() / ".claude" / "CLAUDE.md"
+
+
 AGENT = Agent(
     key="claude-code",
     label="Claude Code",
     detect=detect,
     register_mcp=register_mcp,
     rules_path=rules_path,
+    global_rules_path=global_rules_path,
 )

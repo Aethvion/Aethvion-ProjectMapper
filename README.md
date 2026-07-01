@@ -27,7 +27,8 @@ uv tool install "aethvion-project-mapper[languages]" --python 3.10
 **Step 3 — Connect to your agent and make it actually use Project Mapper:**
 
 ```bash
-pm-setup --claude-code   # or --cursor / --antigravity / --codex / --all
+pm-setup --claude-code --global   # Claude Code: one-time, covers every project
+pm-setup --claude-code            # or: this project only; also --cursor / --antigravity / --codex / --all
 ```
 
 `pm-setup` registers the MCP server *and* writes a rules file (`CLAUDE.md`, `.cursor/rules/`, or `AGENTS.md`) telling the agent to prefer Project Mapper over built-in grep/glob/read — the part most setups skip. Without it, the tool is installed but the agent still defaults to its own search out of habit. Safe to re-run; never duplicates or overwrites unrelated config. See [why this step exists](#make-your-agent-actually-use-it).
@@ -207,7 +208,9 @@ This installs `pm-mcp` as a global command and downloads all language parsers. T
 **Step 3 — connect your agent and make it actually use Project Mapper:**
 
 ```bash
-pm-setup --claude-code   # or --cursor / --antigravity / --codex / --all
+pm-setup --claude-code --global   # Claude Code: one-time, every project, forever
+pm-setup --claude-code            # or: this project only
+# --cursor / --antigravity / --codex / --all also supported (project-scoped only for now)
 ```
 
 This is the recommended path — see [Make your agent actually use it](#make-your-agent-actually-use-it) below for why a rules file matters as much as the MCP registration itself. `pm-setup` never overwrites existing config: it only ever adds the `project-mapper` entry to whatever's already there, and it's safe to run again later (re-running is a no-op if already configured). Run it yourself, or tell your agent to ("install and set up Aethvion Project Mapper for this project") — same command either way.
@@ -304,13 +307,16 @@ Registering the MCP server isn't enough on its own. By default, agents reach for
 ```markdown
 ## Code navigation
 
-This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
-`pm_context`, and `pm_impact` over built-in grep/glob/file-read tools when
-locating symbols, understanding code structure, or assessing change impact —
-they return precise, ranked results at a fraction of the token cost.
+Project Mapper (MCP) is available. If this project hasn't been scanned yet,
+call `pm_scan` first. Then always prefer `pm_find`, `pm_context`, and
+`pm_impact` over built-in grep/glob/file-read tools when locating symbols,
+understanding code structure, or assessing change impact — they return
+precise, ranked results at a fraction of the token cost.
 ```
 
-Once that file exists, every future session in that project has the instruction loaded automatically — no need to say "use Project Mapper" ever again, for that project. It's scoped per-project, though: the MCP server itself is registered globally and available everywhere once you run `pm-setup` once, but a new project needs its own rules file (`pm-setup --claude-code` again, in the new project root) before the agent there knows to prefer it too.
+Once that file exists, every future session in that project has the instruction loaded automatically — no need to say "use Project Mapper" ever again, for that project. By default this rules file is scoped per-project, same as the MCP registration used to be before `-s user` — so a new project needs its own copy (`pm-setup --claude-code` again, in the new project root) before the agent there knows to prefer it too.
+
+For Claude Code specifically, `pm-setup --claude-code --global` skips that repetition: it writes the directive to `~/.claude/CLAUDE.md`, which Claude Code loads in *every* session regardless of project — matching the MCP registration, which is already user-scoped. Run it once, from anywhere, and every current and future project is covered. (Cursor/Antigravity/Codex don't have a verified global rules mechanism yet, so `--global` refuses for those rather than guessing at an unverified path.)
 
 ---
 

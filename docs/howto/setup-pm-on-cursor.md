@@ -99,11 +99,12 @@ description: Prefer Project Mapper over built-in search
 alwaysApply: true
 ---
 
-This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
-`pm_context`, and `pm_impact` over built-in codebase search when locating
-symbols, understanding code structure, or assessing change impact — they
-return precise, ranked results at a fraction of the token cost. Use
-built-in search only for what Project Mapper doesn't cover.
+Project Mapper (MCP) is available. If this project hasn't been scanned yet,
+call `pm_scan` first. Then always prefer `pm_find`, `pm_context`, and
+`pm_impact` over built-in codebase search when locating symbols,
+understanding code structure, or assessing change impact — they return
+precise, ranked results at a fraction of the token cost. Use built-in
+search only for what Project Mapper doesn't cover.
 ```
 
 On older Cursor versions without `.cursor/rules/`, use a single `.cursorrules` file at the project root with the same body text instead.

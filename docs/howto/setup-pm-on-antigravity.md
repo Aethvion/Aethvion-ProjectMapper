@@ -95,10 +95,11 @@ Installing the server isn't enough — by default, Antigravity reaches for its o
 ```markdown
 ## Code navigation
 
-This project has Project Mapper (MCP) indexed. Always prefer `pm_find`,
-`pm_context`, and `pm_impact` over built-in file search when locating
-symbols, understanding code structure, or assessing change impact — they
-return precise, ranked results at a fraction of the token cost.
+Project Mapper (MCP) is available. If this project hasn't been scanned yet,
+call `pm_scan` first. Then always prefer `pm_find`, `pm_context`, and
+`pm_impact` over built-in file search when locating symbols, understanding
+code structure, or assessing change impact — they return precise, ranked
+results at a fraction of the token cost.
 ```
 
 For a global override across all your projects instead of per-project, put the same content in `~/.gemini/GEMINI.md` — it's Antigravity-specific and takes priority over `AGENTS.md` when both exist.
