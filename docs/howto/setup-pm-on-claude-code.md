@@ -37,7 +37,7 @@ This downloads Project Mapper and all language parsers (~30 seconds on first run
 pm-mcp --help
 ```
 
-You should see the Project Mapper MCP server help text.
+You should see the Project Mapper MCP server help text, including the installed version (`ProjectMapper MCP stdio server (vX.Y.Z)`). Run `pm-mcp --version` for just the version string.
 
 ---
 
@@ -150,4 +150,4 @@ If you always work in the same codebase, add `PM_PROJECT_ROOT` so the scan happe
 
 **MCP server doesn't appear in Claude** — first confirm it's registered: run `claude mcp list` (or `/mcp` inside Claude Code). If it's missing, the config went to the wrong place — make sure it's in `~/.claude.json` or a project `.mcp.json`, **not** `~/.claude/settings.json`. If it's listed but failing, check the per-server log under `%LOCALAPPDATA%\claude-cli-nodejs\Cache\<project>\mcp-logs-project-mapper\` for the exact error.
 
-**Updating to a new version** — run `uv tool upgrade aethvion-project-mapper` to get the latest release.
+**Updating to a new version** — run `uv tool upgrade aethvion-project-mapper` to get the latest release. Confirm with `pm-mcp --version`.

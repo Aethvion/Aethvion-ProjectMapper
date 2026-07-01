@@ -93,7 +93,13 @@ INTERNAL_ERROR = -32603
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "project-mapper"
-SERVER_VERSION = "2.1.0"
+
+try:
+    from importlib.metadata import version as _pkg_version
+
+    SERVER_VERSION = _pkg_version("aethvion-project-mapper")
+except Exception:
+    SERVER_VERSION = "2.1.0"
 
 # Injected into the client agent's context at session start (MCP `instructions`
 # field of the initialize response). Keep this short — it costs context tokens
@@ -441,8 +447,13 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        prog="python -m project_mapper.mcp.server",
-        description="ProjectMapper MCP stdio server",
+        prog="pm-mcp",
+        description=f"ProjectMapper MCP stdio server (v{SERVER_VERSION})",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"pm-mcp {SERVER_VERSION}",
     )
     parser.add_argument(
         "--db",
