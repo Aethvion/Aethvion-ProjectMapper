@@ -393,6 +393,8 @@ def _parse_method(node, src: bytes):
         is_property=(is_getter or is_setter),
         is_classmethod=is_static,
         is_staticmethod=is_static,
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 

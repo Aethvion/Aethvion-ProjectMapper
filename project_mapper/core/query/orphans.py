@@ -10,11 +10,22 @@ from ._common import (
     _ORPHAN_ENTRY_NAMES,
     _ORPHAN_SKIP_FILES,
     _ORPHAN_VENDOR_DIRS,
+    _UNITY_IMPLICIT_BASES,
+    _UNITY_IMPLICIT_DECORATORS,
     IMPACT_INCOMING_KINDS,
     _is_test_entity,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_unity_implicit_entry(props: dict[str, Any]) -> bool:
+    """Return True if a C# class is invoked implicitly by the Unity Editor or runtime."""
+    bases = [b.strip().split("<")[0].split(".")[-1] for b in props.get("base_classes", "").split(",") if b.strip()]
+    if any(b in _UNITY_IMPLICIT_BASES for b in bases):
+        return True
+    decs = [d.strip().split("(")[0].split(".")[-1] for d in props.get("decorators", "").split(",") if d.strip()]
+    return any(d in _UNITY_IMPLICIT_DECORATORS for d in decs)
 
 
 def orphan_query(
@@ -32,6 +43,7 @@ def orphan_query(
       - named entry points  (main, run, create_app, …)
       - test entities  (test_* files / tests/ directories)
       - entities living in framework entry-point files  (wsgi.py, manage.py, …)
+      - Unity Editor / pipeline implicit entry classes (Editor, EditorWindow, [CustomEditor], …)
       - module-level entities  (unless include_modules=True)
     """
     referenced_ids: set[str] = set()
@@ -69,6 +81,7 @@ def orphan_query(
             or _is_test_entity(entity)
             or any(file_path.endswith(skip) for skip in _ORPHAN_SKIP_FILES)
             or bool(fp_parts & _ORPHAN_VENDOR_DIRS)
+            or _is_unity_implicit_entry(props)
         )
         if is_false_positive:
             skipped_count += 1

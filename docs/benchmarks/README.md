@@ -20,9 +20,11 @@ At 100,000 input tokens, PM typically uses **~13,000** (Full) or **~9,000** (Sli
 
 ## Table 1 — Token Reduction
 
-How many tokens does an agent consume to answer a question with and without PM?
-**Normal** = Grep + file reads (3–10 tool calls). PM answers in **1 call**.
-Geomean token reduction across 5 representative queries per project.
+How many tokens does an agent consume during **codebase orientation, architecture discovery, and impact analysis** with and without PM?
+- **Normal baseline:** Exploratory grep + reading 3–10 candidate source files to trace callers, dependencies, or subsystem boundaries.
+- **With PM:** A single graph query (`pm_context`, `pm_impact`, `pm_find`, `pm_orphans`) returns the ranked symbols, exact file:line locations, and traced dependency edges directly. *(Once the target lines are located, line-level code edits still read the specific file slice being modified.)*
+
+Geomean token reduction across 5 representative orientation/impact queries per project.
 
 | Project | Language | Files | Entities | Scan | Reduction Full | Reduction Slim | Speedup |
 |:---|:---|---:|---:|---:|---:|---:|---:|

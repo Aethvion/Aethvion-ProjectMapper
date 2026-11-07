@@ -157,6 +157,21 @@ class PMEntityStore:
                         if sections_override:
                             self._apply_sections(existing, sections_override)
                         return existing, True
+                    if existing.get("status") == "stub" and resolved_status == "active":
+                        # Promote forward-reference stub to active entity in-place.
+                        existing["status"] = "active"
+                        existing["source"] = source
+                        existing["type"] = entity_type
+                        if kind is not None:
+                            existing["kind"] = kind
+                        if sections_override:
+                            self._apply_sections(existing, sections_override)
+                        aliases = existing["sections"]["core"].get("aliases", [])
+                        if extra_aliases:
+                            aliases.extend(extra_aliases)
+                        if aliases:
+                            self._index.register_aliases(entity_id, aliases)
+                        return existing, True
                     return existing, False
                 # Index entry exists but store entry missing — recreate below.
                 logger.warning(

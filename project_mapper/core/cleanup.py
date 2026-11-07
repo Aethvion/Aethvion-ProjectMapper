@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .scanner import _EXCLUDED_DIRS, SUPPORTED_EXTENSIONS
+from .scanner import _EXCLUDED_DIRS, SUPPORTED_EXTENSIONS, _max_file_size
 
 if TYPE_CHECKING:
     from ..db.file_manifest import FileManifest
@@ -280,11 +280,12 @@ def run_deletion_cleanup(
                 dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _EXCLUDED_DIRS]
             for fn in files:
                 fp = Path(dirpath) / fn
-                if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
+                ext = fp.suffix.lower()
+                if ext in SUPPORTED_EXTENSIONS:
                     # Mirror scanner.py's size filter so minified bundles don't show
                     # up as perpetual "new files" after every scan
                     try:
-                        if fp.stat().st_size > 250_000:
+                        if fp.stat().st_size > _max_file_size(ext):
                             continue
                     except OSError:
                         pass
@@ -370,9 +371,6 @@ def resolve_stubs(
     stubs = [e for e in all_entities if e.get("status") == "stub"]
     result.stubs_checked = len(stubs)
 
-    if not stubs:
-        return result
-
     # --- Build stub_id → real_id resolution map ---
     to_resolve: dict[str, str] = {}  # stub_id → real_id
 
@@ -396,12 +394,6 @@ def resolve_stubs(
                     real_id = indexed_id
 
         # Strategy 2b: dotted-name last-segment lookup.
-        # Handles the common pattern where a base class is referenced with its
-        # module prefix (e.g. "class Foo(models.Model):" stores the base as
-        # "models.Model", but the real entity is indexed under "Model").
-        # Only applied to names with exactly one dot whose last segment starts
-        # with an uppercase letter (UpperCamelCase class name), to avoid false
-        # matches on deeply-nested module paths like "xml.etree.ElementTree".
         if real_id is None and stub_name.count(".") == 1:
             last_seg = stub_name.rsplit(".", 1)[-1]
             if last_seg and last_seg[0].isupper():
@@ -414,63 +406,212 @@ def resolve_stubs(
         if real_id:
             to_resolve[stub_id] = real_id
 
-    if not to_resolve:
-        return result
+    if to_resolve:
+        # --- Re-wire incoming relations across all entities ---
+        for entity in all_entities:
+            eid = entity["id"]
+            rels = entity.get("sections", {}).get("relations", [])
+            if not rels:
+                continue
 
-    # --- Re-wire incoming relations across all entities ---
-    for entity in all_entities:
-        eid = entity["id"]
-        rels = entity.get("sections", {}).get("relations", [])
-        if not rels:
-            continue
+            new_rels: list[dict[str, Any]] = []
+            changed = False
+            pair_to_rel: dict[tuple[str, str], dict[str, Any]] = {}
 
-        new_rels: list[dict[str, Any]] = []
+            # First pass: keep existing non-stub relations, building seen map
+            for rel in rels:
+                tid = rel.get("target_id", "")
+                kind = rel.get("kind", "")
+                if tid not in to_resolve:
+                    pair = (kind, tid)
+                    if pair not in pair_to_rel:
+                        pair_to_rel[pair] = rel
+                        new_rels.append(rel)
+
+            # Second pass: add re-wired relations (merge called_methods if already present)
+            for rel in rels:
+                tid = rel.get("target_id", "")
+                kind = rel.get("kind", "")
+                if tid in to_resolve:
+                    new_tid = to_resolve[tid]
+                    pair = (kind, new_tid)
+                    if pair not in pair_to_rel:
+                        new_rel = {**rel, "target_id": new_tid}
+                        pair_to_rel[pair] = new_rel
+                        new_rels.append(new_rel)
+                        result.relations_rewired += 1
+                        changed = True
+                    else:
+                        existing_rel = pair_to_rel[pair]
+                        cm = rel.get("called_methods", [])
+                        if cm:
+                            ex_cm = list(existing_rel.get("called_methods", []))
+                            for m in cm:
+                                if m and m not in ex_cm:
+                                    ex_cm.append(m)
+                            existing_rel["called_methods"] = ex_cm
+                        changed = True
+
+            if changed:
+                try:
+                    writer.update(eid, {"sections": {"relations": new_rels}}, merge_sections=False)
+                except Exception as exc:
+                    result.errors.append(f"re-wire {eid}: {exc}")
+
+        # --- Delete resolved stubs (they are superseded by their real entity) ---
+        for stub_id in to_resolve:
+            try:
+                writer.update(stub_id, {"status": "deleted"})
+            except Exception as exc:
+                result.errors.append(f"delete stub {stub_id}: {exc}")
+
+        result.stubs_resolved = len(to_resolve)
+        logger.info(
+            f"[StubResolver] Resolved {result.stubs_resolved}/{result.stubs_checked} stubs, "
+            f"re-wired {result.relations_rewired} relations"
+        )
+
+    # --- Post-scan pass: resolve deferred method calls & Unity GUID references ---
+    deferred_wired = _resolve_deferred_calls_and_guids(writer, index)
+    result.relations_rewired += deferred_wired
+    return result
+
+
+def _resolve_deferred_calls_and_guids(
+    writer: PMEntityStore,
+    index: NameIndex,
+) -> int:
+    """
+    Wire cross-file method calls ('called_methods') and Unity scene/prefab
+    GUID references ('referenced_guids') once all files in the scan have been
+    ingested.
+    """
+    all_entities = writer.list_all(include_deleted=False)
+    active_entities = [e for e in all_entities if e.get("status") == "active"]
+
+    methods_to_classes: dict[str, list[str]] = {}
+    guid_to_entity: dict[str, str] = {}
+
+    for ent in active_entities:
+        eid = ent["id"]
+        props = ent.get("sections", {}).get("properties", {})
+        uguid = props.get("unity_guid", "")
+        if uguid:
+            # Prefer class entities over module entities when both share a .cs.meta GUID
+            if uguid not in guid_to_entity or ent.get("type") == "class":
+                guid_to_entity[uguid] = eid
+
+        if ent.get("type") == "class":
+            m_str = props.get("methods", "")
+            if m_str:
+                for m in m_str.split(","):
+                    mn = m.strip().lower()
+                    if mn:
+                        methods_to_classes.setdefault(mn, []).append(eid)
+
+    wired = 0
+    for ent in active_entities:
+        eid = ent["id"]
+        props = ent.get("sections", {}).get("properties", {})
+        rels = list(ent.get("sections", {}).get("relations", []))
+        pair_to_rel: dict[tuple[str, str], dict[str, Any]] = {
+            (r.get("kind", ""), r.get("target_id", "")): r for r in rels
+        }
         changed = False
-        seen_pairs: set[tuple[str, str]] = set()  # (kind, target_id) dedup
 
-        # First pass: keep existing non-stub relations, building seen set
-        for rel in rels:
-            tid = rel.get("target_id", "")
-            kind = rel.get("kind", "")
-            if tid not in to_resolve:
-                pair = (kind, tid)
-                if pair not in seen_pairs:
-                    seen_pairs.add(pair)
-                    new_rels.append(rel)
-
-        # Second pass: add re-wired relations (skip if already present)
-        for rel in rels:
-            tid = rel.get("target_id", "")
-            kind = rel.get("kind", "")
-            if tid in to_resolve:
-                new_tid = to_resolve[tid]
-                pair = (kind, new_tid)
-                if pair not in seen_pairs:
-                    seen_pairs.add(pair)
-                    new_rel = {**rel, "target_id": new_tid}
-                    new_rels.append(new_rel)
-                    result.relations_rewired += 1
+        # 1. Unity GUID references (scene / prefab / ScriptableObject -> script / prefab)
+        ref_guids = props.get("referenced_guids", [])
+        if isinstance(ref_guids, list) and ref_guids:
+            fp_name = Path(props.get("file_path", ent.get("name", ""))).name
+            for g in ref_guids:
+                tid = guid_to_entity.get(g) or index.get(f"guid:{g}")
+                if not tid or tid == eid:
+                    continue
+                pair = ("uses", tid)
+                if pair not in pair_to_rel:
+                    new_rel = {
+                        "kind": "uses",
+                        "target_id": tid,
+                        "note": f"attached in {fp_name}",
+                    }
+                    pair_to_rel[pair] = new_rel
+                    rels.append(new_rel)
+                    wired += 1
                     changed = True
+
+        # 2. Method-level invocations (receiver_hint, called_method, via_method)
+        called_methods = props.get("called_methods", [])
+        if isinstance(called_methods, list) and called_methods:
+            for item in called_methods:
+                if not isinstance(item, (list, tuple)) or len(item) < 2:
+                    continue
+                recv_hint = str(item[0] or "")
+                mname = str(item[1] or "")
+                via = str(item[2] if len(item) > 2 else "")
+                if not mname:
+                    continue
+
+                target_ids: list[str] = []
+                if recv_hint:
+                    tid = index.get(recv_hint)
+                    if tid and tid != eid:
+                        t_ent = writer.get(tid)
+                        if t_ent and t_ent.get("status") == "active":
+                            # Confirm target class actually defines mname, or if no other class defines it
+                            t_methods = [
+                                x.strip().lower()
+                                for x in t_ent.get("sections", {})
+                                .get("properties", {})
+                                .get("methods", "")
+                                .split(",")
+                                if x.strip()
+                            ]
+                            cands = [
+                                cid
+                                for cid in methods_to_classes.get(mname.lower(), [])
+                                if cid != eid
+                            ]
+                            if mname.lower() in t_methods or not cands:
+                                target_ids.append(tid)
+
+                if not target_ids:
+                    cands = [
+                        cid
+                        for cid in methods_to_classes.get(mname.lower(), [])
+                        if cid != eid
+                    ]
+                    if 1 <= len(cands) <= 3:
+                        target_ids.extend(cands)
+
+                for tid in target_ids:
+                    pair = ("calls", tid)
+                    note = f"via {via} -> {mname}" if via else f"calls {mname}"
+                    if pair not in pair_to_rel:
+                        new_rel = {
+                            "kind": "calls",
+                            "target_id": tid,
+                            "note": note,
+                            "called_methods": [mname],
+                        }
+                        pair_to_rel[pair] = new_rel
+                        rels.append(new_rel)
+                        wired += 1
+                        changed = True
+                    else:
+                        ex_rel = pair_to_rel[pair]
+                        ex_cm = list(ex_rel.get("called_methods", []))
+                        if mname not in ex_cm:
+                            ex_cm.append(mname)
+                            ex_rel["called_methods"] = ex_cm
+                            changed = True
 
         if changed:
             try:
-                writer.update(eid, {"sections": {"relations": new_rels}}, merge_sections=False)
-            except Exception as exc:
-                result.errors.append(f"re-wire {eid}: {exc}")
+                writer.update(eid, {"sections": {"relations": rels}}, merge_sections=False)
+            except Exception:
+                pass
 
-    # --- Delete resolved stubs (they are superseded by their real entity) ---
-    for stub_id in to_resolve:
-        try:
-            writer.update(stub_id, {"status": "deleted"})
-        except Exception as exc:
-            result.errors.append(f"delete stub {stub_id}: {exc}")
-
-    result.stubs_resolved = len(to_resolve)
-    logger.info(
-        f"[StubResolver] Resolved {result.stubs_resolved}/{result.stubs_checked} stubs, "
-        f"re-wired {result.relations_rewired} relations"
-    )
-    return result
+    return wired
 
 
 # ---------------------------------------------------------------------------

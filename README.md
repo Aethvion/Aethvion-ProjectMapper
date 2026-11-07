@@ -1,7 +1,7 @@
 # Aethvion Project Mapper
 
 > **Give your AI coding agent a living map of your codebase.**  
-> Scans once, builds a knowledge graph, answers architecture queries in milliseconds — at **87–91% fewer tokens** than reading raw files.  
+> Scans once, builds a knowledge graph, answers architecture and impact queries in milliseconds — cutting orientation & discovery tokens by **87–91%** vs exploratory grep + file reads.  
 > **Runs entirely on your machine.** No data leaves your computer.
 
 ---
@@ -63,7 +63,7 @@ Measured across [11 real-world codebases](docs/benchmarks/README.md) — Python,
 
 At 100,000 input tokens, PM typically uses **~13,000** (Full) or **~9,000** (Slim) tokens.
 
-PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. See the [full benchmark suite](docs/benchmarks/README.md) for per-codebase numbers and the [security benchmark](docs/benchmarks_security/README.md) for a 3-test audit comparison.
+PM Slim returns name + file path + line number only — enough for navigation and refactoring tasks. PM Full returns complete entity context. Note: these numbers measure the **orientation and impact-discovery phase** (replacing multi-step grep + reading 3–10 candidate files with a single graph query); once located, targeted line-level edits still read the specific file slice being modified. See the [full benchmark suite](docs/benchmarks/README.md) for per-codebase numbers and the [security benchmark](docs/benchmarks_security/README.md) for a 3-test audit comparison.
 
 ### Query latency (measured)
 

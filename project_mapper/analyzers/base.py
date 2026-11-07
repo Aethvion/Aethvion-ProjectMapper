@@ -53,6 +53,8 @@ class MethodInfo:
     is_property: bool = False
     is_classmethod: bool = False
     is_staticmethod: bool = False
+    line_start: int = 0
+    line_end: int = 0
 
 
 @dataclass
@@ -67,6 +69,12 @@ class ClassInfo:
     line_end: int = 0
     calls: list[tuple[str, str]] = field(default_factory=list)  # (callee_name, via_method)
     kind: str = ""  # "interface", "abstract", "enum", "struct", "record", "" …
+    method_calls: list[tuple[str, str, str]] = field(
+        default_factory=list
+    )  # (receiver_hint, called_method, via_method)
+    field_refs: list[tuple[str, str, bool]] = field(
+        default_factory=list
+    )  # (field_name, field_type, is_serialized)
 
 
 @dataclass
@@ -80,6 +88,9 @@ class FunctionInfo:
     line_start: int = 0
     line_end: int = 0
     calls: list[tuple[str, str]] = field(default_factory=list)  # (callee_name, via_method)
+    method_calls: list[tuple[str, str, str]] = field(
+        default_factory=list
+    )  # (receiver_hint, called_method, via_method)
 
 
 @dataclass
@@ -97,6 +108,11 @@ class CodeAnalysis:
     module_calls: list[tuple[str, str]] = field(
         default_factory=list
     )  # (callee_name, "module_level")
+    unity_guid_refs: list[str] = field(default_factory=list)
+    unity_event_calls: list[tuple[str, str, str]] = field(
+        default_factory=list
+    )  # (target_type, method_name, via_source)
+    entity_kind_override: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -842,6 +858,8 @@ class _PythonVisitor(ast.NodeVisitor):
             is_property=is_prop,
             is_classmethod=is_cm,
             is_staticmethod=is_sm,
+            line_start=node.lineno,
+            line_end=getattr(node, "end_lineno", node.lineno),
         )
 
     # ------------------------------------------------------------------
@@ -1011,6 +1029,9 @@ _LANGUAGE_BY_EXT: dict[str, str] = {
     ".cs": "csharp",
     ".swift": "swift",
     ".kt": "kotlin",
+    ".unity": "unity",
+    ".prefab": "unity",
+    ".asset": "unity",
 }
 
 
@@ -1045,6 +1066,10 @@ def analyze_file(path: str, content: str, language: str = "") -> CodeAnalysis:
         from .csharp import analyze_csharp
 
         return analyze_csharp(path, content)
+    if language == "unity":
+        from .unity import analyze_unity
+
+        return analyze_unity(path, content)
     if language == "rust":
         from .rust import analyze_rust
 

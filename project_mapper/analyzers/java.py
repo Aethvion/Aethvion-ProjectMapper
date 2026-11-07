@@ -595,6 +595,8 @@ def _parse_method(node, src: bytes) -> MethodInfo | None:
         is_property=False,
         is_classmethod=is_static,
         is_staticmethod=is_static,
+        line_start=_line(node),
+        line_end=_end_line(node),
     )
 
 

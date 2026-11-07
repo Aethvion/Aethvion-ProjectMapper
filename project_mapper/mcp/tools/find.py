@@ -46,6 +46,7 @@ def _format_find_result(m: dict[str, Any]) -> str:
     fp = m.get("file_path", "")
     line_start = str(m.get("line_start", ""))
     line_end = str(m.get("line_end", ""))
+    method_name = m.get("method_name", "")
 
     loc = ""
     if fp:
@@ -56,6 +57,8 @@ def _format_find_result(m: dict[str, Any]) -> str:
                 loc += f"–{line_end}"
 
     lines = [f"Symbol: {name} [{kind}]"]
+    if method_name:
+        lines.append(f"Method: {name}.{method_name}")
     if loc:
         lines.append(f"File:   {loc}")
 
@@ -79,7 +82,10 @@ def _format_find_result(m: dict[str, Any]) -> str:
     if callers:
         lines.append(f"\nCallers ({len(callers)}):")
         for c in callers:
-            lines.append(f"  * {c['name']} [{c.get('type', '?')}]  -> {c.get('via', '?')}")
+            cfp = c.get("file_path", "")
+            cline = c.get("line_start", "")
+            cloc = f" ({cfp}:{cline})" if cfp and cline else (f" ({cfp})" if cfp else "")
+            lines.append(f"  * {c['name']} [{c.get('type', '?')}]{cloc}  -> {c.get('via', '?')}")
     else:
         lines.append("\nCallers: none found in graph")
 
@@ -128,10 +134,13 @@ def _format_method_find(queried: str, result: dict[str, Any]) -> str:
         line = str(m.get("line_start", ""))
         loc = f"  {fp}:{line}" if fp and line else (f"  {fp}" if fp else "")
         label = m.get("kind") or m.get("type") or "?"
-        desc = f" — {m['summary'][:60]}" if m.get("summary") else ""
-        lines.append(f"  * {m['name']} [{label}]{loc}{desc}")
+        sig = m.get("signature", "")
+        desc = f" — {sig[:60]}" if sig else (f" — {m['summary'][:60]}" if m.get("summary") else "")
+        ncallers = len(m.get("callers", []))
+        caller_note = f"  [{ncallers} caller(s)]" if ncallers else ""
+        lines.append(f"  * {m['name']}.{m.get('method_name', method_name)} [{label}]{loc}{desc}{caller_note}")
     lines.append("")
-    lines.append("Use pm_find <ClassName> to get the full class detail.")
+    lines.append(f"Use pm_find <ClassName>.{method_name} to get the full method & caller detail.")
     return "\n".join(lines)
 
 
@@ -165,12 +174,24 @@ def handle_pm_find(args: dict[str, Any], ctx: MCPContext) -> str:
     if total == 0:
         return f"No symbols found for {name!r}."
 
+    exact = [m for m in matches if m.get("name", "").lower() == name.lower()]
+    if not exact:
+        # Check if there is an exact method match before falling back to substring class matches
+        method_result = find_by_method(name, entity_map, ctx.index, max_results=max_results)
+        if not method_result.get("not_found"):
+            out = _format_method_find(name, method_result)
+            out += (
+                f"\n(Note: {total} class/module symbol(s) also contain {name!r} as a substring: "
+                + ", ".join(m.get("name", "?") for m in matches[:5])
+                + ")"
+            )
+            return out
+
     if total == 1:
         return _format_find_result(matches[0])
 
     # If there is exactly one exact-name match, show its full detail even when
     # substring matches also exist (e.g. "ChatRequest" + "SyncChatRequest").
-    exact = [m for m in matches if m.get("name", "").lower() == name.lower()]
     if len(exact) == 1:
         note = (
             f"\n(Note: {total - 1} additional symbol(s) contain '{name}' as a substring — "

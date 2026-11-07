@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .scanner import _EXCLUDED_DIRS, SUPPORTED_EXTENSIONS
+from .scanner import _EXCLUDED_DIRS, SUPPORTED_EXTENSIONS, _max_file_size
 
 if TYPE_CHECKING:
     from ..db.file_manifest import FileManifest
@@ -159,7 +159,7 @@ def compute_delta(
                 st = fp.stat()
             except OSError:
                 st = None
-            if st is not None and st.st_size > 250_000:
+            if st is not None and st.st_size > _max_file_size(ext):
                 continue
 
             rel = str(fp.relative_to(root)).replace("\\", "/")

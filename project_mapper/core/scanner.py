@@ -53,6 +53,9 @@ SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
         ".cs",
         ".swift",
         ".kt",
+        ".unity",
+        ".prefab",
+        ".asset",
     }
 )
 
@@ -72,8 +75,28 @@ _EXCLUDED_DIRS: frozenset[str] = frozenset(
         ".ruff_cache",
         ".eggs",
         ".cache",
+        # Unity / C# generated and cache directories
+        "Library",
+        "Temp",
+        "Obj",
+        "obj",
+        "bin",
+        "Logs",
+        "UserSettings",
+        "Builds",
+        "MemoryCaptures",
+        "ProjectSettings",
     }
 )
+
+
+def _max_file_size(suffix: str) -> int:
+    """Return the maximum file size in bytes to index for a given file suffix."""
+    if suffix in (".unity", ".prefab"):
+        return 15_000_000  # Unity scenes/prefabs are YAML and often 1-15 MB
+    if suffix == ".asset":
+        return 2_000_000
+    return 250_000
 
 # Exact filenames never indexed (credential / env files)
 _EXCLUDED_FILENAMES: frozenset[str] = frozenset(
@@ -334,7 +357,7 @@ async def run_scan(
                     continue
                 file_size = st.st_size
                 file_mtime = st.st_mtime
-                if file_size > 250_000:
+                if file_size > _max_file_size(suffix):
                     stats["files_skipped_unsupported"] += 1
                     continue
                 existing_paths.add(rel)
@@ -418,6 +441,18 @@ async def run_scan(
 
         language = detect_language_for_path(str(fp))
         analysis = await asyncio.to_thread(analyze_file, rel, content, language)
+
+        # Skip non-ScriptableObject or binary Unity .asset files that have no
+        # script GUIDs or UnityEvent bindings — record in manifest with no entities.
+        if (
+            language == "unity"
+            and rel.lower().endswith(".asset")
+            and not getattr(analysis, "unity_guid_refs", [])
+            and not getattr(analysis, "unity_event_calls", [])
+        ):
+            stats["files_skipped_unsupported"] += 1
+            file_manifest.record(rel, file_hash, [], size=file_size, mtime=file_mtime, save=False)
+            return
 
         async with semaphore:
             ingest_result = await asyncio.to_thread(

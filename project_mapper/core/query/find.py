@@ -9,9 +9,29 @@ from typing import Any
 from ._common import (
     _resolve_entity,
     build_reverse_impact_adj,
+    find_method_callers,
 )
 
 logger = logging.getLogger(__name__)
+
+
+_INTERNAL_STD_PROPS: frozenset[str] = frozenset(
+    {
+        "file_path",
+        "line_start",
+        "line_end",
+        "signature",
+        "architectural_pattern",
+        "language",
+        "size",
+        "last_scanned",
+        "hash",
+        "method_details",
+        "called_methods",
+        "referenced_guids",
+        "unity_guid",
+    }
+)
 
 
 def find_query(
@@ -65,20 +85,6 @@ def find_query(
     rev_adj = build_reverse_impact_adj(entity_map)
     _OUTBOUND = frozenset({"calls", "imports", "depends_on", "uses", "extends", "implements"})
 
-    _STD_PROPS = frozenset(
-        {
-            "file_path",
-            "line_start",
-            "line_end",
-            "signature",
-            "architectural_pattern",
-            "language",
-            "size",
-            "last_scanned",
-            "hash",
-        }
-    )
-
     matches: list[dict] = []
     for eid in ordered:
         entity = entity_map[eid]
@@ -87,22 +93,22 @@ def find_query(
         relations = entity.get("sections", {}).get("relations", [])
 
         callers: list[dict] = []
-        for caller_id, _cname, rel_kind in rev_adj.get(eid, [])[:8]:
+        for caller_id, _cname, rel_kind in rev_adj.get(eid, [])[:15]:
             caller = entity_map.get(caller_id)
             if caller:
+                caller_props = caller.get("sections", {}).get("properties", {})
                 callers.append(
                     {
                         "name": caller.get("name", ""),
                         "type": caller.get("type", ""),
                         "via": rel_kind,
-                        "file_path": caller.get("sections", {})
-                        .get("properties", {})
-                        .get("file_path", ""),
+                        "file_path": caller_props.get("file_path", ""),
+                        "line_start": caller_props.get("line_start", ""),
                     }
                 )
 
         callees: list[dict] = []
-        for rel in relations[:8]:
+        for rel in relations[:12]:
             if rel.get("kind") in _OUTBOUND:
                 target = entity_map.get(rel.get("target_id", ""))
                 if target:
@@ -114,7 +120,7 @@ def find_query(
                         }
                     )
 
-        custom = {k: v for k, v in props.items() if k not in _STD_PROPS and v}
+        custom = {k: v for k, v in props.items() if k not in _INTERNAL_STD_PROPS and v}
         timeline = entity.get("sections", {}).get("timeline", [])
 
         matches.append(
@@ -152,14 +158,14 @@ def find_by_method(
     max_results: int = 5,
 ) -> dict[str, Any]:
     """
-    Fall-back for find_query when no entity name matches *name*.
+    Fall-back for find_query when no exact entity name matches *name*.
 
     Searches the 'methods' property of all entities for a method whose name
     (case-insensitive) matches the query or its method component.
 
     Handles three patterns:
       "Class::method"  (C++/Rust) — resolves Class first, confirms the method
-      "Class.method"   (Python/Java/JS) — same
+      "Class.method"   (Python/Java/JS/C#) — same
       "method_name"    (bare)  — scans every entity's methods property
 
     Returns a result dict in the same shape as find_query, plus:
@@ -211,19 +217,6 @@ def find_by_method(
 
     rev_adj = build_reverse_impact_adj(entity_map)
     _OUTBOUND = frozenset({"calls", "imports", "depends_on", "uses", "extends", "implements"})
-    _STD_PROPS = frozenset(
-        {
-            "file_path",
-            "line_start",
-            "line_end",
-            "signature",
-            "architectural_pattern",
-            "language",
-            "size",
-            "last_scanned",
-            "hash",
-        }
-    )
 
     matches: list[dict] = []
     for eid in ordered:
@@ -232,20 +225,29 @@ def find_by_method(
         core = entity.get("sections", {}).get("core", {})
         relations = entity.get("sections", {}).get("relations", [])
 
-        callers: list[dict] = []
-        for caller_id, _cname, rel_kind in rev_adj.get(eid, [])[:8]:
-            caller = entity_map.get(caller_id)
-            if caller:
-                callers.append(
-                    {
-                        "name": caller.get("name", ""),
-                        "type": caller.get("type", ""),
-                        "via": rel_kind,
-                        "file_path": caller.get("sections", {})
-                        .get("properties", {})
-                        .get("file_path", ""),
-                    }
-                )
+        # Look up exact method details (line range + signature) when available
+        method_detail: dict[str, Any] = {}
+        for md in props.get("method_details", []):
+            if isinstance(md, dict) and str(md.get("name", "")).lower() == method_lower:
+                method_detail = md
+                break
+
+        # Prefer method-specific callers; fall back to class-level callers
+        callers = find_method_callers(eid, entity.get("name", ""), method_name, entity_map)[:25]
+        if not callers:
+            for caller_id, _cname, rel_kind in rev_adj.get(eid, [])[:8]:
+                caller = entity_map.get(caller_id)
+                if caller:
+                    caller_props = caller.get("sections", {}).get("properties", {})
+                    callers.append(
+                        {
+                            "name": caller.get("name", ""),
+                            "type": caller.get("type", ""),
+                            "via": rel_kind,
+                            "file_path": caller_props.get("file_path", ""),
+                            "line_start": caller_props.get("line_start", ""),
+                        }
+                    )
 
         callees: list[dict] = []
         for rel in relations[:8]:
@@ -260,21 +262,26 @@ def find_by_method(
                         }
                     )
 
-        custom = {k: v for k, v in props.items() if k not in _STD_PROPS and v}
+        custom = {k: v for k, v in props.items() if k not in _INTERNAL_STD_PROPS and v}
         timeline = entity.get("sections", {}).get("timeline", [])
+
+        line_start = method_detail.get("line_start") or props.get("line_start", "")
+        line_end = method_detail.get("line_end") or props.get("line_end", "")
+        sig = method_detail.get("signature") or props.get("signature", "")
 
         matches.append(
             {
                 "id": eid,
                 "name": entity.get("name", ""),
+                "method_name": method_detail.get("name", method_name),
                 "type": entity.get("type", ""),
                 "kind": entity.get("kind"),
                 "status": entity.get("status", "active"),
                 "file_path": props.get("file_path", ""),
-                "line_start": props.get("line_start", ""),
-                "line_end": props.get("line_end", ""),
+                "line_start": line_start,
+                "line_end": line_end,
                 "summary": core.get("summary", "")[:200],
-                "signature": props.get("signature", ""),
+                "signature": sig,
                 "tags": core.get("tags", [])[:6],
                 "callers": callers,
                 "callees": callees,

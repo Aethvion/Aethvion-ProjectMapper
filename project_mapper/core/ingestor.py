@@ -115,6 +115,9 @@ def _module_path_from_file(rel_path: str) -> str:
         ".php",
         ".kt",
         ".swift",
+        ".unity",
+        ".prefab",
+        ".asset",
     ):
         if p.endswith(ext):
             p = p[: -len(ext)]
@@ -275,14 +278,21 @@ class ProjectIngestor:
         top_pkgs = _top_level_packages(project_root)
 
         # ---- 1. Module entity ----------------------------------------
-        module_entity, was_created = self._upsert_module(analysis, file_hash, file_size)
+        from ..analyzers.unity import read_meta_guid_for_file
+
+        meta_guid = read_meta_guid_for_file(project_root / analysis.path)
+        module_entity, was_created = self._upsert_module(analysis, file_hash, file_size, meta_guid)
         result.module_entity_id = module_entity["id"]
         result.was_created = was_created
 
         # ---- 2. Class entities ---------------------------------------
+        stem_lower = Path(analysis.path).stem.lower()
+        primary_cls_id: str | None = None
         for cls_info in analysis.classes:
             cls_entity, _ = self._upsert_class(cls_info, analysis.path)
             result.class_entity_ids.append(cls_entity["id"])
+            if primary_cls_id is None or cls_info.name.lower() == stem_lower:
+                primary_cls_id = cls_entity["id"]
             # Module contains class
             result.relations_created += self._add_relation(
                 module_entity["id"],
@@ -290,6 +300,17 @@ class ProjectIngestor:
                 cls_entity["id"],
                 note=f"defined in {analysis.path}",
             )
+
+        # Register Unity .meta GUID alias on the primary class (for .cs scripts)
+        # or on the module entity (for .prefab / .unity / .asset files).
+        if meta_guid:
+            guid_owner_id = primary_cls_id or module_entity["id"]
+            self._index.register_aliases(guid_owner_id, [f"guid:{meta_guid}"])
+            if primary_cls_id:
+                self._writer.update(
+                    primary_cls_id,
+                    {"sections": {"properties": {"unity_guid": meta_guid}}},
+                )
 
         # ---- 3. Top-level function entities --------------------------
         for fn_info in analysis.functions:
@@ -376,11 +397,43 @@ class ProjectIngestor:
                     base_entity["id"],
                 )
 
+        # ---- 5b. Typed & [SerializeField] field reference relations --
+        for cls_info, cls_id in zip(analysis.classes, result.class_entity_ids):
+            for field_name, field_type, is_serialized in getattr(cls_info, "field_refs", []):
+                if not field_type or field_type.isupper() or field_type == cls_info.name:
+                    continue
+                target_id = self._index.get(field_type)
+                if not target_id and field_type[0].isupper():
+                    stub, _ = self._writer.create(
+                        name=field_type,
+                        entity_type="class",
+                        source="stub",
+                        kind="software.class",
+                        status="stub",
+                    )
+                    target_id = stub["id"]
+                if target_id and target_id != cls_id:
+                    note = f"[SerializeField] {field_name}" if is_serialized else f"field {field_name}"
+                    result.relations_created += self._add_relation(
+                        cls_id,
+                        "uses",
+                        target_id,
+                        note=note,
+                    )
+
         # ---- 6. Class calls relations (static call graph) -----------
         # Wire extracted callee names to known entities.  Uppercase names also
         # get stubs (forward-reference support); lowercase names are only wired
         # if the entity already exists in the index (no stub creation for them).
         for cls_info, cls_id in zip(analysis.classes, result.class_entity_ids):
+            method_calls_list = getattr(cls_info, "method_calls", [])
+            by_receiver: dict[str, list[str]] = {}
+            for recv, mname, _via in method_calls_list:
+                if recv and mname:
+                    lst = by_receiver.setdefault(recv, [])
+                    if mname not in lst:
+                        lst.append(mname)
+
             for callee_name, via_method in cls_info.calls:
                 if not callee_name:
                     continue
@@ -402,16 +455,22 @@ class ProjectIngestor:
                     )
                     target_id = stub["id"]
                 if target_id and target_id != cls_id:
+                    cm = by_receiver.get(callee_name, [])
                     result.relations_created += self._add_relation(
                         cls_id,
                         "calls",
                         target_id,
                         note=f"via {via_method}" if via_method else "",
+                        called_methods=cm,
                     )
+
+            # Wire method calls whose receiver or method name already resolves in store
+            result.relations_created += self._wire_method_calls(cls_id, method_calls_list)
 
         # ---- 7. Function calls relations (static call graph) --------
         # Same logic as step 6 but for top-level functions.
         for fn_info, fn_id in zip(analysis.functions, result.function_entity_ids):
+            fn_mcalls = getattr(fn_info, "method_calls", [])
             for callee_name, via_method in fn_info.calls:
                 if not callee_name:
                     continue
@@ -434,8 +493,10 @@ class ProjectIngestor:
                         target_id,
                         note=f"via {via_method}" if via_method else "",
                     )
+            if fn_mcalls:
+                result.relations_created += self._wire_method_calls(fn_id, fn_mcalls)
 
-        # ---- 8. Module-level calls -----------------------------------
+        # ---- 8. Module-level calls & Unity asset references ----------
         # Wire calls made at module scope (outside any function/class body).
         # Only wires to already-indexed entities — no stubs for module-level calls.
         for callee_name, _ in analysis.module_calls:
@@ -448,6 +509,24 @@ class ProjectIngestor:
                     "calls",
                     target_id,
                 )
+
+        # Wire Unity scene/prefab/asset GUID references that are already indexed
+        for ref_guid in getattr(analysis, "unity_guid_refs", []):
+            target_id = self._index.get(f"guid:{ref_guid}")
+            if target_id and target_id != module_entity["id"]:
+                result.relations_created += self._add_relation(
+                    module_entity["id"],
+                    "uses",
+                    target_id,
+                    note=f"attached in {Path(analysis.path).name}",
+                )
+
+        # Wire UnityEvent persistent method calls from scene/prefab
+        unity_events = getattr(analysis, "unity_event_calls", [])
+        if unity_events:
+            result.relations_created += self._wire_method_calls(
+                module_entity["id"], unity_events
+            )
 
         # ---- 9. Provenance -------------------------------------------
         from datetime import datetime, timezone
@@ -486,27 +565,44 @@ class ProjectIngestor:
         analysis: CodeAnalysis,
         file_hash: str,
         file_size: int,
+        meta_guid: str = "",
     ) -> tuple[dict[str, Any], bool]:
         module_path = _module_path_from_file(analysis.path)
+        mod_kind = getattr(analysis, "entity_kind_override", "") or "software.module"
+        aliases = [module_path]
+        fname = Path(analysis.path).name
+        if fname != analysis.path and fname not in aliases:
+            aliases.append(fname)
+
+        mod_props: dict[str, Any] = {
+            "language": analysis.language,
+            "file_path": analysis.path,
+            "module_path": module_path,
+            "line_count": str(analysis.line_count),
+            "class_count": str(len(analysis.classes)),
+            "function_count": str(len(analysis.functions)),
+        }
+        if meta_guid:
+            mod_props["unity_guid"] = meta_guid
+        guid_refs = getattr(analysis, "unity_guid_refs", [])
+        if guid_refs:
+            mod_props["referenced_guids"] = guid_refs
+        event_calls = getattr(analysis, "unity_event_calls", [])
+        if event_calls:
+            mod_props["called_methods"] = [list(x) for x in event_calls]
+
         entity, was_created = self._writer.create(
             name=analysis.path,
             entity_type="module",
             source="project_mapper",
-            kind="software.module",
+            kind=mod_kind,
             sections_override={
                 "core": {
-                    "aliases": [module_path],
-                    "tags": [analysis.language],
+                    "aliases": aliases,
+                    "tags": [analysis.language, mod_kind] if mod_kind != "software.module" else [analysis.language],
                     "categories": ["Source Code"],
                 },
-                "properties": {
-                    "language": analysis.language,
-                    "file_path": analysis.path,
-                    "module_path": module_path,
-                    "line_count": str(analysis.line_count),
-                    "class_count": str(len(analysis.classes)),
-                    "function_count": str(len(analysis.functions)),
-                },
+                "properties": mod_props,
             },
         )
         if not was_created:
@@ -514,18 +610,15 @@ class ProjectIngestor:
             self._writer.update(
                 entity["id"],
                 {
+                    "kind": mod_kind,
                     "sections": {
                         "core": {
                             "summary": analysis.module_docstring[:200]
                             if analysis.module_docstring
                             else "",
+                            "aliases": aliases,
                         },
-                        "properties": {
-                            "language": analysis.language,
-                            "line_count": str(analysis.line_count),
-                            "class_count": str(len(analysis.classes)),
-                            "function_count": str(len(analysis.functions)),
-                        },
+                        "properties": mod_props,
                     },
                 },
             )
@@ -543,6 +636,39 @@ class ProjectIngestor:
         entity_kind = f"software.{cls_kind}" if cls_kind else "software.class"
         tag = cls_kind if cls_kind else "class"
 
+        method_details: list[dict[str, Any]] = []
+        for m in cls_info.methods:
+            sig = f"{m.name}({', '.join(m.args)})"
+            if getattr(m, "return_type", ""):
+                sig += f" -> {m.return_type}"
+            md: dict[str, Any] = {"name": m.name, "signature": sig}
+            if getattr(m, "line_start", 0):
+                md["line_start"] = m.line_start
+            if getattr(m, "line_end", 0):
+                md["line_end"] = m.line_end
+            method_details.append(md)
+
+        method_calls = getattr(cls_info, "method_calls", [])
+        field_refs = getattr(cls_info, "field_refs", [])
+        serialized_str = ", ".join(
+            f"{fn}: {ft}" for fn, ft, is_ser in field_refs if is_ser
+        )
+
+        cls_props: dict[str, Any] = {
+            "file_path": file_path,
+            "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
+            "method_count": str(len(cls_info.methods)),
+            "line_start": str(cls_info.line_start),
+            "line_end": str(cls_info.line_end),
+            "methods": ", ".join(m.name for m in cls_info.methods),
+            "method_details": method_details,
+            "decorators": ", ".join(cls_info.decorators) if cls_info.decorators else "",
+        }
+        if method_calls:
+            cls_props["called_methods"] = [list(mc) for mc in method_calls]
+        if serialized_str:
+            cls_props["serialized_fields"] = serialized_str
+
         entity, was_created = self._writer.create(
             name=cls_info.name,
             entity_type="class",
@@ -553,15 +679,7 @@ class ProjectIngestor:
                     "summary": cls_info.docstring[:200] if cls_info.docstring else "",
                     "tags": [tag],
                 },
-                "properties": {
-                    "file_path": file_path,
-                    "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
-                    "method_count": str(len(cls_info.methods)),
-                    "line_start": str(cls_info.line_start),
-                    "line_end": str(cls_info.line_end),
-                    "methods": ", ".join(m.name for m in cls_info.methods[:15]),
-                    "decorators": ", ".join(cls_info.decorators) if cls_info.decorators else "",
-                },
+                "properties": cls_props,
             },
         )
         if not was_created:
@@ -575,17 +693,7 @@ class ProjectIngestor:
                             "summary": cls_info.docstring[:200] if cls_info.docstring else "",
                             "tags": [tag],
                         },
-                        "properties": {
-                            "file_path": file_path,
-                            "base_classes": ", ".join(cls_info.bases) if cls_info.bases else "",
-                            "method_count": str(len(cls_info.methods)),
-                            "line_start": str(cls_info.line_start),
-                            "line_end": str(cls_info.line_end),
-                            "methods": ", ".join(m.name for m in cls_info.methods[:15]),
-                            "decorators": ", ".join(cls_info.decorators)
-                            if cls_info.decorators
-                            else "",
-                        },
+                        "properties": cls_props,
                     },
                 },
             )
@@ -606,6 +714,18 @@ class ProjectIngestor:
         if fn_info.return_type:
             signature += f" -> {fn_info.return_type}"
 
+        fn_mcalls = getattr(fn_info, "method_calls", [])
+        fn_props: dict[str, Any] = {
+            "file_path": file_path,
+            "signature": signature,
+            "is_async": str(fn_info.is_async).lower(),
+            "line_start": str(fn_info.line_start),
+            "line_end": str(fn_info.line_end),
+            "decorators": ", ".join(fn_info.decorators) if fn_info.decorators else "",
+        }
+        if fn_mcalls:
+            fn_props["called_methods"] = [list(mc) for mc in fn_mcalls]
+
         entity, was_created = self._writer.create(
             name=fn_info.name,
             entity_type="function",
@@ -616,14 +736,7 @@ class ProjectIngestor:
                     "summary": fn_info.docstring[:150] if fn_info.docstring else "",
                     "tags": ["async" if fn_info.is_async else "sync"],
                 },
-                "properties": {
-                    "file_path": file_path,
-                    "signature": signature,
-                    "is_async": str(fn_info.is_async).lower(),
-                    "line_start": str(fn_info.line_start),
-                    "line_end": str(fn_info.line_end),
-                    "decorators": ", ".join(fn_info.decorators) if fn_info.decorators else "",
-                },
+                "properties": fn_props,
             },
         )
         if not was_created:
@@ -635,20 +748,68 @@ class ProjectIngestor:
                             "summary": fn_info.docstring[:150] if fn_info.docstring else "",
                             "tags": ["async" if fn_info.is_async else "sync"],
                         },
-                        "properties": {
-                            "file_path": file_path,
-                            "signature": signature,
-                            "is_async": str(fn_info.is_async).lower(),
-                            "line_start": str(fn_info.line_start),
-                            "line_end": str(fn_info.line_end),
-                            "decorators": ", ".join(fn_info.decorators)
-                            if fn_info.decorators
-                            else "",
-                        },
+                        "properties": fn_props,
                     },
                 },
             )
         return entity, was_created
+
+    def _wire_method_calls(
+        self,
+        source_id: str,
+        method_calls: list[tuple[str, str, str]],
+    ) -> int:
+        """
+        Attempt to resolve method calls against already-indexed class entities.
+        Calls to classes scanned later are resolved by cleanup.resolve_stubs().
+        Never creates class stubs for unresolved method names.
+        """
+        if not method_calls:
+            return 0
+        created = 0
+        # Build quick lookup of active class entities and their methods
+        all_entities = self._writer.list_all(include_deleted=False)
+        methods_to_classes: dict[str, list[str]] = {}
+        for ent in all_entities:
+            if ent.get("status") != "active" or ent.get("type") != "class":
+                continue
+            eid = ent["id"]
+            m_str = ent.get("sections", {}).get("properties", {}).get("methods", "")
+            if m_str:
+                for m in m_str.split(","):
+                    mn = m.strip().lower()
+                    if mn:
+                        methods_to_classes.setdefault(mn, []).append(eid)
+
+        for recv_hint, mname, via in method_calls:
+            if not mname:
+                continue
+            target_ids: list[str] = []
+            if recv_hint:
+                tid = self._index.get(recv_hint)
+                if tid and tid != source_id:
+                    target_ent = self._writer.get(tid)
+                    if target_ent and target_ent.get("status") == "active":
+                        target_ids.append(tid)
+            if not target_ids:
+                cands = [
+                    cid
+                    for cid in methods_to_classes.get(mname.lower(), [])
+                    if cid != source_id
+                ]
+                if 1 <= len(cands) <= 3:
+                    target_ids.extend(cands)
+
+            for tid in target_ids:
+                note = f"via {via} -> {mname}" if via else f"calls {mname}"
+                created += self._add_relation(
+                    source_id,
+                    "calls",
+                    tid,
+                    note=note,
+                    called_methods=[mname],
+                )
+        return created
 
     def _add_relation(
         self,
@@ -656,8 +817,9 @@ class ProjectIngestor:
         kind: str,
         target_id: str,
         note: str = "",
+        called_methods: list[str] | None = None,
     ) -> int:
-        """Add a relation to the source entity (deduplication via merge_sections)."""
+        """Add or enrich a relation on the source entity."""
         try:
             source = self._writer.get(source_id)
             if not source:
@@ -665,10 +827,30 @@ class ProjectIngestor:
             existing_rels = source.get("sections", {}).get("relations", [])
             for rel in existing_rels:
                 if rel.get("kind") == kind and rel.get("target_id") == target_id:
-                    return 0  # already exists
+                    changed = False
+                    if called_methods:
+                        existing_cm = list(rel.get("called_methods", []))
+                        for cm in called_methods:
+                            if cm and cm not in existing_cm:
+                                existing_cm.append(cm)
+                                changed = True
+                        if changed:
+                            rel["called_methods"] = existing_cm
+                    if note and not rel.get("note"):
+                        rel["note"] = note
+                        changed = True
+                    if changed:
+                        self._writer.update(
+                            source_id,
+                            {"sections": {"relations": existing_rels}},
+                            merge_sections=False,
+                        )
+                    return 0  # already existed
             new_rel: dict[str, Any] = {"kind": kind, "target_id": target_id}
             if note:
                 new_rel["note"] = note
+            if called_methods:
+                new_rel["called_methods"] = [cm for cm in called_methods if cm]
             self._writer.update(source_id, {"sections": {"relations": [new_rel]}})
             return 1
         except Exception as exc:
